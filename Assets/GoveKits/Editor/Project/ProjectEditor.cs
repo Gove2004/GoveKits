@@ -140,6 +140,7 @@ namespace GoveKits.Editor
             {
                 if (!Directory.Exists(path))
                 {
+                    Debug.Log($"[ProjectEditor] 创建目录: {path}");
                     Directory.CreateDirectory(path);
                     created++;
                 }

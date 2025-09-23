@@ -18,7 +18,8 @@ Issues:
 
 
 
-
-
+Update:
+1.BaseUI.cs二级字典缓存UI元素，方便按类型和名称访问
+2.Unit: UnitStatusCollection, UnitActionCollection, UnitAbilityCollection, UniEffectCollection
 
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using TMPro;
 
 
 namespace GoveKits.UI
@@ -12,20 +13,35 @@ namespace GoveKits.UI
     /// </summary>
     public abstract class BaseUI : MonoBehaviour
     {
-        private Dictionary<string, UIBehaviour> uiElements = new Dictionary<string, UIBehaviour>();
+        // 二级字典缓存UI元素，方便按类型和名称访问
+        private Dictionary<Type, Dictionary<string, UIBehaviour>> cachedUIElements = new();
 
         public virtual void Awake()
         {
-            CacheUIElements();
+            CacheUIElements<Button>();
+            CacheUIElements<Toggle>();
+            CacheUIElements<Slider>();
+            CacheUIElements<InputField>();
+            CacheUIElements<Dropdown>();
+            CacheUIElements<Text>();
+            CacheUIElements<TextMeshPro>();
+            CacheUIElements<Image>();
+            // 可以继续缓存其他UI组件类型
+            RegisterUIEvents();
         }
 
         /// <summary>
         /// 缓存UI元素，方便后续访问
         /// </summary>
-        private void CacheUIElements()
+        private void CacheUIElements<T>() where T : UIBehaviour
         {
+            if (!cachedUIElements.TryGetValue(typeof(T), out var uiElements))
+            {
+                uiElements = new Dictionary<string, UIBehaviour>();
+                cachedUIElements[typeof(T)] = uiElements;
+            }
             uiElements.Clear();
-            UIBehaviour[] elements = GetComponentsInChildren<UIBehaviour>(true);
+            T[] elements = GetComponentsInChildren<T>(true);
             foreach (var element in elements)
             {
                 if (!uiElements.ContainsKey(element.name))
@@ -44,6 +60,11 @@ namespace GoveKits.UI
         /// </summary>
         public T GetElement<T>(string name) where T : UIBehaviour
         {
+            if (!cachedUIElements.TryGetValue(typeof(T), out var uiElements))
+            {
+                Debug.LogWarning($"[BaseUI] UI element type not cached: {typeof(T).Name} in {gameObject.name}");
+                return null;
+            }
             if (uiElements.TryGetValue(name, out UIBehaviour element))
             {
                 return element as T;
@@ -57,28 +78,31 @@ namespace GoveKits.UI
         /// </summary>
         private void RegisterUIEvents()
         {
-            foreach (var kvp in uiElements)
+            foreach (var pair in cachedUIElements)
             {
-                string name = kvp.Key;
-                UIBehaviour element = kvp.Value;
-
-                if (element is Button button)
+                Type type = pair.Key;
+                Dictionary<string, UIBehaviour> uiElements = pair.Value;
+                foreach (var kvp in uiElements)
                 {
-                    button.onClick.AddListener(() => OnButtonClick(name));
+                    string name = kvp.Key;
+                    if (type == typeof(Button) && kvp.Value is Button button)
+                    {
+                        button.onClick.AddListener(() => OnButtonClick(name));
+                    }
+                    else if (type == typeof(Toggle) && kvp.Value is Toggle toggle)
+                    {
+                        toggle.onValueChanged.AddListener((isOn) => OnToggleChanged(name, isOn));
+                    }
+                    else if (type == typeof(Slider) && kvp.Value is Slider slider)
+                    {
+                        slider.onValueChanged.AddListener((value) => OnSliderChanged(name, value));
+                    }
+                    else if (type == typeof(InputField) && kvp.Value is InputField inputField)
+                    {
+                        inputField.onValueChanged.AddListener((text) => OnInputFieldChanged(name, text));
+                    }
+                    // 可以继续添加其他UI组件的事件注册
                 }
-                else if (element is Toggle toggle)
-                {
-                    toggle.onValueChanged.AddListener((isOn) => OnToggleChanged(name, isOn));
-                }
-                else if (element is Slider slider)
-                {
-                    slider.onValueChanged.AddListener((value) => OnSliderChanged(name, value));
-                }
-                else if (element is InputField inputField)
-                {
-                    inputField.onValueChanged.AddListener((text) => OnInputFieldChanged(name, text));
-                }
-                // 可以继续添加其他UI组件的事件注册
             }
         }
 
@@ -92,7 +116,7 @@ namespace GoveKits.UI
         public abstract void Show();
         public abstract void Hide();
 
-         // 实现本地化逻辑
+        // 实现本地化逻辑
         public abstract void Localize();
     }
 }

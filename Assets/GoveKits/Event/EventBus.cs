@@ -5,32 +5,16 @@ using UnityEngine;
 
 namespace GoveKits.Event
 {
-    /// <summary>
-    /// 基础事件类，携带公共属性数据
-    /// </summary>
-    public class DataEvent
-    {
-        /// <summary>
-        /// 事件唯一标识符
-        /// </summary>
-        public Guid EventId { get; private set; } = Guid.NewGuid();
 
-        /// <summary>
-        /// 事件创建时间
-        /// </summary>
-        public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-
-        // 可根据需要添加事件通用属性
-    }
 
     /// <summary>
     /// 事件总线
     /// </summary>
-    public static class EventBus
+    public class EventBus
     {
         // 事件类型到回调列表的映射
         private static readonly Dictionary<Type, List<Delegate>> eventHandlers = new Dictionary<Type, List<Delegate>>();
-        
+
         // 线程安全锁对象
         private static readonly object lockObj = new object();
 
@@ -94,11 +78,11 @@ namespace GoveKits.Event
                     handlers = new List<Delegate>();
                     eventHandlers[eventType] = handlers;
                 }
-                
+
                 handlers.Add(callback);
             }
         }
-        
+
         /// <summary>
         /// 订阅一次性事件，触发后自动取消订阅
         /// </summary>
@@ -150,7 +134,7 @@ namespace GoveKits.Event
         public static void UnsubscribeAll<T>() where T : DataEvent
         {
             Type eventType = typeof(T);
-            
+
             lock (lockObj)
             {
                 if (eventHandlers.ContainsKey(eventType))
@@ -166,11 +150,14 @@ namespace GoveKits.Event
         public static int GetSubscriberCount<T>() where T : DataEvent
         {
             Type eventType = typeof(T);
-            
+
             lock (lockObj)
             {
                 return eventHandlers.TryGetValue(eventType, out var handlers) ? handlers.Count : 0;
             }
         }
     }
+
 }
+
+
