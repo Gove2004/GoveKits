@@ -1,0 +1,25 @@
+name = GoveKits
+version = 1.0
+data = 2025.9.16
+
+TODO:
+Attribute based Buff & Skill System
+Better AudoManager
+UI quikely build scripts
+A timer Pool else TimerManager is useless
+Pool is AI Generate
+The Buff need check in life
+Async Save and hotfix or cloud
+Config and Runtime
+NetworkManager is AI pure
+ABManager is Copy
+
+Issues:
+
+
+
+Update:
+1.BaseUI.cs二级字典缓存UI元素，方便按类型和名称访问
+2.Unit: UnitStatusCollection, UnitActionCollection, UnitAbilityCollection, UniEffectCollection
+
+
