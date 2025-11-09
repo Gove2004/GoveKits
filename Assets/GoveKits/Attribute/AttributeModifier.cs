@@ -1,134 +1,94 @@
 
 
-using System;
-
 namespace GoveKits.Attribute
 {
-    /// <summary>
-    /// 属性修正器接口
-    /// </summary>
-    /// <typeparam name="T">一般为int和float</typeparam>
-    public class AttributeModifier<T> where T : struct
-    {
-        public readonly string name; // 修正器名称
-        public readonly string description; // 修正器描述
-        public readonly int priority; // 修正器优先级，数值越大优先级越高
-        private readonly Func<T, T> onApply; // 应用修正器的委托
-
-        public AttributeModifier(string name = "", string description = "", int priority = 0, Func<T, T> onApply = null)
-        {
-            this.name = name;
-            this.description = description;
-            this.priority = priority;
-            this.onApply = onApply;
-        }
-
-        public virtual T Apply(T baseValue) { return onApply(baseValue); } // 应用修正器逻辑
-    }
-
     public enum ModifierType
     {
-        Add,  // 加法, 优先级1
+        Add,  // 加法, 优先级100
         Multiply,  // 乘法, 优先级10
-        Override  // 覆盖, 优先级100
+        Override  // 覆盖, 优先级1
     }
 
-    /// <summary>
-    /// 加法修正器
-    /// </summary>
-    /// <typeparam name="T">一般为int和float</typeparam>
-    public class AddModifier<T> : AttributeModifier<T> where T : struct
+
+    public class AttributeModifier
     {
-        private readonly T addValue; // 加法值
+        public readonly ModifierType modifierType;
+        public readonly int priority;
+        public readonly float value;  // 修正值, +0, x1, 覆盖值
 
-        public AddModifier(T addValue, string name = "", string description = "", int priority = 1)
-            : base(name, description, priority, null)
+        public AttributeModifier(ModifierType modifierType, float value, int priority = 0)
         {
-            this.addValue = addValue;
-        }
+            this.modifierType = modifierType;
+            this.value = value;
 
-        public override T Apply(T baseValue)
-        {
-            switch (Type.GetTypeCode(typeof(T)))
+            // 如果外部未显式指定优先级（传入 0），则采用基于类型的默认优先级；
+            // 否则使用外部提供的优先级（允许覆盖）。
+            if (priority != 0)
             {
-                case TypeCode.Int32:
-                    int intResult = Convert.ToInt32(baseValue) + Convert.ToInt32(addValue);
-                    return (T)(object)intResult;
-                case TypeCode.Single:
-                    float floatResult = Convert.ToSingle(baseValue) + Convert.ToSingle(addValue);
-                    return (T)(object)floatResult;
-                case TypeCode.Double:
-                    double doubleResult = Convert.ToDouble(baseValue) + Convert.ToDouble(addValue);
-                    return (T)(object)doubleResult;
-                default:
-                    throw new NotSupportedException($"[AddModifier] 不支持类型 {typeof(T)}");
+                this.priority = priority;
+            }
+            else
+            {
+                switch (modifierType)
+                {
+                    case ModifierType.Add:
+                        this.priority = 100;
+                        break;
+                    case ModifierType.Multiply:
+                        this.priority = 10;
+                        break;
+                    case ModifierType.Override:
+                        this.priority = 1;
+                        break;
+                    default:
+                        this.priority = 0;
+                        break;
+                }
             }
         }
-    }
 
-    /// <summary>
-    /// 乘法修正器
-    /// </summary>
-    /// <typeparam name="T">一般为int和float</typeparam>
-    public class MultiplyModifier<T> : AttributeModifier<T> where T : struct
-    {
-        private readonly T multiplyRate; // 乘法因子
-
-        public MultiplyModifier(T multiplyRate, string name = "", string description = "", int priority = 10)
-            : base(name, description, priority, null)
+        // 便于在容器中比较/移除同一修正器实例或等价修正器
+        public override bool Equals(object obj)
         {
-            this.multiplyRate = multiplyRate;
+            if (obj is AttributeModifier other)
+            {
+                return modifierType == other.modifierType
+                    && priority == other.priority
+                    && value == other.value;
+            }
+            return false;
         }
 
-        public override T Apply(T baseValue)
+        public override int GetHashCode()
         {
-            switch (Type.GetTypeCode(typeof(T)))
+            unchecked
             {
-                case TypeCode.Int32:
-                    int intResult = (int)(Convert.ToInt32(baseValue) * Convert.ToSingle(multiplyRate));
-                    return (T)(object)intResult;
-                case TypeCode.Single:
-                    float floatResult = Convert.ToSingle(baseValue) * Convert.ToSingle(multiplyRate);
-                    return (T)(object)floatResult;
-                case TypeCode.Double:
-                    double doubleResult = Convert.ToDouble(baseValue) * Convert.ToDouble(multiplyRate);
-                    return (T)(object)doubleResult;
-                default:
-                    throw new NotSupportedException($"[MultiplyModifier] 不支持类型 {typeof(T)}");
+                int hash = 17;
+                hash = hash * 23 + modifierType.GetHashCode();
+                hash = hash * 23 + priority.GetHashCode();
+                hash = hash * 23 + value.GetHashCode();
+                return hash;
             }
         }
-    }
 
-    /// <summary>
-    /// 覆盖修正器
-    /// </summary>
-    /// <typeparam name="T">一般为int和float</typeparam>
-    public class OverrideModifier<T> : AttributeModifier<T> where T : struct
-    {
-        private readonly T overrideValue; // 覆盖值
-
-        public OverrideModifier(T overrideValue, string name = "", string description = "", int priority = 100)
-            : base(name, description, priority, (baseValue) => overrideValue)
+        public override string ToString()
         {
-            this.overrideValue = overrideValue;
+            return $"AttributeModifier(Type={modifierType}, Value={value}, Priority={priority})";
         }
-    }
 
-    /// <summary>
-    /// 修正器工厂类
-    /// </summary>
-    /// <typeparam name="T">一般为int和float</typeparam>
-    public static class ModifierFactory<T> where T : struct
-    {
-        public static AttributeModifier<T> CreateModifier(ModifierType type, T value, string name = "", string description = "")
+        public float Apply(float baseValue)
         {
-            return type switch
+            switch (modifierType)
             {
-                ModifierType.Add => new AddModifier<T>(value, name, description),
-                ModifierType.Multiply => new MultiplyModifier<T>(value, name, description),
-                ModifierType.Override => new OverrideModifier<T>(value, name, description),
-                _ => throw new ArgumentException("[ModifierFactory] 未知的修正器类型"),
-            };
+                case ModifierType.Add:
+                    return baseValue + value;
+                case ModifierType.Multiply:
+                    return baseValue * value;
+                case ModifierType.Override:
+                    return value;
+                default:
+                    return baseValue;
+            }
         }
     }
 }
