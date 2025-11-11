@@ -66,14 +66,31 @@ namespace GoveKits
     }
 
 
-    public class TimerID
+    public class TimerID : IEquatable<TimerID>
     {
-        private long id;
-        private static long nextId = 0;
+        private int id;
+        private static int nextId = 0;
 
         public static TimerID GetNextId()
         {
             return new TimerID { id = nextId++ };
+        }
+
+        public override int GetHashCode() => id;
+
+        public bool Equals(TimerID other)
+        {
+            if (other is null) return false;
+            return this.GetHashCode() == other.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is TimerID other)
+            {
+                return Equals(other);
+            }
+            return false;
         }
     }
 }

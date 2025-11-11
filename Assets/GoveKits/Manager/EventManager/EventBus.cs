@@ -3,25 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace GoveKits.Event
+namespace GoveKits.Manager
 {
-
-
     /// <summary>
-    /// 事件总线
+    /// 事件总线（单个管道）
     /// </summary>
     public class EventBus
     {
         // 事件类型到回调列表的映射
-        private static readonly Dictionary<Type, List<Delegate>> eventHandlers = new Dictionary<Type, List<Delegate>>();
+        private readonly Dictionary<Type, List<Delegate>> _eventHandlers = new Dictionary<Type, List<Delegate>>();
 
         // 线程安全锁对象
-        private static readonly object lockObj = new object();
+        private readonly object _lockObj = new object();
 
         /// <summary>
         /// 发布事件
         /// </summary>
-        public static void Publish<T>(T eventData) where T : DataEvent
+        public void Publish<T>(T eventData) where T : DataEvent
         {
             if (eventData == null)
             {
@@ -30,18 +28,20 @@ namespace GoveKits.Event
             }
 
             Type eventType = typeof(T);
-            List<Delegate> handlers;  // 使用固定大小的环形缓冲区
+            List<Delegate> handlers;
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (!eventHandlers.TryGetValue(eventType, out handlers) || handlers.Count == 0)
+                if (!_eventHandlers.TryGetValue(eventType, out handlers) || handlers.Count == 0)
                 {
-                    Debug.Log($"[EventBus] No subscribers for event type {eventType.Name}");
                     return;
                 }
+                
+                // 创建副本避免修改原始列表
+                handlers = new List<Delegate>(handlers);
             }
 
-            // 直接遍历原始handlers列表
+            // 处理事件
             foreach (var handler in handlers)
             {
                 try
@@ -61,32 +61,33 @@ namespace GoveKits.Event
         /// <summary>
         /// 订阅事件
         /// </summary>
-        public static void Subscribe<T>(Action<T> callback) where T : DataEvent
+        public Action Subscribe<T>(Action<T> callback) where T : DataEvent
         {
             if (callback == null)
             {
                 Debug.LogError("[EventBus] Cannot subscribe with null callback");
-                return;
+                return null;
             }
 
             Type eventType = typeof(T);
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (!eventHandlers.TryGetValue(eventType, out var handlers))
+                if (!_eventHandlers.TryGetValue(eventType, out var handlers))
                 {
                     handlers = new List<Delegate>();
-                    eventHandlers[eventType] = handlers;
+                    _eventHandlers[eventType] = handlers;
                 }
 
                 handlers.Add(callback);
             }
+            return () => Unsubscribe(callback);
         }
 
         /// <summary>
         /// 订阅一次性事件，触发后自动取消订阅
         /// </summary>
-        public static void SubscribeOnce<T>(Action<T> callback) where T : DataEvent
+        public Action SubscribeOnce<T>(Action<T> callback) where T : DataEvent
         {
             Action<T> wrappedCallback = null;
             wrappedCallback = (data) =>
@@ -101,63 +102,46 @@ namespace GoveKits.Event
                 }
             };
             Subscribe(wrappedCallback);
+            return () => Unsubscribe(wrappedCallback);
         }
 
         /// <summary>
         /// 取消订阅事件
         /// </summary>
-        public static void Unsubscribe<T>(Action<T> callback) where T : DataEvent
+        public void Unsubscribe<T>(Action<T> callback) where T : DataEvent
         {
             if (callback == null) return;
 
             Type eventType = typeof(T);
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (eventHandlers.TryGetValue(eventType, out var handlers))
+                if (_eventHandlers.TryGetValue(eventType, out var handlers))
                 {
-                    // 直接比较委托引用
                     handlers.RemoveAll(h => h == (Delegate)callback);
 
-                    // 清理空列表
                     if (handlers.Count == 0)
                     {
-                        eventHandlers.Remove(eventType);
+                        _eventHandlers.Remove(eventType);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// 取消所有订阅（通常用于场景切换或对象销毁时）
+        /// 取消所有订阅
         /// </summary>
-        public static void UnsubscribeAll<T>() where T : DataEvent
+        public void UnsubscribeAll<T>() where T : DataEvent
         {
             Type eventType = typeof(T);
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (eventHandlers.ContainsKey(eventType))
+                if (_eventHandlers.ContainsKey(eventType))
                 {
-                    eventHandlers.Remove(eventType);
+                    _eventHandlers.Remove(eventType);
                 }
             }
         }
-
-        /// <summary>
-        /// 获取事件类型的订阅者数量
-        /// </summary>
-        public static int GetSubscriberCount<T>() where T : DataEvent
-        {
-            Type eventType = typeof(T);
-
-            lock (lockObj)
-            {
-                return eventHandlers.TryGetValue(eventType, out var handlers) ? handlers.Count : 0;
-            }
-        }
     }
-
 }
-
-

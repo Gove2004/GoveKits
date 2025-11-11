@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
@@ -276,12 +277,27 @@ namespace GoveKits.Units
 
 
 
-    #region IUnit Effect Implementations
+    #region Unit Effect Implementations
     public static class UnitEffect
     {
-        public static IEffect ModifyAttribute(AttributeContainer attributeContainer, string attributeKey, float modificationValue)
+        public static IEffect IncreaseAttribute(AttributeContainer attributeContainer, string attributeKey, float amount)
         {
-            return new ModifyAttributeEffect(attributeContainer, attributeKey, modificationValue);
+            return new IncreaseAttributeEffect(attributeContainer, attributeKey, amount);
+        }
+
+        public static IEffect DecreaseAttribute(AttributeContainer attributeContainer, string attributeKey, float amount)
+        {
+            return new IncreaseAttributeEffect(attributeContainer, attributeKey, -amount);
+        }
+
+        public static IEffect MultiplyAttribute(AttributeContainer attributeContainer, string attributeKey, float factor)
+        {
+            return new MultiplyAttributeEffect(attributeContainer, attributeKey, factor);
+        }
+
+        public static IEffect OverrideAttribute(AttributeContainer attributeContainer, string attributeKey, float newValue)
+        {
+            return new OverrideAttributeEffect(attributeContainer, attributeKey, newValue);
         }
 
         public static IEffect AddTag(GameplayTagContainer GameplayTagContainer, GameplayTag tag)
@@ -293,25 +309,124 @@ namespace GoveKits.Units
         {
             return new RemoveTagEffect(GameplayTagContainer, tag);
         }
+
+        public static IEffect GrantAbility(AbilityContainer abilityContainer, string abilityKey, IAbility ability)
+        {
+            return new GrantAbilityEffect(abilityContainer, abilityKey, ability);
+        }
+
+        public static IEffect RevokeAbility(AbilityContainer abilityContainer, string abilityKey)
+        {
+            return new RevokeAbilityEffect(abilityContainer, abilityKey);
+        }
     }
 
-    internal class ModifyAttributeEffect : IEffect
+    internal class IncreaseAttributeEffect : IEffect
     {
         private readonly AttributeContainer _attributeContainer;
         private readonly string _attributeKey;
-        private readonly float _modificationValue;
+        private readonly float _amount;
 
-        public ModifyAttributeEffect(AttributeContainer attributeContainer, string attributeKey, float modificationValue)
+        public IncreaseAttributeEffect(AttributeContainer attributeContainer, string attributeKey, float amount)
         {
             _attributeContainer = attributeContainer;
             _attributeKey = attributeKey;
-            _modificationValue = modificationValue;
+            _amount = amount;
         }
 
         public UniTask Apply(EffectContext context)
         {
-            var attribute = _attributeContainer.GetAttribute(_attributeKey);
-            attribute.Value += _modificationValue;
+            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            {
+                attribute.Value += _amount;
+            }
+            else
+            {
+                throw new KeyNotFoundException($"[IncreaseAttributeEffect] 未知属性 {_attributeKey}");
+            }
+            return UniTask.CompletedTask;
+        }
+    }
+
+    internal class DecreaseAttributeEffect : IEffect
+    {
+        private readonly AttributeContainer _attributeContainer;
+        private readonly string _attributeKey;
+        private readonly float _amount;
+
+        public DecreaseAttributeEffect(AttributeContainer attributeContainer, string attributeKey, float amount)
+        {
+            _attributeContainer = attributeContainer;
+            _attributeKey = attributeKey;
+            _amount = amount;
+        }
+
+        public UniTask Apply(EffectContext context)
+        {
+            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            {
+                attribute.Value -= _amount;
+            }
+            else
+            {
+                throw new KeyNotFoundException($"[DecreaseAttributeEffect] 未知属性 {_attributeKey}");
+            }
+            return UniTask.CompletedTask;
+        }
+    }
+
+
+    internal class MultiplyAttributeEffect : IEffect
+    {
+        private readonly AttributeContainer _attributeContainer;
+        private readonly string _attributeKey;
+        private readonly float _factor;
+
+        public MultiplyAttributeEffect(AttributeContainer attributeContainer, string attributeKey, float factor)
+        {
+            _attributeContainer = attributeContainer;
+            _attributeKey = attributeKey;
+            _factor = factor;
+        }
+
+        public UniTask Apply(EffectContext context)
+        {
+            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            {
+                attribute.Value *= _factor;
+            }
+            else
+            {
+                throw new KeyNotFoundException($"[MultiplyAttributeEffect] 未知属性 {_attributeKey}");
+            }
+            return UniTask.CompletedTask;
+        }
+    }
+
+
+    internal class OverrideAttributeEffect : IEffect
+    {
+        private readonly AttributeContainer _attributeContainer;
+        private readonly string _attributeKey;
+        private readonly float _newValue;
+
+        public OverrideAttributeEffect(AttributeContainer attributeContainer, string attributeKey, float newValue)
+        {
+            _attributeContainer = attributeContainer;
+            _attributeKey = attributeKey;
+            _newValue = newValue;
+        }
+
+        public UniTask Apply(EffectContext context)
+        {
+            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            {
+                attribute.Value = _newValue;
+            }
+            else
+            {
+                throw new KeyNotFoundException($"[OverrideAttributeEffect] 未知属性 {_attributeKey}");
+            }
             return UniTask.CompletedTask;
         }
     }
@@ -348,6 +463,44 @@ namespace GoveKits.Units
         public UniTask Apply(EffectContext context)
         {
             _GameplayTagContainer.RemoveTag(_tag);
+            return UniTask.CompletedTask;
+        }
+    }
+
+    internal class GrantAbilityEffect : IEffect
+    {
+        private readonly AbilityContainer _abilityContainer;
+        private readonly string _abilityKey;
+        private readonly IAbility _ability;
+
+        public GrantAbilityEffect(AbilityContainer abilityContainer, string abilityKey, IAbility ability)
+        {
+            _abilityContainer = abilityContainer;
+            _abilityKey = abilityKey;
+            _ability = ability;
+        }
+
+        public UniTask Apply(EffectContext context)
+        {
+            _abilityContainer.AddAbility(_abilityKey, _ability);
+            return UniTask.CompletedTask;
+        }
+    }
+
+    internal class RevokeAbilityEffect : IEffect
+    {
+        private readonly AbilityContainer _abilityContainer;
+        private readonly string _abilityKey;
+
+        public RevokeAbilityEffect(AbilityContainer abilityContainer, string abilityKey)
+        {
+            _abilityContainer = abilityContainer;
+            _abilityKey = abilityKey;
+        }
+
+        public UniTask Apply(EffectContext context)
+        {
+            _abilityContainer.RemoveAbility(_abilityKey);
             return UniTask.CompletedTask;
         }
     }

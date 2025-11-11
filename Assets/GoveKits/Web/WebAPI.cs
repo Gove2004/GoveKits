@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -37,22 +39,35 @@ namespace GoveKits.Web
         private static readonly Queue<QueueEntry> requestQueue = new Queue<QueueEntry>();
         private static int activeRequests = 0;
         private static readonly Dictionary<string, (string response, DateTime expiration)> responseCache = new Dictionary<string, (string, DateTime)>();
+        private static readonly System.Diagnostics.Stopwatch cacheTimer = System.Diagnostics.Stopwatch.StartNew();
 
         // lock for queue operations
         private static readonly object queueLock = new object();
+        private static readonly object cacheLock = new object();
 
         /// <summary>
-        /// Public single entry point. Enqueues the request and returns a UniTask that completes when the request is processed.
+        /// 发起HTTP请求，返回响应数据的异步任务。
+        /// 支持请求排队、重试和响应缓存。
         /// </summary>
+        /// <param name="config">请求配置</param>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>响应数据的异步任务</returns>
         public static UniTask<ResponseData> Request(RequestData config, CancellationToken cancellationToken = default)
         {
             var tcs = new UniTaskCompletionSource<ResponseData>();
 
-            // check cache immediately
-            if (config.useCache && EnableCaching)
+            // 检查取消令牌
+            if (cancellationToken.IsCancellationRequested)
+            {
+                tcs.TrySetCanceled(cancellationToken);
+                return tcs.Task;
+            }
+
+            // 检查缓存
+            if (config.useCache && EnableCaching && config.method == HttpMethod.GET)
             {
                 var cacheKey = GenerateCacheKey(config);
-                lock (responseCache)
+                lock (cacheLock)
                 {
                     if (responseCache.TryGetValue(cacheKey, out var entry))
                     {
@@ -75,49 +90,64 @@ namespace GoveKits.Web
                 requestQueue.Enqueue(qe);
             }
 
-            // try to process queue (fire-and-forget)
-            ProcessQueueAsync().Forget();
+            // 不等待，直接触发队列处理
+            ProcessQueueAsync();
 
             return tcs.Task;
         }
 
-        private static async UniTask ProcessQueueAsync()
+        private static void ProcessQueueAsync()
         {
+            // 定期清理过期缓存（每60秒一次）
+            if (cacheTimer.Elapsed.TotalSeconds > 60)
+            {
+                ClearExpiredCache();
+                cacheTimer.Restart();
+            }
+
             while (true)
             {
                 QueueEntry entry = null;
                 lock (queueLock)
                 {
-                    if (activeRequests < MaxConcurrentRequests && requestQueue.Count > 0)
-                    {
-                        entry = requestQueue.Dequeue();
-                        activeRequests++;
-                    }
+                    if (activeRequests >= MaxConcurrentRequests || requestQueue.Count == 0)
+                        break;
+
+                    entry = requestQueue.Dequeue();
+                    activeRequests++;
                 }
 
                 if (entry == null) break;
 
-                // process entry without blocking loop
-                ExecuteRequestAsync(entry).Forget();
+                // 处理请求而不阻塞循环
+                _ = ExecuteRequestAsync(entry); // 使用丢弃操作符，不等待
             }
         }
 
         private static async UniTask ExecuteRequestAsync(QueueEntry entry)
         {
+            UnityWebRequest webRequest = null;
             try
             {
                 var config = entry.Request;
                 var cancellation = entry.Cancellation;
 
-                int timeout = config.timeout > 0 ? (int)config.timeout : (int)DefaultTimeout;
-                int retryCount = config.retryCount > 0 ? config.retryCount : MaxRetryCount;
+                // 再次检查取消
+                if (cancellation.IsCancellationRequested)
+                {
+                    entry.Tcs.TrySetCanceled(cancellation);
+                    return;
+                }
+
+                int timeoutMs = config.timeout > 0 ? (int)(config.timeout * 1000) : (int)(DefaultTimeout * 1000);
+                int retryCount = config.retryCount >= 0 ? config.retryCount : MaxRetryCount;
 
                 string url = CombineUrl(BaseApiUrl, config.endpoint);
 
                 int attempts = 0;
                 Exception lastException = null;
-                UnityWebRequest webRequest = null;
                 bool success = false;
+                ResponseData response = null;
 
                 while (attempts <= retryCount && !success)
                 {
@@ -129,30 +159,40 @@ namespace GoveKits.Web
                     try
                     {
                         webRequest = CreateWebRequest(url, config.method, config.body, config.headers);
-                        webRequest.timeout = timeout;
+                        webRequest.timeout = timeoutMs / 1000; // Unity使用秒为单位
 
-                        var op = webRequest.SendWebRequest();
-                        await op.WithCancellation(cancellation).Timeout(TimeSpan.FromSeconds(timeout));
+                        using (var timeoutCts = new CancellationTokenSource(timeoutMs))
+                        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeoutCts.Token))
+                        {
+                            var op = webRequest.SendWebRequest();
+                            await op.WithCancellation(linkedCts.Token);
+                        }
 
-                        if (IsRequestSuccess(webRequest))
+                        response = CreateResponse(webRequest);
+                        
+                        // 只对服务器错误(5xx)和网络错误重试，不对客户端错误(4xx)重试
+                        if (response.success || (webRequest.responseCode >= 400 && webRequest.responseCode < 500))
                         {
                             success = true;
                         }
                         else
                         {
                             attempts++;
-                            if (attempts > retryCount) break;
-                            webRequest.Dispose();
-                            webRequest = null;
-                            continue;
+                            lastException = new Exception($"HTTP错误: {webRequest.responseCode}");
+                            if (attempts <= retryCount)
+                            {
+                                webRequest.Dispose();
+                                webRequest = null;
+                                continue;
+                            }
                         }
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
                     {
-                        entry.Tcs.TrySetResult(new ResponseData { success = false, error = "请求被取消" });
+                        entry.Tcs.TrySetCanceled(cancellation);
                         return;
                     }
-                    catch (TimeoutException)
+                    catch (OperationCanceledException)
                     {
                         lastException = new TimeoutException("请求超时");
                         attempts++;
@@ -172,33 +212,48 @@ namespace GoveKits.Web
                     }
                 }
 
-                if (webRequest == null)
+                if (success && response != null)
                 {
-                    entry.Tcs.TrySetResult(new ResponseData { success = false, error = lastException?.Message ?? "创建请求失败" });
-                    return;
-                }
-
-                var response = CreateResponse(webRequest);
-
-                if (success && config.useCache && EnableCaching)
-                {
-                    var cacheKey = GenerateCacheKey(config);
-                    lock (responseCache)
+                    // 缓存成功的GET请求
+                    if (config.useCache && EnableCaching && config.method == HttpMethod.GET)
                     {
-                        responseCache[cacheKey] = (response.text ?? "", DateTime.Now.AddSeconds(CacheDuration));
+                        var cacheKey = GenerateCacheKey(config);
+                        lock (cacheLock)
+                        {
+                            responseCache[cacheKey] = (response.text ?? "", DateTime.Now.AddSeconds(CacheDuration));
+                        }
                     }
+                    entry.Tcs.TrySetResult(response);
                 }
-
-                entry.Tcs.TrySetResult(response);
+                else
+                {
+                    entry.Tcs.TrySetResult(new ResponseData 
+                    { 
+                        success = false, 
+                        error = lastException?.Message ?? "请求失败",
+                        statusCode = webRequest?.responseCode ?? 0
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                entry.Tcs.TrySetResult(new ResponseData 
+                { 
+                    success = false, 
+                    error = $"未处理的异常: {ex.Message}" 
+                });
             }
             finally
             {
+                webRequest?.Dispose();
+                
                 lock (queueLock)
                 {
                     activeRequests = Math.Max(0, activeRequests - 1);
                 }
-                // try to continue processing queued items
-                ProcessQueueAsync().Forget();
+                
+                // 继续处理队列中的项目
+                ProcessQueueAsync();
             }
         }
 
@@ -206,6 +261,9 @@ namespace GoveKits.Web
         private static UnityWebRequest CreateWebRequest(string url, HttpMethod method, object body, Dictionary<string, string> headers)
         {
             UnityWebRequest webRequest;
+            string contentType = "application/json";
+            bool hasCustomContentType = headers?.ContainsKey("Content-Type") == true;
+
             switch (method)
             {
                 case HttpMethod.POST:
@@ -222,7 +280,8 @@ namespace GoveKits.Web
                             {
                                 var bytes = Encoding.UTF8.GetBytes(s);
                                 webRequest.uploadHandler = new UploadHandlerRaw(bytes);
-                                webRequest.SetRequestHeader("Content-Type", "application/json");
+                                if (!hasCustomContentType)
+                                    webRequest.SetRequestHeader("Content-Type", contentType);
                             }
                             else if (body is byte[] b)
                             {
@@ -237,6 +296,8 @@ namespace GoveKits.Web
                     if (body is string putStr)
                     {
                         webRequest = UnityWebRequest.Put(url, putStr);
+                        if (!hasCustomContentType)
+                            webRequest.SetRequestHeader("Content-Type", contentType);
                     }
                     else if (body is byte[] putBytes)
                     {
@@ -260,7 +321,8 @@ namespace GoveKits.Web
                         {
                             var bytes = Encoding.UTF8.GetBytes(pstr);
                             webRequest.uploadHandler = new UploadHandlerRaw(bytes);
-                            webRequest.SetRequestHeader("Content-Type", "application/json");
+                            if (!hasCustomContentType)
+                                webRequest.SetRequestHeader("Content-Type", contentType);
                         }
                         else if (body is byte[] pb)
                         {
@@ -280,10 +342,11 @@ namespace GoveKits.Web
                     break;
             }
 
-            // ensure download handler
+            // 确保有下载处理器
             if (webRequest.downloadHandler == null)
                 webRequest.downloadHandler = new DownloadHandlerBuffer();
 
+            // 设置请求头（尊重用户自定义的Content-Type）
             if (headers != null)
             {
                 foreach (var h in headers)
@@ -303,35 +366,35 @@ namespace GoveKits.Web
             {
                 list.Add($"{UnityWebRequest.EscapeURL(p.Key)}={UnityWebRequest.EscapeURL(p.Value)}");
             }
-            return url + "?" + string.Join("&", list);
+            return url + (url.Contains("?") ? "&" : "?") + string.Join("&", list);
         }
 
         private static ResponseData CreateResponse(UnityWebRequest webRequest)
         {
             var response = new ResponseData
             {
-                statusCode = webRequest.responseCode,
+                statusCode = (long)webRequest.responseCode,
                 headers = ParseResponseHeaders(webRequest),
                 bytes = webRequest.downloadHandler?.data,
                 text = webRequest.downloadHandler?.text
             };
 
-            if (IsRequestSuccess(webRequest)) response.success = true;
+            if (webRequest.result == UnityWebRequest.Result.Success)
+            {
+                response.success = true;
+            }
             else
             {
                 response.success = false;
                 response.error = webRequest.error;
-                if (string.IsNullOrEmpty(response.error)) response.error = $"HTTP错误: {webRequest.responseCode}";
+                if (string.IsNullOrEmpty(response.error))
+                {
+                    response.error = webRequest.responseCode >= 400 ? 
+                        $"HTTP错误: {webRequest.responseCode}" : "网络错误";
+                }
             }
 
             return response;
-        }
-
-        private static bool IsRequestSuccess(UnityWebRequest webRequest)
-        {
-            if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
-                return false;
-            return webRequest.responseCode >= 200 && webRequest.responseCode < 300;
         }
 
         private static Dictionary<string, string> ParseResponseHeaders(UnityWebRequest webRequest)
@@ -345,15 +408,65 @@ namespace GoveKits.Web
 
         private static string CombineUrl(string baseUrl, string endpoint)
         {
-            if (string.IsNullOrEmpty(endpoint)) return baseUrl;
-            if (baseUrl.EndsWith("/") && endpoint.StartsWith("/")) return baseUrl + endpoint.Substring(1);
-            if (!baseUrl.EndsWith("/") && !endpoint.StartsWith("/")) return baseUrl + "/" + endpoint;
-            return baseUrl + endpoint;
+            if (string.IsNullOrEmpty(endpoint)) return baseUrl.TrimEnd('/');
+            if (string.IsNullOrEmpty(baseUrl)) return endpoint;
+            
+            baseUrl = baseUrl.TrimEnd('/');
+            endpoint = endpoint.TrimStart('/');
+            return $"{baseUrl}/{endpoint}";
         }
 
         private static string GenerateCacheKey(RequestData config)
         {
-            return $"{config.method}:{CombineUrl(BaseApiUrl, config.endpoint)}";
+            var key = $"{config.method}:{CombineUrl(BaseApiUrl, config.endpoint)}";
+            
+            // 包含查询参数
+            if (config.body is Dictionary<string, string> queryParams && queryParams.Count > 0)
+            {
+                var sortedParams = string.Join("&", queryParams.OrderBy(x => x.Key)
+                    .Select(x => $"{x.Key}={x.Value}"));
+                key += $"?{sortedParams}";
+            }
+            
+            return key;
+        }
+
+        private static void ClearExpiredCache()
+        {
+            lock (cacheLock)
+            {
+                var expiredKeys = responseCache
+                    .Where(x => DateTime.Now >= x.Value.expiration)
+                    .Select(x => x.Key)
+                    .ToList();
+                    
+                foreach (var key in expiredKeys)
+                {
+                    responseCache.Remove(key);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 清空所有缓存
+        /// </summary>
+        public static void ClearAllCache()
+        {
+            lock (cacheLock)
+            {
+                responseCache.Clear();
+            }
+        }
+
+        /// <summary>
+        /// 获取当前队列状态
+        /// </summary>
+        public static (int queued, int active) GetQueueStatus()
+        {
+            lock (queueLock)
+            {
+                return (requestQueue.Count, activeRequests);
+            }
         }
         #endregion
     }

@@ -13,7 +13,16 @@ namespace GoveKits.Units
             return _attributes.ContainsKey(key);
         }
 
-        public void AddAttribute(string key, Attribute attribute, List<string> dependsOn = null)
+        public void AddAttribute(string key, float initialValue)
+        {
+            if (_attributes.ContainsKey(key))
+            {
+                throw new InvalidOperationException($"[AttributeContainer] 已存在属性 {key}");
+            }
+            _attributes[key] = new Attribute(key, initialValue);
+        }
+
+        public void AddAttribute(string key, Func<float> calculator, List<string> dependsOn = null)
         {
             if (_attributes.ContainsKey(key))
             {
@@ -32,7 +41,7 @@ namespace GoveKits.Units
                 }
             }
 
-            _attributes[key] = attribute;
+            _attributes[key] = new Attribute(key, calculator);
 
             // 添加依赖关系
             if (dependsOn != null)
@@ -44,23 +53,15 @@ namespace GoveKits.Units
                     // 订阅依赖属性变化事件
                     _attributes[dependKey].OnValueChanged += (oldValue, newValue) =>
                     {
-                        attribute.MarkDirty();
+                        _attributes[key].MarkDirty();
                     };
                 }
             }
         }
 
-        public void AddValue(string key, float initValue, Func<float> calculator = null, List<string> dependsOn = null)
+        public bool TryGetAttribute(string key, out Attribute attribute)
         {
-            var attribute = new Attribute(key, initValue, calculator);
-            AddAttribute(key, attribute, dependsOn);
-        }
-
-        public Attribute GetAttribute(string key)
-        {
-            if (!_attributes.ContainsKey(key))
-                throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
-            return _attributes[key];
+            return _attributes.TryGetValue(key, out attribute);
         }
 
         public float GetValue(string key)
@@ -87,7 +88,7 @@ namespace GoveKits.Units
                 throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
 
             var attribute = _attributes[key];
-            if (attribute.IsReadOnly)
+            if (attribute.IsComputed)
                 throw new InvalidOperationException($"[AttributeContainer] 属性 {key} 是只读的计算属性");
 
             attribute.Value = value;
@@ -130,16 +131,18 @@ namespace GoveKits.Units
         //     return _dependencyContainer.GetDependents(key);
         // }
 
-        public Action<float, float> AddValueChangedListener(string key, Action<float, float> listener)
+        // 添加监听器，返回取消监听的操作
+        public Action AddListener(string key, Action<float, float> listener)
         {
             if (!_attributes.ContainsKey(key))
                 throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
 
             _attributes[key].OnValueChanged += listener;
-            return listener;
+            return () => RemoveListener(key, listener);
         }
 
-        public void RemoveValueChangedListener(string key, Action<float, float> listener)
+        // 移除监听器
+        public void RemoveListener(string key, Action<float, float> listener)
         {
             if (!_attributes.ContainsKey(key))
                 throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");

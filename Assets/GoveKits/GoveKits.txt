@@ -3,19 +3,15 @@ version = 1.0
 data = 2025.9.16
 
 TODO:
-Attribute based Buff & Skill System
-Better AudoManager
-UI quikely build scripts
+Buff & Skill
+Audio and UI generate
 A timer Pool else TimerManager is useless
-Pool is AI Generate
-The Buff need check in life
 Async Save and hotfix or cloud
-Config and Runtime
-NetworkManager is AI pure
+Config and Runtime 
 ABManager is Copy
 
 Issues:
-Unit.Status属性序列化支持
+Units 序列化，池化，配置化
 
 
 Update:
