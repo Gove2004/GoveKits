@@ -175,24 +175,24 @@ namespace GoveKits.Manager
         }
         #endregion
 
-        #region Debug & Monitoring
-        /// <summary>
-        /// 启用调试日志
-        /// </summary>
-        public bool EnableDebugLogs { get; set; } = false;
+        // #region Debug & Monitoring
+        // /// <summary>
+        // /// 启用调试日志
+        // /// </summary>
+        // public bool EnableDebugLogs { get; set; } = false;
 
-        /// <summary>
-        /// 事件处理监控
-        /// </summary>
-        public event Action<string, EventChannel, long> OnEventProcessed; // 事件类型, 管道, 处理时间(ms)
+        // /// <summary>
+        // /// 事件处理监控
+        // /// </summary>
+        // public event Action<string, EventChannel, long> OnEventProcessed; // 事件类型, 管道, 处理时间(ms)
 
-        private void LogEvent<T>(EventChannel channel, string operation)
-        {
-            if (EnableDebugLogs)
-            {
-                Debug.Log($"[EventManager] {operation} event {typeof(T).Name} on channel {channel}");
-            }
-        }
-        #endregion
+        // private void LogEvent<T>(EventChannel channel, string operation)
+        // {
+        //     if (EnableDebugLogs)
+        //     {
+        //         Debug.Log($"[EventManager] {operation} event {typeof(T).Name} on channel {channel}");
+        //     }
+        // }
+        // #endregion
     }
 }

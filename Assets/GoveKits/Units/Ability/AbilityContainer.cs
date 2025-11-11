@@ -1,7 +1,7 @@
 
-
-
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 
 namespace GoveKits.Units
 {
@@ -41,28 +41,14 @@ namespace GoveKits.Units
         }
 
         // 增强执行方法，包含完整的生命周期
-        public bool ExecuteAbility(string key, Unit caster, Unit target, Dictionary<string, object> parameters = null)
+        public async UniTask TryExecuteAbility(string key, IUnit caster, IUnit target, CancellationToken cancellationToken = default, Dictionary<string, object> parameters = null)
         {
             if (!TryGetAbility(key, out var ability))
-                return false;
+                await UniTask.CompletedTask;
 
-            var context = new AbilityContext(caster, target, parameters);
+            var context = new AbilityContext(caster, target, cancellationToken, parameters);
 
-            // 完整的执行流程
-            if (!ability.Condition(context))
-                return false;
-
-            try
-            {
-                ability.Cost(context);
-                return ability.Execute(context); ;
-            }
-            catch (System.Exception ex)
-            {
-                // 记录日志
-                ability.Cancel(context);
-                throw new System.Exception($"[AbilityContainer] 能力 {key} 执行失败: {ex.Message}", ex);
-            }
+            await ability.Try(context);
         }
 
         public IEnumerable<string> Keys => _abilities.Keys;

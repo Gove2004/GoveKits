@@ -30,10 +30,10 @@ namespace GoveKits.Units
     public class EffectContext
     {
         /// <summary>效果来源单位</summary>
-        public Unit Source { get; }
+        public IUnit Source { get; }
 
         /// <summary>效果目标单位</summary>
-        public Unit Target { get; }
+        public IUnit Target { get; }
         
         /// <summary>存储效果执行过程中需要的所有数据</summary>
         private Dictionary<string, object> data;
@@ -43,7 +43,7 @@ namespace GoveKits.Units
         /// </summary>
         /// <param name="source">效果来源对象（如施法者）</param>
         /// <param name="target">效果目标对象（如受击者）</param>
-        public EffectContext(Unit source, Unit target, Dictionary<string, object> parameters = null)
+        public EffectContext(IUnit source, IUnit target, Dictionary<string, object> parameters = null)
         {
             Source = source;
             Target = target;
