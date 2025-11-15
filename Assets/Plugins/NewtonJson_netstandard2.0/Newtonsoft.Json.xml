@@ -10261,7 +10261,7 @@
             <param name="key">The extension data key.</param>
             <param name="value">The extension data value.</param>
         </member>
-        <member name="T:Newtonsoft.Json.Serialization.ExtensionDataGetter">
+        <member name="T:Newtonsoft.Json.Serialization.ExtensionDabuffetter">
             <summary>
             Gets extension data for an object during serialization.
             </summary>
@@ -10491,7 +10491,7 @@
             Gets or sets the extension data setter.
             </summary>
         </member>
-        <member name="P:Newtonsoft.Json.Serialization.JsonObjectContract.ExtensionDataGetter">
+        <member name="P:Newtonsoft.Json.Serialization.JsonObjectContract.ExtensionDabuffetter">
             <summary>
             Gets or sets the extension data getter.
             </summary>

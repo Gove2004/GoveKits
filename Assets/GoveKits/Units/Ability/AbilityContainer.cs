@@ -1,4 +1,5 @@
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -6,53 +7,65 @@ using Cysharp.Threading.Tasks;
 namespace GoveKits.Units
 {
     // 能力容器，用于管理单位的能力
-    public class AbilityContainer
+    public class AbilityContainer : DictionaryContainer<IAbility>
     {
-        private readonly Dictionary<string, IAbility> _abilities = new();
-        public event System.Action<string, IAbility> OnAbilityAdded;
-        public event System.Action<string> OnAbilityRemoved;
-
-        public void AddAbility(string key, IAbility ability)
+        public override void Add(string key, IAbility ability)
         {
-            if (_abilities.ContainsKey(key)) return;
-            _abilities[key] = ability;
+            if (Has(key)) return;
+            _items[key] = ability;
             OnAbilityAdded?.Invoke(key, ability);
         }
 
-        public void RemoveAbility(string key)
+        public override void Remove(string key)
         {
-            if (!_abilities.ContainsKey(key))
-            {
-                throw new KeyNotFoundException($"[AbilityContainer] 未知能力 {key}");
-            }
-            _abilities.Remove(key);
+            _items.Remove(key);
             OnAbilityRemoved?.Invoke(key);
         }
 
-        public bool TryGetAbility(string key, out IAbility ability) =>
-            _abilities.TryGetValue(key, out ability);
 
-        public bool Has(string key) =>
-            _abilities.ContainsKey(key);
-
-        public void Clear()
+        public override void Clear()
         {
-            _abilities.Clear();
+            OnAbilityAdded = null;
+            OnAbilityRemoved = null;
+            base.Clear();
         }
 
-        // 增强执行方法，包含完整的生命周期
-        public async UniTask TryExecuteAbility(string key, IUnit caster, IUnit target, CancellationToken cancellationToken = default, Dictionary<string, object> parameters = null)
+
+        /// <summary>
+        /// 尝试执行能力，包含完整的生命周期
+        /// </summary>
+        public async UniTask TryExecute(string key, UnitContext context)
         {
-            if (!TryGetAbility(key, out var ability))
-                await UniTask.CompletedTask;
-
-            var context = new AbilityContext(caster, target, cancellationToken, parameters);
-
-            await ability.Try(context);
+            await _items[key].Try(context);
         }
 
-        public IEnumerable<string> Keys => _abilities.Keys;
 
-        public int Count => _abilities.Count;
+        #region 
+        private event Action<string, IAbility> OnAbilityAdded;  // 能力添加事件
+        private event Action<string> OnAbilityRemoved;  // 能力移除事件
+
+        // 订阅能力添加事件
+        public Action SubscribeAbilityAdded(System.Action<string, IAbility> listener)
+        {
+            OnAbilityAdded += listener;
+            return () => OnAbilityAdded -= listener;
+        }
+        // 取消订阅能力添加事件
+        public void UnsubscribeAbilityAdded(System.Action<string, IAbility> listener)
+        {
+            OnAbilityAdded -= listener;
+        }
+        // 订阅能力移除事件
+        public Action SubscribeAbilityRemoved(System.Action<string> listener)
+        {
+            OnAbilityRemoved += listener;
+            return () => OnAbilityRemoved -= listener;
+        }
+        // 取消订阅能力移除事件
+        public void UnsubscribeAbilityRemoved(System.Action<string> listener)
+        {
+            OnAbilityRemoved -= listener;
+        }
+        #endregion
     }
 }

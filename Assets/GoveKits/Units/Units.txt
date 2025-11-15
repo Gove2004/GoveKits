@@ -1,0 +1,30 @@
+
+
+这是一套。。。。。。？
+基于UniTask的
+是面向对象的实现，更加直观
+而不是基于ECS，产生Info被System执行的, 这是以后的目标
+Model -> Info -> System
+
+Unit是单位的基类，
+可以是玩家，可以是敌人，可以是子弹，可以是树
+包含AttributeContainer, AbilityContainer, BuffContainer
+- IUnit, 接口, 以便用你自己的类上
+- Unit, 单位基类, 如果你需要纯代码的自我实现
+- UnitComponent, 基于Unity的MonoBehaviour实现
+
+AttributeContainer
+属性，一般是初始化就存在在单位身上的，最常见的莫过生命攻击防御这样的
+
+
+
+AbilityContainer
+能力，主动能力和被动能力
+
+
+
+BuffContainer
+不同于传统意义的Buff, 这是UE的Tag系统的增强版本
+更准确来说，应该是Mark
+他能够在Apply,Stack,Duration,Remove时机实现额外逻辑
+

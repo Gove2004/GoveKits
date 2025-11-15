@@ -3,152 +3,144 @@ using System.Collections.Generic;
 
 namespace GoveKits.Units
 {
-    public class AttributeContainer
+    public class AttributeContainer : DictionaryContainer<Attribute>
     {
-        private readonly Dictionary<string, Attribute> _attributes = new();
-        private readonly DependencyContainer<string> _dependencyContainer = new();
-
-        public bool Has(string key)
+        /// <summary>
+        /// 添加基础属性
+        /// </summary>
+        public void Add(string key, float initialValue)
         {
-            return _attributes.ContainsKey(key);
+            Add(key, new Attribute(key, initialValue));
         }
 
-        public void AddAttribute(string key, float initialValue)
+        /// <summary>
+        /// 直接添加属性，会自动使用 As(key) 转换
+        /// </summary>
+        public override void Add(string key, Attribute attribute)
         {
-            if (_attributes.ContainsKey(key))
-            {
-                throw new InvalidOperationException($"[AttributeContainer] 已存在属性 {key}");
-            }
-            _attributes[key] = new Attribute(key, initialValue);
+            _items[key] = attribute.As(key);
         }
 
-        public void AddAttribute(string key, Func<float> calculator, List<string> dependsOn = null)
+
+        public bool TryGetValue(string key, out float value)
         {
-            if (_attributes.ContainsKey(key))
-            {
-                throw new InvalidOperationException($"[AttributeContainer] 已存在属性 {key}");
-            }
-
-            // 先检查依赖属性是否存在
-            if (dependsOn != null)
-            {
-                foreach (var dependKey in dependsOn)
-                {
-                    if (!_attributes.ContainsKey(dependKey))
-                    {
-                        throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {dependKey}");
-                    }
-                }
-            }
-
-            _attributes[key] = new Attribute(key, calculator);
-
-            // 添加依赖关系
-            if (dependsOn != null)
-            {
-                foreach (var dependKey in dependsOn)
-                {
-                    _dependencyContainer.AddDependency(key, dependKey);
-
-                    // 订阅依赖属性变化事件
-                    _attributes[dependKey].OnValueChanged += (oldValue, newValue) =>
-                    {
-                        _attributes[key].MarkDirty();
-                    };
-                }
-            }
-        }
-
-        public bool TryGetAttribute(string key, out Attribute attribute)
-        {
-            return _attributes.TryGetValue(key, out attribute);
-        }
-
-        public float GetValue(string key)
-        {
-            if (!_attributes.ContainsKey(key))
-                throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
-            return _attributes[key].Value;
-        }
-
-        public bool GetValue(string key, out float value)
-        {
-            if (_attributes.TryGetValue(key, out var attribute))
+            if (_items.TryGetValue(key, out var attribute))
             {
                 value = attribute.Value;
                 return true;
             }
-            value = default;
+            value = 0f;
             return false;
         }
 
-        public float SetValue(string key, float value)
+        public void SetValue(string key, float value)
         {
-            if (!_attributes.ContainsKey(key))
-                throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
-
-            var attribute = _attributes[key];
-            if (attribute.IsComputed)
-                throw new InvalidOperationException($"[AttributeContainer] 属性 {key} 是只读的计算属性");
-
+            Attribute attribute = _items[key];
             attribute.Value = value;
-            return value;
         }
 
-        public void Clear()
+        public override void Clear()
         {
-            foreach (var kvp in _attributes)
+            foreach (var kvp in _items)
             {
                 kvp.Value.Clear();
             }
-            _attributes.Clear();
-            _dependencyContainer.Clear();
+            base.Clear();
         }
 
-        // public void BatchSetValues(Dictionary<string, float> values)
-        // {
-        //     foreach (var kvp in values)
-        //     {
-        //         if (_attributes.TryGetValue(kvp.Key, out var attribute) && !attribute.IsReadOnly)
-        //         {
-        //             attribute.Value = kvp.Value;
-        //         }
-        //     }
-        // }
-
-        // public Dictionary<string, float> GetSnapshot()
-        // {
-        //     var snapshot = new Dictionary<string, float>();
-        //     foreach (var kvp in _attributes)
-        //     {
-        //         snapshot[kvp.Key] = kvp.Value.Value;
-        //     }
-        //     return snapshot;
-        // }
-
-        // public IReadOnlyList<string> GetDependents(string key)
-        // {
-        //     return _dependencyContainer.GetDependents(key);
-        // }
 
         // 添加监听器，返回取消监听的操作
         public Action AddListener(string key, Action<float, float> listener)
         {
-            if (!_attributes.ContainsKey(key))
-                throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
-
-            _attributes[key].OnValueChanged += listener;
-            return () => RemoveListener(key, listener);
+            return _items[key].Subscribe(listener);
         }
 
         // 移除监听器
         public void RemoveListener(string key, Action<float, float> listener)
         {
-            if (!_attributes.ContainsKey(key))
-                throw new KeyNotFoundException($"[AttributeContainer] 未知属性 {key}");
+            _items[key].Unsubscribe(listener);
+        }
+    }
 
-            _attributes[key].OnValueChanged -= listener;
+
+
+    public static class AttributeContainerExtensions
+    {
+        // 一键添加线性属性，key = base * factor + bias
+        public static void AppendLinear(this AttributeContainer container, string key, float baseValue, float factorValue = 1f, float biasValue = 0f)
+        {
+            string baseKey = key + "_Base";
+            string factorKey = key + "_Factor";
+            string biasKey = key + "_Bias";
+            Attribute baseAttr = new Attribute(baseKey, baseValue);
+            Attribute factorAttr = new Attribute(factorKey, factorValue);
+            Attribute biasAttr = new Attribute(biasKey, biasValue);
+            var computedAttr = ((baseAttr * factorAttr) + biasAttr).As(key);
+            container.Add(baseKey, baseAttr);
+            container.Add(factorKey, factorAttr);
+            container.Add(biasKey, biasAttr);
+            container.Add(key, computedAttr);
         }
 
+
+        // 一键添加多个线性属性， keys = baseKeys * factor + bias
+        public static void AppendLinearBatch(this AttributeContainer container, IEnumerable<string> keys, float factorValue = 1f, float biasValue = 0f)
+        {
+            foreach (var key in keys)
+            {
+                container.AppendLinear(key, 0f, factorValue, biasValue);
+            }
+        }
+
+
+        // 多级线性， key = (base) * [(1 + multi_i)] + [add_i]
+        public static void AppendMultiLinear(this AttributeContainer container, string key, float baseValue, IEnumerable<(float add, float multi)> modifiers)
+        {
+            string baseKey = key + "_Base";
+            Attribute baseAttr = new Attribute(baseKey, baseValue);
+            Attribute addSumAttr = new Attribute($"{key}_Add_Final", 0f);
+            Attribute multiSumAttr = new Attribute($"{key}_Multi_Final", 1f);
+            Attribute computedAttr = baseAttr;
+            int index = 0;
+            foreach (var (add, multi) in modifiers)
+            {
+                string addKey = $"{key}_Add_{index}";
+                string multiKey = $"{key}_Multi_{index}";
+                Attribute addAttr = new Attribute(addKey, add);
+                Attribute multiAttr = new Attribute(multiKey, 1f + multi);
+                addSumAttr = addSumAttr + addAttr;
+                multiSumAttr = multiSumAttr * multiAttr;
+                container.Add(addKey, addAttr);
+                container.Add(multiKey, multiAttr);
+                index++;
+            }
+            computedAttr = ((computedAttr * multiSumAttr) + addSumAttr).As(key);
+
+            container.Add(baseKey, baseAttr);
+            container.Add(key, computedAttr);
+        }
+
+
+
+        // 快照
+        public static Dictionary<string, float> CreateSnapshot(this AttributeContainer container)
+        {
+            var snapshot = new Dictionary<string, float>();
+            foreach (var key in container.Keys)
+            {
+                snapshot[key] = container.TryGetValue(key, out var val) ? val : 0f;
+            }
+            return snapshot;
+        }
+        public static void ApplySnapshot(this AttributeContainer container, Dictionary<string, float> snapshot)
+        {
+            foreach (var kvp in snapshot)
+            {
+                if (container.Has(kvp.Key))
+                {
+                    container.SetValue(kvp.Key, kvp.Value);
+                }
+            }
+        }
     }
 }

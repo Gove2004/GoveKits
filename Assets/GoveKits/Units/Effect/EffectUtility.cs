@@ -14,7 +14,7 @@ EffectUtility.cs
 namespace GoveKits.Units
 {
     #region Unity Effect Implementations
-    public static class UnityEffect
+    public static class UnityEffectBuilder
     {
         public static IEffect Instantiate(GameObject prefab, Vector3 position, Quaternion rotation)
         {
@@ -68,7 +68,7 @@ namespace GoveKits.Units
             _rotation = rotation;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
             Object.Instantiate(_prefab, _position, _rotation);
             return UniTask.CompletedTask;
@@ -89,7 +89,7 @@ namespace GoveKits.Units
             _duration = duration;
         }
 
-        public async UniTask Apply(EffectContext context)
+        public async UniTask Apply(UnitContext context)
         {
             _startPosition = _transform.position;
             float elapsed = 0f;
@@ -120,7 +120,7 @@ namespace GoveKits.Units
             _duration = duration;
         }
 
-        public async UniTask Apply(EffectContext context)
+        public async UniTask Apply(UnitContext context)
         {
             _startEulerAngles = _transform.eulerAngles;
             float elapsed = 0f;
@@ -151,7 +151,7 @@ namespace GoveKits.Units
             _duration = duration;
         }
 
-        public async UniTask Apply(EffectContext context)
+        public async UniTask Apply(UnitContext context)
         {
             _startScale = _transform.localScale;
             float elapsed = 0f;
@@ -182,7 +182,7 @@ namespace GoveKits.Units
             _duration = duration;
         }
 
-        public async UniTask Apply(EffectContext context)
+        public async UniTask Apply(UnitContext context)
         {
             _startColor = _material.color;
             float elapsed = 0f;
@@ -210,7 +210,7 @@ namespace GoveKits.Units
             _active = active;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
             _gameObject.SetActive(_active);
             return UniTask.CompletedTask;
@@ -228,7 +228,7 @@ namespace GoveKits.Units
             _audioClip = audioClip;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
             if (_audioClip != null)
                 _audioSource.clip = _audioClip;
@@ -247,7 +247,7 @@ namespace GoveKits.Units
             _particleSystem = particleSystem;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
             _particleSystem.Play();
             return UniTask.CompletedTask;
@@ -267,7 +267,7 @@ namespace GoveKits.Units
             _crossFadeTime = crossFadeTime;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
             _animator.CrossFade(_stateName, _crossFadeTime);
             return UniTask.CompletedTask;
@@ -278,7 +278,7 @@ namespace GoveKits.Units
 
 
     #region Unit Effect Implementations
-    public static class UnitEffect
+    public static class UnitEffectBuilder
     {
         public static IEffect IncreaseAttribute(AttributeContainer attributeContainer, string attributeKey, float amount)
         {
@@ -300,14 +300,14 @@ namespace GoveKits.Units
             return new OverrideAttributeEffect(attributeContainer, attributeKey, newValue);
         }
 
-        public static IEffect AddTag(GameplayTagContainer GameplayTagContainer, GameplayTag tag)
+        public static IEffect AddBuff(BuffContainer buffContainer, string buffName, int initialStack = 1)
         {
-            return new AddTagEffect(GameplayTagContainer, tag);
+            return new AddBuffEffect(buffContainer, buffName, initialStack);
         }
 
-        public static IEffect RemoveTag(GameplayTagContainer GameplayTagContainer, GameplayTag tag)
+        public static IEffect RemoveBuff(BuffContainer buffContainer, string buffName)
         {
-            return new RemoveTagEffect(GameplayTagContainer, tag);
+            return new RemoveBuffEffect(buffContainer, buffName);
         }
 
         public static IEffect GrantAbility(AbilityContainer abilityContainer, string abilityKey, IAbility ability)
@@ -334,15 +334,11 @@ namespace GoveKits.Units
             _amount = amount;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            if (_attributeContainer.TryGet(_attributeKey, out var attribute))
             {
                 attribute.Value += _amount;
-            }
-            else
-            {
-                throw new KeyNotFoundException($"[IncreaseAttributeEffect] 未知属性 {_attributeKey}");
             }
             return UniTask.CompletedTask;
         }
@@ -361,15 +357,11 @@ namespace GoveKits.Units
             _amount = amount;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            if (_attributeContainer.TryGet(_attributeKey, out var attribute))
             {
                 attribute.Value -= _amount;
-            }
-            else
-            {
-                throw new KeyNotFoundException($"[DecreaseAttributeEffect] 未知属性 {_attributeKey}");
             }
             return UniTask.CompletedTask;
         }
@@ -389,15 +381,11 @@ namespace GoveKits.Units
             _factor = factor;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            if (_attributeContainer.TryGet(_attributeKey, out var attribute))
             {
                 attribute.Value *= _factor;
-            }
-            else
-            {
-                throw new KeyNotFoundException($"[MultiplyAttributeEffect] 未知属性 {_attributeKey}");
             }
             return UniTask.CompletedTask;
         }
@@ -417,52 +405,50 @@ namespace GoveKits.Units
             _newValue = newValue;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            if (_attributeContainer.TryGetAttribute(_attributeKey, out var attribute))
+            if (_attributeContainer.TryGet(_attributeKey, out var attribute))
             {
                 attribute.Value = _newValue;
             }
-            else
-            {
-                throw new KeyNotFoundException($"[OverrideAttributeEffect] 未知属性 {_attributeKey}");
-            }
             return UniTask.CompletedTask;
         }
     }
 
-    internal class AddTagEffect : IEffect
+    internal class AddBuffEffect : IEffect
     {
-        private readonly GameplayTagContainer _GameplayTagContainer;
-        private readonly GameplayTag _tag;
+        private readonly BuffContainer _buffContainer;
+        private readonly string _buffNme;
+        private readonly int _initialStack;
 
-        public AddTagEffect(GameplayTagContainer GameplayTagContainer, GameplayTag tag)
+        public AddBuffEffect(BuffContainer buffContainer, string buffNme, int initialStack = 1)
         {
-            _GameplayTagContainer = GameplayTagContainer;
-            _tag = tag;
+            _buffContainer = buffContainer;
+            _buffNme = buffNme;
+            _initialStack = initialStack;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            _GameplayTagContainer.AddTag(_tag);
+            _buffContainer.Add(_buffNme, new Buff(_buffNme, _initialStack));
             return UniTask.CompletedTask;
         }
     }
 
-    internal class RemoveTagEffect : IEffect
+    internal class RemoveBuffEffect : IEffect
     {
-        private readonly GameplayTagContainer _GameplayTagContainer;
-        private readonly GameplayTag _tag;
+        private readonly BuffContainer _buffContainer;
+        private readonly string _buffName;
 
-        public RemoveTagEffect(GameplayTagContainer GameplayTagContainer, GameplayTag tag)
+        public RemoveBuffEffect(BuffContainer buffContainer, string buffName)
         {
-            _GameplayTagContainer = GameplayTagContainer;
-            _tag = tag;
+            _buffContainer = buffContainer;
+            _buffName = buffName;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            _GameplayTagContainer.RemoveTag(_tag);
+            _buffContainer.Remove(_buffName);
             return UniTask.CompletedTask;
         }
     }
@@ -480,9 +466,9 @@ namespace GoveKits.Units
             _ability = ability;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            _abilityContainer.AddAbility(_abilityKey, _ability);
+            _abilityContainer.Add(_abilityKey, _ability);
             return UniTask.CompletedTask;
         }
     }
@@ -498,9 +484,9 @@ namespace GoveKits.Units
             _abilityKey = abilityKey;
         }
 
-        public UniTask Apply(EffectContext context)
+        public UniTask Apply(UnitContext context)
         {
-            _abilityContainer.RemoveAbility(_abilityKey);
+            _abilityContainer.Remove(_abilityKey);
             return UniTask.CompletedTask;
         }
     }
@@ -509,9 +495,18 @@ namespace GoveKits.Units
 
 
     #region Random Effect Implementations
-    public static class RandomEffect
+    public static class RandomEffectBuilder
     {
         // 在这里添加随机效果实现工厂方法
+    }
+    #endregion
+
+
+
+    #region Tween Effect Implementations
+    public static class TweenEffectBuilder
+    {
+        // 在这里添加补间效果实现工厂方法
     }
     #endregion
 }

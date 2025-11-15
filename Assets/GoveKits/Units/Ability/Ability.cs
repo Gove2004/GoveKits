@@ -1,132 +1,131 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using Cysharp.Threading.Tasks;
-using UnityEditor.PackageManager;
+using NUnit.Framework;
+
 
 namespace GoveKits.Units
 {
-    // 能力上下文
-    public class AbilityContext
-    {
-        /// <summary>效果来源单位</summary>
-        public IUnit Source { get; }
-
-        /// <summary>效果目标单位</summary>
-        public IUnit Target { get; }
-
-        /// <summary>取消令牌，用于异步操作的中断</summary>
-        public CancellationToken CancellationToken { get; }
-
-        /// <summary>存储效果执行过程中需要的所有数据</summary>
-        private Dictionary<string, object> data;
-
-        /// <summary>
-        /// 创建效果上下文
-        /// </summary>
-        public AbilityContext(IUnit source, IUnit target, CancellationToken cancellationToken = default, Dictionary<string, object> parameters = null)
-        {
-            Source = source;
-            Target = target;
-            CancellationToken = cancellationToken;
-            data = parameters ?? new Dictionary<string, object>();
-        }
-
-        public T Get<T>(string key, T defaultValue = default) =>
-            data.TryGetValue(key, out var value) && value is T typedValue ? typedValue : defaultValue;
-
-        public void Set<T>(string key, T value) => data[key] = value;
-
-        /// <summary>
-        /// 检查是否已取消
-        /// </summary>
-        public bool IsCancelled => CancellationToken.IsCancellationRequested;
-    }
-
     /// <summary>
     /// 异步能力接口
     /// </summary>
     public interface IAbility
     {
         /// <summary>
-        /// 执行能力（异步）
+        /// 执行能力
         /// </summary>
-        UniTask Execute(AbilityContext context);
+        UniTask Execute(UnitContext context);
 
         /// <summary>
-        /// 检查能力施放条件（异步）
+        /// 能力冷却处理
         /// </summary>
-        UniTask<bool> Condition(AbilityContext context);
+        UniTask Cooldown(UnitContext context);
 
         /// <summary>
-        /// 消耗能力资源（异步）
+        /// 检查能力施放条件
         /// </summary>
-        UniTask Cost(AbilityContext context);
+        UniTask<bool> Condition(UnitContext context);
 
         /// <summary>
-        /// 取消能力效果（异步）
+        /// 消耗能力资源
         /// </summary>
-        UniTask Cancel(AbilityContext context);
+        UniTask<bool> Cost(UnitContext context);
 
         /// <summary>
-        /// 完成能力效果（异步）
+        /// 取消能力效果
         /// </summary>
-        UniTask Complete(AbilityContext context);
+        UniTask Cancel(UnitContext context);
 
         /// <summary>
-        /// 处理能力错误（异步）
+        /// 完成能力效果
         /// </summary>
-        /// <param name="context"></param>
-        /// <returns></returns>
-        public UniTask Error(AbilityContext context);
+        UniTask Complete(UnitContext context);
 
         /// <summary>
-        /// 尝试执行能力，包含完整的生命周期（异步）
+        /// 处理能力错误
         /// </summary>
-        UniTask<bool> Try(AbilityContext context);
+        public UniTask Error(UnitContext context);
+
+        /// <summary>
+        /// 尝试执行能力，包含完整的生命周期
+        /// </summary>
+        UniTask<bool> Try(UnitContext context);
     }
 
-    // 能力基类，提供默认异步实现
+
+
+    // 能力基类
     public abstract class BaseAbility : IAbility
     {
-        public virtual async UniTask<bool> Condition(AbilityContext context)
-        {
-            // 基础条件检查
-            if (context.IsCancelled)
-                return false;
+        public string Name { get; set; } = string.Empty;  // 能力名称
+        public int Level { get; set; } = 0;  // 能力等级
+        public float CooldownTime { get; set; } = -1f;  // 冷却时间，负数表示无冷却
+        public float CurrentCooldown { get; private set; } = 0f;  // 当前冷却计时器
+        public bool IsCooldownReady => CurrentCooldown <= 0f;  // 冷却是否完成
 
-            await UniTask.Yield(); // 保持异步性
+
+        // 构造函数
+        public BaseAbility(string name, int level = 1)
+        {
+            Name = name;
+            Level = level;
+        }
+
+        public virtual async UniTask Cooldown(UnitContext context)
+        {
+            if (CooldownTime <= 0f) return;  // 无冷却时间，直接返回，避免开销
+        
+            CurrentCooldown = CooldownTime;
+            while (CurrentCooldown > 0f)
+            {
+                await UniTask.Delay(TimeSpan.FromSeconds(0.1f));
+                CurrentCooldown -= 0.1f;
+            }
+        }
+
+        public virtual async UniTask<bool> Cost(UnitContext context)
+        {
+            await UniTask.Yield();
+            // 声明资源
+            // ...
+            // 检查资源
+            // if (false) return false;
+            // 扣除资源
+            // ...
             return true;
         }
 
-        public virtual async UniTask Cost(AbilityContext context)
+        public virtual async UniTask<bool> Condition(UnitContext context)
         {
-            // 基础实现：简单的资源消耗
+            await UniTask.Yield();
+            if (!IsCooldownReady) return false;
+            if (await Cost(context) == false) return false;
+            // 其他条件检查
+            // ...
+            return true;
+        }
+
+        public abstract UniTask Execute(UnitContext context);
+
+        public virtual async UniTask Complete(UnitContext context)
+        {
             await UniTask.Yield();
         }
 
-        public abstract UniTask Execute(AbilityContext context);
-
-        public virtual async UniTask Cancel(AbilityContext context)
+        public virtual async UniTask Cancel(UnitContext context)
         {
-            // 基础的取消逻辑
             await UniTask.Yield();
         }
 
-        public virtual async UniTask Complete(AbilityContext context)
+        public virtual async UniTask Error(UnitContext context)
         {
-            // 基础的完成逻辑
             await UniTask.Yield();
         }
 
-        public virtual async UniTask Error(AbilityContext context)
-        {
-            // 基础的错误处理逻辑
-            await UniTask.Yield();
-        }
 
-        public virtual async UniTask<bool> Try(AbilityContext context)
+        /// <summary>
+        /// 尝试执行能力，包含完整的生命周期
+        /// </summary>
+        public virtual async UniTask<bool> Try(UnitContext context)
         {
             // 检查条件
             if (!await Condition(context))
@@ -140,6 +139,9 @@ namespace GoveKits.Units
                 // 执行能力
                 await Execute(context);
 
+                // 启动冷却
+                _ =  Cooldown(context);
+
                 // 完成能力
                 await Complete(context);
 
@@ -147,22 +149,16 @@ namespace GoveKits.Units
             }
             catch (OperationCanceledException)
             {
+                // 取消能力
                 await Cancel(context);
                 return false;
             }
             catch (Exception ex)
             {
+                // 处理错误
                 await Error(context);
                 throw new Exception($"[Ability] 执行失败 {ex.Message}", ex);
             }
-        }
-
-        /// <summary>
-        /// 工具方法：等待指定时间（可被取消）
-        /// </summary>
-        protected async UniTask WaitForSeconds(float seconds, AbilityContext context)
-        {
-            await UniTask.Delay(TimeSpan.FromSeconds(seconds), cancellationToken: context.CancellationToken);
         }
     }
 }

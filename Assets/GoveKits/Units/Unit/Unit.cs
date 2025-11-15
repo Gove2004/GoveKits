@@ -1,5 +1,6 @@
 
 
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace GoveKits.Units
@@ -8,7 +9,7 @@ namespace GoveKits.Units
     {
         string Name { get; }
         AttributeContainer Attributes { get; }
-        GameplayTagContainer Tags { get; }
+        BuffContainer buffs { get; }
         AbilityContainer Abilities { get; }
         // BuffContainer Buffs { get; }
     }
@@ -18,7 +19,7 @@ namespace GoveKits.Units
     {
         public string Name { get; } = "Unit";
         public AttributeContainer Attributes { get; } = new AttributeContainer();
-        public GameplayTagContainer Tags { get; } = new GameplayTagContainer();
+        public BuffContainer buffs { get; } = new BuffContainer();
         public AbilityContainer Abilities { get; } = new AbilityContainer();
         // public BuffContainer Buffs { get; } = new BuffContainer();
     }
@@ -28,7 +29,7 @@ namespace GoveKits.Units
     {
         public string Name => "UnitComponent";
         public AttributeContainer Attributes { get; } = new AttributeContainer();
-        public GameplayTagContainer Tags { get; } = new GameplayTagContainer();
+        public BuffContainer buffs { get; } = new BuffContainer();
         public AbilityContainer Abilities { get; } = new AbilityContainer();
         // public BuffContainer Buffs { get; } = new BuffContainer();
 
@@ -41,9 +42,13 @@ namespace GoveKits.Units
         private void OnDestroy()
         {
             Attributes.Clear();
-            Tags.Clear();
+            buffs.Clear();
             Abilities.Clear();
             // Buffs = null;
         }
     }
+
+
+
+    
 }
