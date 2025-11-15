@@ -46,9 +46,7 @@ namespace GoveKits.Units
             Abilities.Clear();
             // Buffs = null;
         }
+
+        
     }
-
-
-
-    
 }
