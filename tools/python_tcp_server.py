@@ -47,9 +47,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             # Read header (8 bytes)
             header = await reader.readexactly(8)
             msg_id, body_len = struct.unpack('<ii', header)
+
             # Read body
             body = await reader.readexactly(body_len)
-            print(f'Recv from {addr}: msg_id={msg_id}, body_len={body_len}, body={body}')
+            # print(f'Recv from {addr}: msg_id={msg_id}, body_len={body_len}, body={body}')
 
             # For demonstration, echo back the same message id with player id incremented
             if msg_id == 1001:
@@ -61,12 +62,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                         name = body[8:8+name_len].decode('utf-8')
                     except Exception:
                         name = '<decode error>'
+                        print(f'Error decoding name in PlayerMessage from {addr}')
                     print(f'Parsed PlayerMessage: id={player_id}, name={name}')
                     # send back acknowledgement with incremented id
                     resp = build_player_message(player_id + 1, name + '_srv')
                     writer.write(resp)
                     await writer.drain()
+                else:
+                    print(f'Invalid PlayerMessage body length: {body_len}')
             else:
+                print(f'Unknown msg_id={msg_id}, echoing back')
                 # echo generic
                 writer.write(header + body)
                 await writer.drain()
@@ -102,3 +107,11 @@ if __name__ == '__main__':
         asyncio.run(main(args.host, args.port))
     except KeyboardInterrupt:
         print('Server stopped')
+
+
+
+
+
+
+
+
