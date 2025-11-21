@@ -130,16 +130,16 @@ namespace GoveKits.Units
         /// <returns>异步回调效果实例</returns>
         public static IEffect CallbackAsync(Func<UniTask> asyncAction) => ImmediateAsync(async _ => await asyncAction());
 
-        /// <summary>
-        /// 不可取消的事件监听效果 - 永久监听带参数的事件并在触发时执行子效果
-        /// </summary>
-        /// <param name="eventName"></param>
-        /// <param name="action"></param>
-        /// <returns></returns>
-        public static IEffect OnEvent<T>(Action<Action<T>> subscribe, IEffect effect)
-        {
-            return new EventEffect<T>(subscribe, effect);
-        }
+        // /// <summary>
+        // /// 不可取消的事件监听效果 - 永久监听带参数的事件并在触发时执行子效果
+        // /// </summary>
+        // /// <param name="eventName"></param>
+        // /// <param name="action"></param>
+        // /// <returns></returns>
+        // public static IEffect OnEvent<T>(Action<Action<T>> subscribe, IEffect effect)
+        // {
+        //     return new EventEffect<T>(subscribe, effect);
+        // }
 
         
     }
@@ -347,39 +347,39 @@ namespace GoveKits.Units
     }
     
 
-    /// <summary>
-    /// 带参数的永久事件监听效果实现 - 不可取消, 存在内存泄漏风险
-    /// </summary>
-    internal class EventEffect<T> : IEffect
-    {
-        private readonly Action<Action<T>> _subscribe;
-        private readonly IEffect _effect;
+    // /// <summary>
+    // /// 带参数的永久事件监听效果实现 - 不可取消, 存在内存泄漏风险
+    // /// </summary>
+    // internal class EventEffect<T> : IEffect
+    // {
+    //     private readonly Action<Action<T>> _subscribe;
+    //     private readonly IEffect _effect;
 
-        public EventEffect(Action<Action<T>> subscribe, IEffect effect)
-        {
-            _subscribe = subscribe;
-            _effect = effect;
-        }
+    //     public EventEffect(Action<Action<T>> subscribe, IEffect effect)
+    //     {
+    //         _subscribe = subscribe;
+    //         _effect = effect;
+    //     }
 
-        public UniTask Apply(UnitContext context)
-        {
-            // 直接订阅事件
-            _subscribe(async (eventData) =>
-            {
-                try
-                {
-                    await _effect.Apply(context);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"PermanentOnEvent<T> effect failed: {ex}");
-                }
-            });
+    //     public UniTask Apply(UnitContext context)
+    //     {
+    //         // 直接订阅事件
+    //         _subscribe(async (eventData) =>
+    //         {
+    //             try
+    //             {
+    //                 await _effect.Apply(context);
+    //             }
+    //             catch (Exception ex)
+    //             {
+    //                 Debug.LogError($"PermanentOnEvent<T> effect failed: {ex}");
+    //             }
+    //         });
 
-            // 立即返回完成的任务，但监听器会永久存在
-            return UniTask.CompletedTask;
-        }
-    }
+    //         // 立即返回完成的任务，但监听器会永久存在
+    //         return UniTask.CompletedTask;
+    //     }
+    // }
 
     #endregion
 }

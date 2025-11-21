@@ -1,117 +1,101 @@
 #!/usr/bin/env python3
 """
-Simple asyncio TCP server for testing the Unity NetSocket protocol:
-Message format: [msgID:int32 little][bodyLen:int32 little][body bytes]
-This server will:
- - accept multiple clients
- - print received messages (msgID and raw body)
- - periodically (every 5s) send a sample PlayerMessage (msgID=1001)
-
-Run: python python_tcp_server.py 127.0.0.1 12345
+Simple Asyncio TCP Server for Unity NetSession
+Protocol: Big-Endian (>), ID(int32) + Length(int32) + Body
 """
 import asyncio
-import sys
 import struct
 import argparse
+import datetime
 
+# ================= 配置区域 =================
+# 对应 C# 里的 MsgID 定义
+MSG_HEARTBEAT = 1
+MSG_PLAYER_LOGIN = 1001
 
-def build_player_message(player_id: int, name: str) -> bytes:
-    # PlayerData: int PlayerId + string (int length + utf8 bytes)
-    name_bytes = name.encode('utf-8')
-    # body: PlayerId (4 bytes) + NameLength (4 bytes) + name bytes
-    body = struct.pack('<i', player_id) + struct.pack('<i', len(name_bytes)) + name_bytes
-    msg_id = 1001
-    header = struct.pack('<ii', msg_id, len(body))
+# 对应 C# BinaryData 的写入顺序 (msgId = packet[0]<<24...)
+# '>' = Big-Endian (网络字节序)
+# '<' = Little-Endian (如果你的 C# 用的是 BitConverter，请改成这个)
+ENDIAN_FMT = '<' 
+HEADER_FMT = f'{ENDIAN_FMT}ii' # int32 id, int32 len
+HEADER_SIZE = 8
+# ===========================================
+
+def log(info):
+    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {info}")
+
+def build_packet(msg_id: int, body: bytes = b'') -> bytes:
+    """打包数据包: Header + Body"""
+    header = struct.pack(HEADER_FMT, msg_id, len(body))
     return header + body
-
 
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     addr = writer.get_extra_info('peername')
-    print(f'Client connected: {addr}')
-
-    # Start a background task to periodically send a sample PlayerMessage
-    async def periodic_send():
-        try:
-            while not writer.is_closing():
-                data = build_player_message(42, 'ServerAlice')
-                writer.write(data)
-                await writer.drain()
-                await asyncio.sleep(5)
-        except Exception as e:
-            print('Periodic send error:', e)
-
-    send_task = asyncio.create_task(periodic_send())
+    log(f'Client connected: {addr}')
 
     try:
         while True:
-            # Read header (8 bytes)
-            header = await reader.readexactly(8)
-            msg_id, body_len = struct.unpack('<ii', header)
+            # 1. 读取头部 (8字节)
+            header = await reader.readexactly(HEADER_SIZE)
+            msg_id, body_len = struct.unpack(HEADER_FMT, header)
+            # print(f"Debug: MsgID={msg_id}, BodyLen={body_len}")
 
-            # Read body
+            # 2. 读取包体
             body = await reader.readexactly(body_len)
-            # print(f'Recv from {addr}: msg_id={msg_id}, body_len={body_len}, body={body}')
 
-            # For demonstration, echo back the same message id with player id incremented
-            if msg_id == 1001:
-                # parse player id and name
-                if body_len >= 8:
-                    player_id = struct.unpack_from('<i', body, 0)[0]
-                    name_len = struct.unpack_from('<i', body, 4)[0]
-                    try:
-                        name = body[8:8+name_len].decode('utf-8')
-                    except Exception:
-                        name = '<decode error>'
-                        print(f'Error decoding name in PlayerMessage from {addr}')
-                    print(f'Parsed PlayerMessage: id={player_id}, name={name}')
-                    # send back acknowledgement with incremented id
-                    resp = build_player_message(player_id + 1, name + '_srv')
-                    writer.write(resp)
-                    await writer.drain()
-                else:
-                    print(f'Invalid PlayerMessage body length: {body_len}')
-            else:
-                print(f'Unknown msg_id={msg_id}, echoing back')
-                # echo generic
-                writer.write(header + body)
+            # 3. 逻辑处理
+            if msg_id == MSG_HEARTBEAT:
+                # 收到心跳，通常服务器可以选择：
+                # A. 什么都不做 (TCP本身可靠)
+                # B. 回复一个心跳包 (Pong) -> 这里我们选择回复，证明链路通畅
+                log(f"Recv Heartbeat from {addr}") # 频繁打印太吵，注释掉
+                
+                # 回复心跳
+                writer.write(build_packet(MSG_HEARTBEAT))
                 await writer.drain()
 
+            elif msg_id == MSG_PLAYER_LOGIN:
+                # 解析 PlayerData (假设结构: int ID + int NameLen + NameStr)
+                # 注意：C# BinaryData.WriteInt 也是 Big-Endian
+                if len(body) >= 8:
+                    p_id = struct.unpack_from(f'{ENDIAN_FMT}i', body, 0)[0]
+                    name_len = struct.unpack_from(f'{ENDIAN_FMT}i', body, 4)[0]
+                    try:
+                        p_name = body[8:8+name_len].decode('utf-8')
+                        log(f"Player Login: ID={p_id}, Name={p_name}")
+                        
+                        # 这里可以模拟发送一个登录成功的包回去...
+                    except Exception as e:
+                        log(f"Decode name error: {e}")
+                else:
+                    log(f"Invalid Login Body Len: {len(body)}")
+
+            else:
+                log(f"Unknown MsgID={msg_id}, BodyLen={body_len}")
+
     except asyncio.IncompleteReadError:
-        print(f'Client disconnected: {addr}')
+        log(f'Client disconnected: {addr}')
+    except ConnectionResetError:
+        log(f'Connection reset: {addr}')
     except Exception as e:
-        print(f'Connection error ({addr}):', e)
+        log(f'Error: {e}')
     finally:
-        send_task.cancel()
-        try:
-            await send_task
-        except Exception:
-            pass
         writer.close()
         await writer.wait_closed()
 
-
-async def main(host: str, port: int):
+async def main(host, port):
     server = await asyncio.start_server(handle_client, host, port)
-    addr = server.sockets[0].getsockname()
-    print(f'Serving on {addr}')
+    log(f'Serving on {host}:{port} ...')
     async with server:
         await server.serve_forever()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('host', nargs='?', default='127.0.0.1')
     parser.add_argument('port', nargs='?', default=12345, type=int)
     args = parser.parse_args()
+    
     try:
         asyncio.run(main(args.host, args.port))
     except KeyboardInterrupt:
-        print('Server stopped')
-
-
-
-
-
-
-
-
+        print("\nServer stopped.")

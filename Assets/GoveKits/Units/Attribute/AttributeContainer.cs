@@ -21,6 +21,15 @@ namespace GoveKits.Units
             _items[key] = attribute.As(key);
         }
 
+        /// <summary>
+        /// 添加属性, 自动使用属性名作为键
+        /// </summary>
+        /// <param name="attribute"></param>
+        public void Add(Attribute attribute)
+        {
+            Add(attribute.Name, attribute);
+        }
+
 
         public bool TryGetValue(string key, out float value)
         {

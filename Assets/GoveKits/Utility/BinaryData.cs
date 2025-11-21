@@ -1,218 +1,176 @@
 using System;
+using System.Text;
 
-// 二进制数据接口
-// Length 获取数据的二进制长度
-// Writing 将数据写入字节数组并返回字节数组
-// Reading 从字节数组中读取数据，返回读取的字节数
 
-public abstract class BinaryData
+namespace GoveKits.Network
 {
     /// <summary>
-    /// 获取数据的二进制长度
+    /// 二进制数据基类，提供读写方法
     /// </summary>
-    public abstract int Length();
-    /// <summary>
-    /// 从字节数组中读取数据，返回读取的字节数
-    /// </summary>
-    public abstract int Reading(byte[] data, int index);
-    /// <summary>
-    /// 将数据写入字节数组并返回字节数组
-    /// </summary>
-    public abstract byte[] Writing();
-
-
-
-    // ========== 辅助方法 ==========
-
-    private static void EnsureAvailable(byte[] bytes, int index, int length)
+    public abstract class BinaryData
     {
-        if (bytes == null) throw new ArgumentNullException(nameof(bytes));
-        if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
-        if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
-        if (index + length > bytes.Length) throw new ArgumentOutOfRangeException(nameof(bytes), $"Not enough bytes in buffer (index={index}, length={length}, bufferLength={bytes.Length})");
-    }
+        /// <summary>
+        /// 获取数据的二进制长度
+        /// </summary>
+        public abstract int Length();
 
-    // ========== 写方法 ==========
-    
-    public void WriteBool(byte[] bytes, bool value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(bool));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(bool);
-    }
+        /// <summary>
+        /// 将数据写入目标 Buffer (核心修改：不返回数组，直接写入)
+        /// </summary>
+        public abstract void Writing(byte[] buffer, ref int index);
 
-    public void WriteByte(byte[] bytes, byte value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(byte));
-        bytes[index] = value;
-        index += sizeof(byte);
-    }
+        /// <summary>
+        /// 从字节数组中读取数据
+        /// </summary>
+        public abstract void Reading(byte[] buffer, ref int index);
 
-    public void WriteChar(byte[] bytes, char value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(char));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(char);
-    }
+        // ========== 辅助方法 ==========
 
-    public void WriteShort(byte[] bytes, short value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(short));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(short);
-    }
+        protected static void EnsureAvailable(byte[] bytes, int index, int length)
+        {
+            if (index + length > bytes.Length) 
+                throw new ArgumentOutOfRangeException($"Buffer overflow: index={index}, req={length}, size={bytes.Length}");
+        }
 
-    public void WriteInt(byte[] bytes, int value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(int));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(int);
-    }
+        // ========== 0 GC 写方法 (使用位移) ==========
 
-    public void WriteLong(byte[] bytes, long value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(long));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(long);
-    }
+        public void WriteBool(byte[] bytes, bool value, ref int index)
+        {
+            EnsureAvailable(bytes, index, 1);
+            bytes[index++] = value ? (byte)1 : (byte)0;
+        }
 
-    public void WriteFloat(byte[] bytes, float value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(float));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(float);
-    }
+        public void WriteByte(byte[] bytes, byte value, ref int index)
+        {
+            EnsureAvailable(bytes, index, 1);
+            bytes[index++] = value;
+        }
 
-    public void WriteDouble(byte[] bytes, double value, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(double));
-        BitConverter.GetBytes(value).CopyTo(bytes, index);
-        index += sizeof(double);
-    }
+        // ========== 0 GC 写方法 (改为 Little-Endian 小端序) ==========
+        // 顺序：低位在前，高位在后
 
-    public void WriteString(byte[] bytes, string value, ref int index)
-    {
-        byte[] stringBytes = System.Text.Encoding.UTF8.GetBytes(value);
-        WriteInt(bytes, stringBytes.Length, ref index);
-        EnsureAvailable(bytes, index, stringBytes.Length);
-        Array.Copy(stringBytes, 0, bytes, index, stringBytes.Length);
-        index += stringBytes.Length;
-    }
+        public void WriteShort(byte[] bytes, short value, ref int index)
+        {
+            EnsureAvailable(bytes, index, 2);
+            bytes[index++] = (byte)value;          // 低位
+            bytes[index++] = (byte)(value >> 8);   // 高位
+        }
 
-    public void WriteByteArray(byte[] bytes, byte[] value, ref int index)
-    {
-        WriteInt(bytes, value.Length, ref index);
-        EnsureAvailable(bytes, index, value.Length);
-        Array.Copy(value, 0, bytes, index, value.Length);
-        index += value.Length;
-    }
+        public void WriteInt(byte[] bytes, int value, ref int index)
+        {
+            EnsureAvailable(bytes, index, 4);
+            bytes[index++] = (byte)value;          // 低8位
+            bytes[index++] = (byte)(value >> 8);
+            bytes[index++] = (byte)(value >> 16);
+            bytes[index++] = (byte)(value >> 24);  // 高8位
+        }
 
-    public void WriteData(byte[] bytes, BinaryData dataValue, ref int index)
-    {
-        byte[] dataBytes = dataValue.Writing();
-        // WriteInt(bytes, dataBytes.Length, ref index);  // 注释掉：不再写入数据长度
-        EnsureAvailable(bytes, index, dataBytes.Length);
-        Array.Copy(dataBytes, 0, bytes, index, dataBytes.Length);
-        index += dataBytes.Length;
-    }
+        public void WriteLong(byte[] bytes, long value, ref int index)
+        {
+            EnsureAvailable(bytes, index, 8);
+            for (int i = 0; i < 8; i++) 
+            {
+                bytes[index++] = (byte)(value >> (i * 8));
+            }
+        }
 
-    // ========== 读方法 ==========
-    
-    public bool ReadBool(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(bool));
-        bool value = BitConverter.ToBoolean(bytes, index);
-        index += sizeof(bool);
-        return value;
-    }
+        public void WriteFloat(byte[] bytes, float value, ref int index)
+        {
+            // Unity/C# 的 BitConverter 默认就是小端，不需要反转，但会有GC
+            // 使用指针或转换来避免GC
+            int intVal = BitConverter.SingleToInt32Bits(value);
+            WriteInt(bytes, intVal, ref index);
+        }
+        
+        public void WriteString(byte[] bytes, string value, ref int index)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                WriteInt(bytes, 0, ref index);
+                return;
+            }
+            // 计算字节长度
+            int byteCount = Encoding.UTF8.GetByteCount(value);
+            WriteInt(bytes, byteCount, ref index);
+            EnsureAvailable(bytes, index, byteCount);
+            // 直接写入，避免 GetBytes() 产生临时数组
+            Encoding.UTF8.GetBytes(value, 0, value.Length, bytes, index);
+            index += byteCount;
+        }
 
-    public byte ReadByte(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(byte));
-        byte value = bytes[index];
-        index += sizeof(byte);
-        return value;
-    }
+        // 嵌套数据写入优化：直接透传 buffer
+        public void WriteData(byte[] bytes, BinaryData dataValue, ref int index)
+        {
+            // 不再需要 dataValue.Writing() 创建中间数组
+            // 也不需要 EnsureAvailable，因为 dataValue 内部会自己检查
+            dataValue.Writing(bytes, ref index); 
+        }
 
-    public char ReadChar(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(char));
-        char value = BitConverter.ToChar(bytes, index);
-        index += sizeof(char);
-        return value;
-    }
+        // ========== 读方法 (位移) ==========
 
-    public short ReadShort(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(short));
-        short value = BitConverter.ToInt16(bytes, index);
-        index += sizeof(short);
-        return value;
-    }
+        public bool ReadBool(byte[] bytes, ref int index)
+        {
+            EnsureAvailable(bytes, index, 1);
+            return bytes[index++] != 0;
+        }
 
-    public int ReadInt(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(int));
-        int value = BitConverter.ToInt32(bytes, index);
-        index += sizeof(int);
-        return value;
-    }
+        public byte ReadByte(byte[] bytes, ref int index)
+        {
+            EnsureAvailable(bytes, index, 1);
+            return bytes[index++];
+        }
 
-    public long ReadLong(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(long));
-        long value = BitConverter.ToInt64(bytes, index);
-        index += sizeof(long);
-        return value;
-    }
+        // ========== 读方法 (改为 Little-Endian 小端序) ==========
 
-    public float ReadFloat(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(float));
-        float value = BitConverter.ToSingle(bytes, index);
-        index += sizeof(float);
-        return value;
-    }
+        public short ReadShort(byte[] bytes, ref int index)
+        {
+            EnsureAvailable(bytes, index, 2);
+            short val = (short)(bytes[index] | (bytes[index + 1] << 8));
+            index += 2;
+            return val;
+        }
 
-    public double ReadDouble(byte[] bytes, ref int index)
-    {
-        EnsureAvailable(bytes, index, sizeof(double));
-        double value = BitConverter.ToDouble(bytes, index);
-        index += sizeof(double);
-        return value;
-    }
+        public int ReadInt(byte[] bytes, ref int index)
+        {
+            EnsureAvailable(bytes, index, 4);
+            int val = bytes[index] | (bytes[index + 1] << 8) | (bytes[index + 2] << 16) | (bytes[index + 3] << 24);
+            index += 4;
+            return val;
+        }
 
-    public string ReadString(byte[] bytes, ref int index)
-    {
-        int length = ReadInt(bytes, ref index);
-        if (length < 0) throw new ArgumentOutOfRangeException(nameof(length), "Negative string length");
-        EnsureAvailable(bytes, index, length);
-        string value = System.Text.Encoding.UTF8.GetString(bytes, index, length);
-        index += length;
-        return value;
-    }
+        public float ReadFloat(byte[] bytes, ref int index)
+        {
+            int intVal = ReadInt(bytes, ref index);
+            return BitConverter.Int32BitsToSingle(intVal);
+        }
 
-    public byte[] ReadByteArray(byte[] bytes, ref int index)
-    {
-        int length = ReadInt(bytes, ref index);
-        if (length < 0) throw new ArgumentOutOfRangeException(nameof(length), "Negative array length");
-        EnsureAvailable(bytes, index, length);
-        byte[] value = new byte[length];
-        Array.Copy(bytes, index, value, 0, length);
-        index += length;
-        return value;
-    }
+        public long ReadLong(byte[] bytes, ref int index)
+        {
+            EnsureAvailable(bytes, index, 8);
+            long val = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                val |= ((long)bytes[index + i] << (i * 8));
+            }
+            index += 8;
+            return val;
+        }
 
-    public T ReadData<T>(byte[] bytes, ref int index) where T : BinaryData, new()
-    {
-        // int length = ReadInt(bytes, ref index);  // 注释掉：不再读取数据长度
-        T data = new T();
-        int length = data.Length();
-        EnsureAvailable(bytes, index, length);
-        byte[] dataBytes = new byte[length];
-        Array.Copy(bytes, index, dataBytes, 0, length);
-        index += length;
-        data.Reading(dataBytes, 0);
-        return data;
+        public string ReadString(byte[] bytes, ref int index)
+        {
+            int len = ReadInt(bytes, ref index);
+            EnsureAvailable(bytes, index, len);
+            string s = Encoding.UTF8.GetString(bytes, index, len);
+            index += len;
+            return s;
+        }
+
+        public T ReadData<T>(byte[] bytes, ref int index) where T : BinaryData, new()
+        {
+            T data = new T();
+            // 移除 data.Length() 检查，因为空对象的 Length 不代表实际数据 Length
+            data.Reading(bytes, ref index);
+            return data;
+        }
     }
 }

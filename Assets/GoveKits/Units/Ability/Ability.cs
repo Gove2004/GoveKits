@@ -1,6 +1,7 @@
 using System;
 using Cysharp.Threading.Tasks;
 using NUnit.Framework;
+using UnityEngine;
 
 
 namespace GoveKits.Units
@@ -59,8 +60,9 @@ namespace GoveKits.Units
         public string Name { get; set; } = string.Empty;  // 能力名称
         public int Level { get; set; } = 0;  // 能力等级
         public float CooldownTime { get; set; } = -1f;  // 冷却时间，负数表示无冷却
-        public float CurrentCooldown { get; private set; } = 0f;  // 当前冷却计时器
-        public bool IsCooldownReady => CurrentCooldown <= 0f;  // 冷却是否完成
+        private float _cooldownEndTime; // 冷却结束的时间点
+        public float CurrentCooldown => Mathf.Max(0f, _cooldownEndTime - Time.time);
+        public bool IsCooldownReady => Time.time >= _cooldownEndTime;
 
 
         // 构造函数
@@ -70,17 +72,17 @@ namespace GoveKits.Units
             Level = level;
         }
 
+        
+
         public virtual async UniTask Cooldown(UnitContext context)
         {
-            if (CooldownTime <= 0f) return;  // 无冷却时间，直接返回，避免开销
-        
-            CurrentCooldown = CooldownTime;
-            while (CurrentCooldown > 0f)
-            {
-                await UniTask.Delay(TimeSpan.FromSeconds(0.1f));
-                CurrentCooldown -= 0.1f;
-            }
+            if (CooldownTime <= 0f) return;
+            // 记录结束时间点 (Unity Time)
+            _cooldownEndTime = Time.time + CooldownTime;
+            // 只是单纯等待，不进行每帧计算
+            await UniTask.Delay(TimeSpan.FromSeconds(CooldownTime));
         }
+
 
         public virtual async UniTask<bool> Cost(UnitContext context)
         {
