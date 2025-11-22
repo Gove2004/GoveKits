@@ -2,12 +2,15 @@ using System;
 using System.Collections.Concurrent;
 using Cysharp.Threading.Tasks;
 using GoveKits.Manager;
+using UnityEditor;
 using UnityEngine;
 
 namespace GoveKits.Network
 {
     public class NetManager : MonoSingleton<NetManager>
     {
+        public int PlayerID { get; private set; }
+
         [Header("Settings")]
         public string RemoteIP = "127.0.0.1";
         public int RemotePort = 12345;
@@ -28,7 +31,8 @@ namespace GoveKits.Network
 
         private void Awake()
         {
-            MessageBuilder.AutoRegisterAll(); // 假设这是你的消息注册逻辑
+            PlayerID = GUID.Generate().GetHashCode();
+            MessageBuilder.AutoRegisterAll();
             InitializePipeline();
             Connect();
         }
@@ -91,8 +95,8 @@ namespace GoveKits.Network
         public void Close() => _socket.Close();
 
         // 代理 Dispatcher 的注册接口
-        public IMessageHandler Register(int msgId, IMessageHandler handler) => _dispatcher.Register(msgId, handler);
-        public void Unregister(int msgId, IMessageHandler handler) => _dispatcher.Unregister(msgId, handler);
+        public void Bind(object target) => _dispatcher.Bind(target);
+        public void Unbind(object target) => _dispatcher.Unbind(target);
 
         protected override void OnDestroy()
         {

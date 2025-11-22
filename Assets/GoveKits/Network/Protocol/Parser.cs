@@ -83,10 +83,10 @@ namespace GoveKits.Network
             try
             {
                 // 工厂创建
-                Message msg = MessageBuilder.Create(msgId);
+                Message msg = MessageBuilder.Create<Message>(msgId);
                 if (msg != null)
                 {
-                    int index = 0;
+                    int index = Message.HeaderSize;  // 跳过头部
                     msg.Reading(packet, ref index); // 反序列化
                     
                     // ★ 触发事件，流向下一级

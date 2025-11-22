@@ -10,7 +10,7 @@ import datetime
 
 # ================= 配置区域 =================
 # 对应 C# 里的 MsgID 定义
-MSG_HEARTBEAT = 1
+MSG_HEARTBEAT = 0
 MSG_PLAYER_LOGIN = 1001
 
 # 对应 C# BinaryData 的写入顺序 (msgId = packet[0]<<24...)
