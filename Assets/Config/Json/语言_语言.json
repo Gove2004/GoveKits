@@ -1,0 +1,14 @@
+﻿{
+  "Hello": {
+    "Id": "Hello",
+    "ChineseCN": "你好",
+    "EnglishUS": "Hello",
+    "Japanese": "你好"
+  },
+  "ByeBye": {
+    "Id": "ByeBye",
+    "ChineseCN": "再见",
+    "EnglishUS": "ByeBye",
+    "Japanese": "ByeBye"
+  }
+}

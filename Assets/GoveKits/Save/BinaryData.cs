@@ -2,7 +2,7 @@ using System;
 using System.Text;
 
 
-namespace GoveKits.Network
+namespace GoveKits.Save
 {
     /// <summary>
     /// 二进制数据基类，提供读写方法

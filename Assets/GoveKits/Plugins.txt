@@ -15,3 +15,10 @@ install from https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plug
 https://github.com/Demigiant/dotween
 in my asset store
 
+# ExcelDataReader
+https://github.com/ExcelDataReader/ExcelDataReader
+build in
+
+
+
+

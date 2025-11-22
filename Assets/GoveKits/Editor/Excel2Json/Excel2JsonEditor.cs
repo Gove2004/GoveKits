@@ -1,373 +1,263 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
 using System.IO;
+using System.Text;
+using ExcelDataReader;
+using Newtonsoft.Json;
 using UnityEditor;
 using UnityEngine;
-using GoveKits.Utility;
 
 namespace GoveKits.Tool
 {
-    /// <summary>
-    /// Excel转JSON编辑器工具窗口
-    /// </summary>
-    public class Excel2JsonEditor : EditorWindow
+    public class ExcelConfigEditor : EditorWindow
     {
-        [Header("路径设置")]
-        [SerializeField] private string inputPath = "Assets/Config/Excel";
-        [SerializeField] private string outputPath = "Assets/Config/Json";
-        [SerializeField] private string keyColumn = "key";
-        
-        [Header("Python设置")]
-        [SerializeField] private string pythonPath = "python";
-        [SerializeField] private string scriptPath = "Assets/GoveKits/Editor/Excel2Json/excel2json.py";
-        
-        private Vector2 scrollPosition;
-        private Vector2 logScrollPosition; // 新增：日志滚动位置
-        private bool isConverting = false;
-        private string lastConvertResult = "";
-        private int successFiles = 0;
-        private int failedFiles = 0;
-        
-        /// <summary>
-        /// 创建菜单项
-        /// </summary>
+        [Header("路径配置")]
+        [SerializeField] private string excelFolderPath = "Assets/Config/Excel";
+        [SerializeField] private string codeOutputFolder = "Assets/Config/DTO"; 
+        [SerializeField] private string jsonOutputFolder = "Assets/Config/Json"; 
+        [SerializeField] private string namespaceName = "GoveKits.Config"; // 必须与Manager中引用的一致
+
         [MenuItem("GoveKits/Excel2Json")]
         public static void ShowWindow()
         {
-            Excel2JsonEditor window = GetWindow<Excel2JsonEditor>("Excel2Json 转换器");
-            window.minSize = new Vector2(400, 500);
-            window.Show();
+            GetWindow<ExcelConfigEditor>("Excel2Json");
         }
-        
+
         private void OnGUI()
         {
-            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+            GUILayout.Label("Excel 导表工具", EditorStyles.boldLabel);
             
-            EditorGUILayout.Space(10);
-            
-            // 标题
-            GUILayout.Label("Excel2Json 转换工具", EditorStyles.boldLabel);
+            EditorGUILayout.Space();
+            excelFolderPath = EditorGUILayout.TextField("Excel 目录", excelFolderPath);
+            codeOutputFolder = EditorGUILayout.TextField("DTO 代码目录", codeOutputFolder);
+            jsonOutputFolder = EditorGUILayout.TextField("JSON 数据目录", jsonOutputFolder);
+            namespaceName = EditorGUILayout.TextField("命名空间", namespaceName);
+
+            EditorGUILayout.Space(20);
+            GUILayout.Label("操作流程", EditorStyles.boldLabel);
+
+            // 1. 清空
+            GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
+            if (GUILayout.Button("1. 清空旧文件 (Clean)", GUILayout.Height(30)))
+            {
+                if(EditorUtility.DisplayDialog("警告", "确定要清空 DTO 和 Json 文件夹下的所有生成文件吗？", "确定", "取消"))
+                {
+                    ClearFolders();
+                }
+            }
+            GUI.backgroundColor = Color.white;
+
             EditorGUILayout.Space(5);
-            
-            // 路径设置区域
-            DrawPathSettings();
+
+            // 2. 分步生成
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("2. 仅生成 C# 代码", GUILayout.Height(30)))
+            {
+                GenerateProcess(true, false);
+            }
+            if (GUILayout.Button("3. 仅生成 JSON 数据", GUILayout.Height(30)))
+            {
+                GenerateProcess(false, true);
+            }
+            GUILayout.EndHorizontal();
+
             EditorGUILayout.Space(10);
-            
-            // Python设置区域
-            DrawPythonSettings();
-            EditorGUILayout.Space(10);
-            
-            // 操作按钮区域
-            DrawActionButtons();
-            EditorGUILayout.Space(10);
-            
-            // 结果显示区域
-            DrawResultArea();
-            
-            EditorGUILayout.EndScrollView();
-        }
-        
-        /// <summary>
-        /// 绘制路径设置区域
-        /// </summary>
-        private void DrawPathSettings()
-        {
-            EditorGUILayout.LabelField("路径设置", EditorStyles.boldLabel);
-            
-            // 输入路径
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("输入路径:", GUILayout.Width(80));
-            inputPath = EditorGUILayout.TextField(inputPath);
-            if (GUILayout.Button("浏览", GUILayout.Width(60)))
+
+            // 3. 一键生成
+            GUI.backgroundColor = Color.green;
+            if (GUILayout.Button("一键全部生成 (Generate All)", GUILayout.Height(40)))
             {
-                string selectedPath = EditorUtility.OpenFolderPanel("选择Excel文件目录", inputPath, "");
-                if (!string.IsNullOrEmpty(selectedPath))
+                GenerateProcess(true, true);
+            }
+            GUI.backgroundColor = Color.white;
+        }
+
+        private void ClearFolders()
+        {
+            void CleanDir(string path, string pattern)
+            {
+                if (!Directory.Exists(path)) return;
+                string[] files = Directory.GetFiles(path, pattern);
+                foreach (var file in files) File.Delete(file);
+                Debug.Log($"[已删除] {path}/{pattern}");
+            }
+
+            CleanDir(codeOutputFolder, "*.cs");
+            CleanDir(jsonOutputFolder, "*.json");
+            AssetDatabase.Refresh();
+        }
+
+        private void GenerateProcess(bool genCode, bool genJson)
+        {
+            if (!Directory.Exists(excelFolderPath))
+            {
+                Debug.LogError("Excel目录不存在！");
+                return;
+            }
+
+            if (genCode)
+            {
+                if (!Directory.Exists(codeOutputFolder)) Directory.CreateDirectory(codeOutputFolder);
+            }
+            if (genJson)
+            {
+                if (!Directory.Exists(jsonOutputFolder)) Directory.CreateDirectory(jsonOutputFolder);
+            }
+
+            string[] files = Directory.GetFiles(excelFolderPath, "*.xlsx");
+            int count = 0;
+
+            foreach (string filePath in files)
+            {
+                if (Path.GetFileName(filePath).StartsWith("~$")) continue;
+
+                try
                 {
-                    inputPath = selectedPath;
+                    ProcessFile(filePath, genCode, genJson);
+                    count++;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"文件出错 {filePath}: {e.Message}");
                 }
             }
-            EditorGUILayout.EndHorizontal();
-            
-            // 输出路径
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("输出路径:", GUILayout.Width(80));
-            outputPath = EditorGUILayout.TextField(outputPath);
-            if (GUILayout.Button("浏览", GUILayout.Width(60)))
+
+            AssetDatabase.Refresh();
+            string msg = $"处理完成！({count} 个文件)\n";
+            if (genCode) msg += "- 代码已更新 (需等待编译)\n";
+            if (genJson) msg += "- 数据已更新";
+            EditorUtility.DisplayDialog("完成", msg, "OK");
+        }
+
+        private void ProcessFile(string filePath, bool genCode, bool genJson)
+        {
+            using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                string selectedPath = EditorUtility.OpenFolderPanel("选择JSON输出目录", outputPath, "");
-                if (!string.IsNullOrEmpty(selectedPath))
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
                 {
-                    outputPath = selectedPath;
-                }
-            }
-            EditorGUILayout.EndHorizontal();
-            
-            // 键名列
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("键名列:", GUILayout.Width(80));
-            keyColumn = EditorGUILayout.TextField(keyColumn);
-            EditorGUILayout.EndHorizontal();
-            
-            // 显示文件数量
-            if (Directory.Exists(inputPath))
-            {
-                var excelFiles = GetExcelFiles();
-                EditorGUILayout.HelpBox($"发现 {excelFiles.Length} 个Excel文件", MessageType.Info);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("输入目录不存在", MessageType.Warning);
-            }
-        }
-        
-        /// <summary>
-        /// 绘制Python设置区域
-        /// </summary>
-        private void DrawPythonSettings()
-        {
-            EditorGUILayout.LabelField("Python设置", EditorStyles.boldLabel);
-            
-            // Python路径
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Python命令:", GUILayout.Width(80));
-            pythonPath = EditorGUILayout.TextField(pythonPath);
-            EditorGUILayout.EndHorizontal();
-            
-            // 脚本路径
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("脚本路径:", GUILayout.Width(80));
-            scriptPath = EditorGUILayout.TextField(scriptPath);
-            if (GUILayout.Button("浏览", GUILayout.Width(60)))
-            {
-                string selectedPath = EditorUtility.OpenFilePanel("选择Python脚本", 
-                    Path.GetDirectoryName(scriptPath), "py");
-                if (!string.IsNullOrEmpty(selectedPath))
-                {
-                    scriptPath = selectedPath;
-                }
-            }
-            EditorGUILayout.EndHorizontal();
-            
-            // 脚本验证
-            if (!File.Exists(scriptPath))
-            {
-                EditorGUILayout.HelpBox("Python脚本不存在", MessageType.Error);
-            }
-        }
-        
-        /// <summary>
-        /// 绘制操作按钮区域
-        /// </summary>
-        private void DrawActionButtons()
-        {
-            EditorGUILayout.LabelField("操作", EditorStyles.boldLabel);
-            
-            GUI.enabled = !isConverting && File.Exists(scriptPath) && Directory.Exists(inputPath);
-            
-            if (GUILayout.Button("开始转换", GUILayout.Height(30)))
-            {
-                StartConversion();
-            }
-            
-            GUI.enabled = true;
-        }
-        
-        /// <summary>
-        /// 绘制结果显示区域
-        /// </summary>
-        private void DrawResultArea()
-        {
-            EditorGUILayout.LabelField("转换结果", EditorStyles.boldLabel);
-            
-            if (isConverting)
-            {
-                EditorGUILayout.HelpBox("正在转换中，请稍候...", MessageType.Info);
-                
-                // 动态进度条
-                Rect rect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-                float progress = Mathf.PingPong(Time.realtimeSinceStartup * 0.5f, 1f);
-                EditorGUI.ProgressBar(rect, progress, "转换中...");
-                
-                Repaint();
-            }
-            else if (!string.IsNullOrEmpty(lastConvertResult))
-            {
-                // 转换结果摘要
-                if (successFiles > 0 || failedFiles > 0)
-                {
-                    EditorGUILayout.BeginVertical("box");
-                    EditorGUILayout.LabelField("转换完成", EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField($"成功: {successFiles}");
-                    EditorGUILayout.LabelField($"失败: {failedFiles}");
-                    EditorGUILayout.EndVertical();
-                    EditorGUILayout.Space(5);
-                }
-                
-                // 详细日志（带滚动）
-                EditorGUILayout.LabelField("详细日志:", EditorStyles.boldLabel);
-                
-                // 使用滚动视图包装日志文本区域
-                logScrollPosition = EditorGUILayout.BeginScrollView(
-                    logScrollPosition, 
-                    GUILayout.MinHeight(150), 
-                    GUILayout.MaxHeight(300)
-                );
-                
-                EditorGUILayout.TextArea(lastConvertResult, GUILayout.ExpandHeight(true));
-                
-                EditorGUILayout.EndScrollView();
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("等待开始转换...", MessageType.None);
-            }
-        }
-        
-        /// <summary>
-        /// 获取Excel文件列表
-        /// </summary>
-        private string[] GetExcelFiles()
-        {
-            if (!Directory.Exists(inputPath))
-                return new string[0];
-                
-            var files = new System.Collections.Generic.List<string>();
-            string[] extensions = { "*.xlsx", "*.xls", "*.xlsm" };
-            
-            foreach (string ext in extensions)
-            {
-                files.AddRange(Directory.GetFiles(inputPath, ext, SearchOption.AllDirectories));
-            }
-            
-            return files.ToArray();
-        }
-        
-        /// <summary>
-        /// 开始转换
-        /// </summary>
-        private void StartConversion()
-        {
-            if (isConverting) return;
-            
-            isConverting = true;
-            lastConvertResult = "";
-            successFiles = 0;
-            failedFiles = 0;
-            
-            // 重置日志滚动位置
-            logScrollPosition = Vector2.zero;
-            
-            // 构建命令参数
-            string args = $"\"{scriptPath}\" -i \"{inputPath}\" -o \"{outputPath}\" -k \"{keyColumn}\"";
-            
-            Debug.Log($"[Excel2Json] 开始转换: {pythonPath} {args}");
-            
-            // 异步执行
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                string[] result = CMD.ExecuteWithError(pythonPath, args);
-                
-                // 回到主线程
-                EditorApplication.delayCall += () =>
-                {
-                    OnConversionComplete(result);
-                };
-            });
-        }
-        
-        /// <summary>
-        /// 转换完成回调
-        /// </summary>
-        private void OnConversionComplete(string[] result)
-        {
-            isConverting = false;
-            
-            string output = result[0];
-            string error = result[1];
-            string exitCode = result[2];
-            
-            // 解析统计信息
-            ParseConversionOutput(output);
-            
-            // 组合结果
-            lastConvertResult = $"退出码: {exitCode}\n转换时间: {System.DateTime.Now:HH:mm:ss}\n\n";
-            
-            if (!string.IsNullOrEmpty(output))
-            {
-                lastConvertResult += $"输出:\n{output}\n\n";
-            }
-            
-            if (!string.IsNullOrEmpty(error))
-            {
-                lastConvertResult += $"错误:\n{error}";
-            }
-            
-            // 显示结果
-            bool success = exitCode == "0";
-            if (success)
-            {
-                ShowNotification(new GUIContent($"转换完成! 成功:{successFiles} 失败:{failedFiles}"));
-                AssetDatabase.Refresh();
-            }
-            else
-            {
-                ShowNotification(new GUIContent("转换失败!"));
-            }
-            
-            Repaint();
-        }
-        
-        /// <summary>
-        /// 解析转换输出获取统计信息
-        /// </summary>
-        private void ParseConversionOutput(string output)
-        {
-            if (string.IsNullOrEmpty(output)) return;
-            
-            string[] lines = output.Split('\n');
-            
-            foreach (string line in lines)
-            {
-                if (line.Contains("[SUCCESS] 成功:") && line.Contains("个文件"))
-                {
-                    var match = System.Text.RegularExpressions.Regex.Match(line, @"成功:\s*(\d+)\s*个文件");
-                    if (match.Success)
+                    var result = reader.AsDataSet();
+                    string excelName = Path.GetFileNameWithoutExtension(filePath);
+
+                    foreach (DataTable table in result.Tables)
                     {
-                        int.TryParse(match.Groups[1].Value, out successFiles);
-                    }
-                }
-                
-                if (line.Contains("[FAILED] 失败:") && line.Contains("个文件"))
-                {
-                    var match = System.Text.RegularExpressions.Regex.Match(line, @"失败:\s*(\d+)\s*个文件");
-                    if (match.Success)
-                    {
-                        int.TryParse(match.Groups[1].Value, out failedFiles);
+                        string sheetName = table.TableName;
+                        // 跳过注释页(#开头)或行数不足的页
+                        if (sheetName.StartsWith("#") || table.Rows.Count < 3) continue;
+
+                        string finalName = $"{excelName}_{sheetName}"; 
+                        string className = $"{finalName}Config";
+
+                        // 解析表头
+                        List<string> fieldNames = new List<string>();
+                        List<string> fieldTypes = new List<string>();
+
+                        for (int col = 0; col < table.Columns.Count; col++)
+                        {
+                            string fieldName = table.Rows[0][col].ToString().Trim();
+                            string fieldType = table.Rows[1][col].ToString().Trim().ToLower();
+                            if (string.IsNullOrEmpty(fieldName)) continue;
+                            fieldNames.Add(fieldName);
+                            fieldTypes.Add(fieldType);
+                        }
+
+                        if (genCode) GenerateCSharpClass(className, fieldNames, fieldTypes);
+                        if (genJson) GenerateJsonData(finalName, table, fieldNames, fieldTypes);
                     }
                 }
             }
         }
-        
-        /// <summary>
-        /// 保存设置
-        /// </summary>
-        private void OnDisable()
+
+        private void GenerateCSharpClass(string className, List<string> names, List<string> types)
         {
-            EditorPrefs.SetString("Excel2Json.InputPath", inputPath);
-            EditorPrefs.SetString("Excel2Json.OutputPath", outputPath);
-            EditorPrefs.SetString("Excel2Json.KeyColumn", keyColumn);
-            EditorPrefs.SetString("Excel2Json.PythonPath", pythonPath);
-            EditorPrefs.SetString("Excel2Json.ScriptPath", scriptPath);
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("using System;");
+            sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine($"namespace {namespaceName}");
+            sb.AppendLine("{");
+            sb.AppendLine("    [Serializable]");
+            sb.AppendLine($"    public class {className} : IConfigData"); 
+            sb.AppendLine("    {");
+
+            for (int i = 0; i < names.Count; i++)
+            {
+                sb.AppendLine($"        public {MapTypeToCSharp(types[i])} {names[i]};"); 
+            }
+
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+
+            File.WriteAllText(Path.Combine(codeOutputFolder, $"{className}.cs"), sb.ToString(), Encoding.UTF8);
+            Debug.Log($"[Code] {className}.cs");
         }
-        
-        /// <summary>
-        /// 加载设置
-        /// </summary>
-        private void OnEnable()
+
+        private void GenerateJsonData(string fileName, DataTable table, List<string> names, List<string> types)
         {
-            inputPath = EditorPrefs.GetString("Excel2Json.InputPath", inputPath);
-            outputPath = EditorPrefs.GetString("Excel2Json.OutputPath", outputPath);
-            keyColumn = EditorPrefs.GetString("Excel2Json.KeyColumn", keyColumn);
-            pythonPath = EditorPrefs.GetString("Excel2Json.PythonPath", pythonPath);
-            scriptPath = EditorPrefs.GetString("Excel2Json.ScriptPath", scriptPath);
+            var resultDict = new Dictionary<object, Dictionary<string, object>>();
+            string keyType = types[0]; 
+
+            for (int row = 2; row < table.Rows.Count; row++)
+            {
+                DataRow dataRow = table.Rows[row];
+                string idStr = dataRow[0].ToString();
+                if (string.IsNullOrEmpty(idStr)) continue;
+
+                object idValue = ParseValue(idStr, keyType);
+                var rowDict = new Dictionary<string, object>();
+                
+                for (int col = 0; col < names.Count; col++)
+                {
+                    rowDict[names[col]] = ParseValue(dataRow[col].ToString(), types[col]);
+                }
+
+                if (!resultDict.ContainsKey(idValue)) resultDict.Add(idValue, rowDict);
+            }
+
+            string json = JsonConvert.SerializeObject(resultDict, Formatting.Indented);
+            File.WriteAllText(Path.Combine(jsonOutputFolder, $"{fileName}.json"), json, Encoding.UTF8);
+            Debug.Log($"[Json] {fileName}.json");
+        }
+
+        private string MapTypeToCSharp(string excelType)
+        {
+            switch (excelType)
+            {
+                case "int": return "int";
+                case "float": return "float";
+                case "double": return "double";
+                case "bool": return "bool";
+                case "string": return "string";
+                case "long": return "long";
+                case "int[]": return "int[]";
+                case "string[]": return "string[]";
+                default: return "string";
+            }
+        }
+
+        private object ParseValue(string value, string type)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                if (type == "int" || type == "float" || type == "double") return 0;
+                if (type == "bool") return false;
+                return "";
+            }
+            try
+            {
+                switch (type)
+                {
+                    case "int": return int.Parse(value);
+                    case "float": return float.Parse(value);
+                    case "double": return double.Parse(value);
+                    case "long": return long.Parse(value);
+                    case "bool": return (value.Equals("1") || value.Equals("true", StringComparison.OrdinalIgnoreCase));
+                    case "string": return value;
+                    case "int[]": return Array.ConvertAll(value.Split(','), int.Parse);
+                    case "string[]": return value.Split(',');
+                    default: return value;
+                }
+            }
+            catch { return value; }
         }
     }
 }

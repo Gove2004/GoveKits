@@ -1,10 +1,7 @@
-
-
-
-
 using UnityEngine;
 
-namespace GoveKits.Manager
+
+namespace GoveKits.Audio
 {
     // 音频组件
     public class AudioComponent : MonoBehaviour

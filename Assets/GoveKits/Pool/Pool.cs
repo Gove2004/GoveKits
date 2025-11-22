@@ -2,25 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-namespace GoveKits.Manager
+namespace GoveKits.Pool
 {
-    /// <summary>
-    /// 池化对象组件（标记对象属于哪个Prefab类型）
-    /// </summary>
-    public class PooledObject : MonoBehaviour
-    {
-        public string PrefabType { get; set; }
-    }
-
-    /// <summary>
-    /// 池化对象接口（用于重置对象状态）
-    /// </summary>
-    public interface IPoolable
-    {
-        void OnGetFromPool();
-        void OnReturnToPool();
-    }
-
     /// <summary>
     /// 单个对象池实现
     /// </summary>
@@ -76,15 +59,6 @@ namespace GoveKits.Manager
         {
             GameObject obj = Object.Instantiate(_prefab, _parent);
             obj.SetActive(false);
-
-            // 添加池化对象组件
-            PooledObject pooledObj = obj.GetComponent<PooledObject>();
-            if (pooledObj == null)
-            {
-                pooledObj = obj.AddComponent<PooledObject>();
-            }
-            pooledObj.PrefabType = _prefab.GetType().Name;
-
             _availableObjects.Enqueue(obj);
         }
 

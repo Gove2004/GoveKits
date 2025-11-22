@@ -2,9 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using GoveKits.Manager;
 using UnityEngine;
 
-namespace GoveKits.Manager
+namespace GoveKits.Pool
 {
     /// <summary>
     /// 对象池管理器（单例）
@@ -19,13 +20,15 @@ namespace GoveKits.Manager
         /// </summary>
         /// <param name="prefab">Prefab模板</param>
         /// <param name="initialSize">初始池大小</param>
-        public void InitializePool(GameObject prefab, int initialSize = 8)
+        public void InitializePool(string className, GameObject prefab, int initialSize = 8)
         {
-            string className = prefab.GetType().Name;
-            
             if (!_pools.ContainsKey(className))
             {
                 _pools[className] = new Pool(prefab, initialSize, transform);
+            }
+            else
+            {
+                Debug.LogWarning($"[PoolManager] Pool for {className} already exists.");
             }
         }
         
@@ -34,16 +37,8 @@ namespace GoveKits.Manager
         /// </summary>
         /// <param name="prefab">Prefab模板</param>
         /// <returns>可用的游戏对象</returns>
-        public GameObject GetObject(GameObject prefab)
+        public GameObject GetObject(string className)
         {
-            string className = prefab.GetType().Name;
-            
-            // 如果还没有该类型的池，创建一个
-            if (!_pools.ContainsKey(className))
-            {
-                InitializePool(prefab);
-            }
-            
             return _pools[className].GetObject();
         }
         
@@ -51,26 +46,15 @@ namespace GoveKits.Manager
         /// 将对象返回对象池
         /// </summary>
         /// <param name="obj">要返回的游戏对象</param>
-        public void ReturnObject(GameObject obj)
+        public void ReturnObject(string className, GameObject obj)
         {
-            PooledObject pooledObj = obj.GetComponent<PooledObject>();
-            if (pooledObj != null)
+            if (_pools.ContainsKey(className))
             {
-                string className = pooledObj.PrefabType;
-                
-                if (_pools.ContainsKey(className))
-                {
-                    _pools[className].ReturnObject(obj);
-                }
-                else
-                {
-                    // 如果没有找到对应的池，直接销毁
-                    Destroy(obj);
-                }
+                _pools[className].ReturnObject(obj);
             }
             else
             {
-                // 如果不是池化对象，直接销毁
+                // 如果没有找到对应的池，直接销毁
                 Destroy(obj);
             }
         }
@@ -78,14 +62,9 @@ namespace GoveKits.Manager
         /// <summary>
         /// 获取指定类型的池
         /// </summary>
-        public Pool GetPool(GameObject prefab)
+        public Pool GetPool(string className)
         {
-            string className = prefab.GetType().Name;
-            if (_pools.ContainsKey(className))
-            {
-                return _pools[className];
-            }
-            return null;
+            return _pools.ContainsKey(className) ? _pools[className] : null;
         }
         
         /// <summary>

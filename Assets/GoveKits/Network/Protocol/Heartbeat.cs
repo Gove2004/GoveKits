@@ -1,5 +1,6 @@
 
 
+using GoveKits.Save;
 using UnityEngine;
 
 namespace GoveKits.Network
@@ -12,6 +13,9 @@ namespace GoveKits.Network
         
         private float lastSendTime = 0f;
         private float lastRecvTime = 0f; // 新增：最后一次收到心跳的时间
+
+        public float LastRTT { get; private set; } = -1f;
+
 
         public void Start()
         {
@@ -52,8 +56,8 @@ namespace GoveKits.Network
         private void Pong(HeartbeatMessage msg)
         {
             lastRecvTime = Time.time; // 更新接收时间
-            float rtt = Time.time - lastSendTime; // 简单计算 RTT
-            Debug.Log($"[Heartbeat] RTT: {rtt * 1000f:F1} ms");
+            LastRTT = Time.time - lastSendTime; // 简单计算 RTT
+            Debug.Log($"[Heartbeat] RTT: {LastRTT * 1000f:F1} ms");
         }
     }
 

@@ -1,11 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using GoveKits.Manager;
 using UnityEngine;
 using UnityEngine.Audio;
 
 
-namespace GoveKits.Manager
+namespace GoveKits.Audio
 {
     /// <summary>
     /// 音频资源类
