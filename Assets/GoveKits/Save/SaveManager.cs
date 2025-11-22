@@ -7,7 +7,7 @@ using UnityEngine;
 using Newtonsoft.Json;
 
 
-namespace GoveKits.Manager
+namespace GoveKits.Save
 {
     /// <summary>
     /// 存档数据基类, 支持版本控制

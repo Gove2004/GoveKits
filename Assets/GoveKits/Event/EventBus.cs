@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace GoveKits.Manager
+namespace GoveKits.Event
 {
     /// <summary>
     /// 事件总线（单个管道）

@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.Events;
 
 
-namespace GoveKits.Manager
+namespace GoveKits.Resource
 {
     /// <summary>
     /// 资源管理器，负责AssetBundle的加载和缓存

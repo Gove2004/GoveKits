@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using GoveKits;
 
 
-namespace GoveKits.Manager
+namespace GoveKits.Timer
 {
     public class TimerManager : MonoSingleton<TimerManager>
     {

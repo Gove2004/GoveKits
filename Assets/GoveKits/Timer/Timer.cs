@@ -1,7 +1,7 @@
 using System;
 
 
-namespace GoveKits
+namespace GoveKits.Timer
 {
     public class Timer
     {

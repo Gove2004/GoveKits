@@ -3,7 +3,7 @@
 
 using System;
 
-namespace GoveKits.Manager
+namespace GoveKits.Event
 {
     /// <summary>
     /// 基础事件类，携带公共属性数据

@@ -2,7 +2,7 @@
 
 using System;
 using System.Collections.Generic;
-using GoveKits.Manager;
+
 using UnityEngine;
 
 namespace GoveKits.Pool

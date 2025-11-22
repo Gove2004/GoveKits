@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace GoveKits.Manager
+namespace GoveKits.Event
 {
     /// <summary>
     /// 事件管理器（单例）- 支持多管道事件系统
