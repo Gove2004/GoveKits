@@ -6,16 +6,23 @@ using System.Reflection;
 using Newtonsoft.Json;
 using UnityEngine;
 
-namespace GoveKits.Config
+
+
+namespace Game.Config
 {
     public interface IConfigData { } 
-    
-    
+}
+
+
+
+
+namespace GoveKits.Config
+{
     public class ConfigManager : MonoSingleton<ConfigManager>
     {
         private readonly Dictionary<Type, object> _configCache = new Dictionary<Type, object>();
         private string _configPath = "Assets/Config/Json";
-        private string _namespaceName = "GoveKits.Config"; 
+        private string _namespaceName = "Game.Config"; 
 
         public void Awake()
         {

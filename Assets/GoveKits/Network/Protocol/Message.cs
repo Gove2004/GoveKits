@@ -1,139 +1,184 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using GoveKits.Save;
 using UnityEngine;
 
-
 namespace GoveKits.Network
 {
-    public abstract class Message : BinaryData
+    // ===================================================================================
+    // 1. 基础数据结构
+    // ===================================================================================
+
+    public class MessageHeader : BinaryData
     {
-        // 缓存 ID，避免每次序列化都反射，提升性能
-        private int? _cachedId;
-        public virtual int MsgID
-        {
-            get
-            {
-                if (_cachedId.HasValue) return _cachedId.Value;
-
-                // 反射获取类上的 [NetMessage] 特性
-                var attr = GetType().GetCustomAttribute<MessageAttribute>();
-                if (attr != null)
-                {
-                    _cachedId = attr.Id;
-                    return _cachedId.Value;
-                }
-
-                throw new Exception($"Class [{GetType().Name}] is missing [NetMessage] attribute!");
-            }
-        }
-        public const int HeaderSize = 8;
-
-        // 新增：打包入口，只在这里分配一次数组
-        public byte[] Pack()
-        {
-            int len = Length();
-            byte[] buffer = new byte[len];
-            int index = 0;
-            Writing(buffer, ref index);
-            return buffer;
-        }
-    }
-
-
-    public class Message<T> : Message where T : BinaryData, new()
-    {
-        public T MsgData;
-
-        public Message() => MsgData = new T();
-        public Message(T data) => MsgData = data;
-
-        public override int Length() => HeaderSize + MsgData.Length();
-
-        // 统一为 Writing，不再 new byte[]
-        public override void Writing(byte[] buffer, ref int index)
-        {
-            WriteInt(buffer, MsgID, ref index);
-            WriteInt(buffer, MsgData.Length(), ref index);
-            MsgData.Writing(buffer, ref index); // 递归直接写入，零拷贝
-        }
-
+        public int SenderID = 0;  // 发送者的ID，0表示系统
+        public int TargetID = 0;  // 接收者的ID，0表示系统
+        public override int Length() => 8;
         public override void Reading(byte[] buffer, ref int index)
         {
-            // ID 和 Length 已经在外部或者 Header 处理时读过了
-            // 如果你是直接丢 Message 进去解包，需要手动读一下跳过，或者由外部控制
-            // 假设外部已经读了 ID 和 Length 才知道是这个消息：
-
-            // int readId = ReadInt(buffer, ref index);
-            // int readLen = ReadInt(buffer, ref index);
-            
-            MsgData.Reading(buffer, ref index);
+            SenderID = ReadInt(buffer, ref index);
+            TargetID = ReadInt(buffer, ref index);
+        }
+        public override void Writing(byte[] buffer, ref int index)
+        {
+            WriteInt(buffer, SenderID, ref index);
+            WriteInt(buffer, TargetID, ref index);
         }
     }
 
-
-    [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+    /// <summary>
+    /// 标记一个 Message 子类的消息ID
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class)]
     public class MessageAttribute : Attribute
     {
         public int Id { get; }
         public MessageAttribute(int id) => Id = id;
     }
 
+    // ===================================================================================
+    // 2. 消息构建器 (核心修改)
+    // ===================================================================================
 
-
+    /// <summary>
+    /// 消息工厂：负责 ID <-> Type 的双向映射与实例化
+    /// </summary>
     public static class MessageBuilder
     {
-        private static readonly Dictionary<int, Func<Message>> factories = new();
+        // ID -> 构造函数 (用于接收时创建实例)
+        private static readonly Dictionary<int, Func<Message>> _factories = new();
+        
+        // Type -> ID (用于发送时 new() 自动填充 ID)
+        private static readonly Dictionary<Type, int> _typeToId = new();
 
         /// <summary>
-        /// 通过 Type 注册（用于反射注册）
+        /// 注册消息类型
         /// </summary>
         public static void Register(Type messageType, int msgId)
         {
-            if (!typeof(Message).IsAssignableFrom(messageType))
+            if (!typeof(Message).IsAssignableFrom(messageType)) return;
+
+            // 1. 注册工厂 (ID -> Msg)
+            if (!_factories.ContainsKey(msgId))
             {
-                Debug.LogError($"[MessageBuilder] Type {messageType.FullName} is not a Message.");
-                return;
+                NewExpression newExp = Expression.New(messageType);
+                LambdaExpression lambda = Expression.Lambda(typeof(Func<Message>), newExp);
+                Func<Message> compiledFactory = (Func<Message>)lambda.Compile();
+                _factories[msgId] = compiledFactory;
             }
 
-            if (factories.ContainsKey(msgId))
-            {
-                Debug.LogWarning($"[MessageBuilder] ID {msgId} overwritten.");
-            }
-
-            factories[msgId] = () => (Message)Activator.CreateInstance(messageType);
+            // 2. 注册类型映射 (Type -> ID)
+            _typeToId[messageType] = msgId;
         }
 
-        
         /// <summary>
-        /// 通过 MsgID 创建 Message 实例
+        /// 根据 ID 创建消息实例 (接收时用)
         /// </summary>
-        /// <param name="msgId"></param>
-        /// <returns></returns>
         public static T Create<T>(int msgId) where T : Message
         {
-            if (factories.TryGetValue(msgId, out var factory)) return (T)factory();
-            Debug.LogError($"[MessageBuilder] MsgID {msgId} not registered.");
+            if (_factories.TryGetValue(msgId, out var factory)) 
+                return (T)factory();
             return null;
         }
 
+        /// <summary>
+        /// 获取消息类型的 ID (发送时构造函数用)
+        /// </summary>
+        public static int GetMsgID(Type type)
+        {
+            // 1. 优先从缓存取 (极快)
+            if (_typeToId.TryGetValue(type, out int id))
+                return id;
 
-        // 自动注册所有带有 MessageAttribute 的 Message 子类
+            // 2. 缓存没有(可能是没调用 AutoRegisterAll)，尝试现场反射并注册 (懒加载)
+            var attr = type.GetCustomAttribute<MessageAttribute>();
+            if (attr != null)
+            {
+                Register(type, attr.Id);
+                return attr.Id;
+            }
+
+            Debug.LogError($"[MessageBuilder] Type {type.Name} has no [Message(id)] attribute!");
+            return -1;
+        }
+
+        /// <summary>
+        /// 自动注册所有带有 [Message] 特性的类
+        /// </summary>
         public static void AutoRegisterAll()
         {
-            var types = Assembly.GetExecutingAssembly().GetTypes();
-            foreach (var type in types)
+            _factories.Clear();
+            _typeToId.Clear();
+
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var assembly in assemblies)
             {
-                if (type.IsAbstract || !type.IsSubclassOf(typeof(Message))) continue;
-                
-                var attr = type.GetCustomAttribute<MessageAttribute>();
-                if (attr != null)
+                // 简单的过滤，避免扫描系统程序集 (可选优化)
+                if (assembly.GetName().Name.StartsWith("System") || 
+                    assembly.GetName().Name.StartsWith("Unity")) continue;
+
+                foreach (var type in assembly.GetTypes())
                 {
-                    MessageBuilder.Register(type, attr.Id);
+                    if (type.IsAbstract || !type.IsSubclassOf(typeof(Message))) continue;
+
+                    var attr = type.GetCustomAttribute<MessageAttribute>();
+                    if (attr != null)
+                    {
+                        Register(type, attr.Id);
+                    }
                 }
             }
+            Debug.Log($"[MessageBuilder] Registered {_factories.Count} messages.");
+        }
+    }
+
+    // ===================================================================================
+    // 3. 消息基类
+    // ===================================================================================
+
+    public abstract class Message : BinaryData
+    {
+        public int MsgID = -1; // 消息ID必须是第一个字段
+    }
+
+    public abstract class MessageBody : BinaryData { }
+
+    public class Message<T> : Message where T : MessageBody, new()
+    {
+        public MessageHeader Header = new MessageHeader();
+        public T Body = new T();
+
+        // 构造函数
+        public Message() => Init();
+        public Message(T body) 
+        { 
+            Init();
+            Body = body; 
+        }
+
+        // 初始化时直接去 Builder 查表
+        private void Init()
+        {
+            // 这里调用 MessageBuilder.GetMsgID，利用缓存获取 ID
+            MsgID = MessageBuilder.GetMsgID(this.GetType());
+        }
+
+        public override int Length() => 4 + Header.Length() + Body.Length(); // MsgID(4) + Header + Body
+
+        public override void Writing(byte[] buffer, ref int index)
+        {
+            WriteInt(buffer, MsgID, ref index); 
+            Header.Writing(buffer, ref index);
+            Body.Writing(buffer, ref index);
+        }
+
+        public override void Reading(byte[] buffer, ref int index)
+        {
+            MsgID = ReadInt(buffer, ref index);
+            Header.Reading(buffer, ref index);
+            Body.Reading(buffer, ref index);
         }
     }
 }

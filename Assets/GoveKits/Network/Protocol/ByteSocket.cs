@@ -1,37 +1,41 @@
 using System;
 using System.Net.Sockets;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 namespace GoveKits.Network
 {
-    public class NetSocket : IDisposable
+    public class ByteSocket : IDisposable
     {
         private Socket _socket;
         private readonly byte[] _receiveBuffer = new byte[64 * 1024];
         
-        // 事件：原始数据 (buffer, offset, count)
-        public event Action<byte[], int, int> OnReceiveData;
-        public event Action OnConnected;
-        public event Action OnDisconnected;
+        private readonly Action<byte[], int, int> _onReceiveDataAction;  // 收到数据回调
 
         public bool IsConnected => _socket != null && _socket.Connected;
+
+        public ByteSocket(Action<byte[], int, int> onReceiveData)
+        {
+            _onReceiveDataAction = onReceiveData;
+        }
 
         public async UniTask ConnectAsync(string ip, int port)
         {
             Close();
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-            
+            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) 
+            { 
+                NoDelay = true // 禁用 Nagle 算法，降低延迟
+            };
+
             try
             {
                 await _socket.ConnectAsync(ip, port);
-                OnConnected?.Invoke();
-                ReceiveLoopAsync().Forget(); // 开始接收循环
+                Debug.Log($"[NetSocket] Connected to {ip}:{port}");
+                ReceiveLoopAsync().Forget();
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetSocket] Connect failed: {ex.Message}");
+                Debug.LogError($"[NetSocket] Connect Failed: {ex.Message}");
                 Close();
             }
         }
@@ -42,17 +46,14 @@ namespace GoveKits.Network
             {
                 try
                 {
-                    // 使用 UniTask 的 Socket 扩展或原生 ReceiveAsync
                     int received = await _socket.ReceiveAsync(new ArraySegment<byte>(_receiveBuffer), SocketFlags.None);
-                    
                     if (received == 0)
                     {
-                        Close(); // 收到0字节表示断开
+                        Close();
                         break;
                     }
-
-                    // ★ 收到数据直接抛出，不做任何逻辑处理
-                    OnReceiveData?.Invoke(_receiveBuffer, 0, received);
+                    // 直接推给 Parser
+                    _onReceiveDataAction?.Invoke(_receiveBuffer, 0, received);
                 }
                 catch (Exception)
                 {
@@ -61,20 +62,13 @@ namespace GoveKits.Network
                 }
             }
         }
-        
+
         public async UniTask SendAsync(byte[] data)
         {
             if (!IsConnected) return;
             try
             {
-                int sent = 0;
-                while (sent < data.Length)
-                {
-                    var segment = new ArraySegment<byte>(data, sent, data.Length - sent);
-                    int s = await _socket.SendAsync(segment, SocketFlags.None);
-                    if (s == 0) break;
-                    sent += s;
-                }
+                await _socket.SendAsync(new ArraySegment<byte>(data), SocketFlags.None);
             }
             catch (Exception ex)
             {
@@ -82,13 +76,14 @@ namespace GoveKits.Network
                 Close();
             }
         }
-        public void Close() 
+
+        public void Close()
         {
             if (_socket == null) return;
-            try { _socket.Close(); } catch {}
+            try { _socket.Close(); } catch { }
             _socket = null;
-            OnDisconnected?.Invoke();
         }
+
         public void Dispose() => Close();
     }
 }

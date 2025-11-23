@@ -81,6 +81,25 @@ namespace GoveKits.Save
             int intVal = BitConverter.SingleToInt32Bits(value);
             WriteInt(bytes, intVal, ref index);
         }
+
+        public void WriteDouble(byte[] bytes, double value, ref int index)
+        {
+            long longVal = BitConverter.DoubleToInt64Bits(value);
+            WriteLong(bytes, longVal, ref index);
+        }
+
+        public void WriteVector2(byte[] bytes, UnityEngine.Vector2 value, ref int index)
+        {
+            WriteFloat(bytes, value.x, ref index);
+            WriteFloat(bytes, value.y, ref index);
+        }
+
+        public void WriteVector3(byte[] bytes, UnityEngine.Vector3 value, ref int index)
+        {
+            WriteFloat(bytes, value.x, ref index);
+            WriteFloat(bytes, value.y, ref index);
+            WriteFloat(bytes, value.z, ref index);
+        }
         
         public void WriteString(byte[] bytes, string value, ref int index)
         {
@@ -154,6 +173,27 @@ namespace GoveKits.Save
             }
             index += 8;
             return val;
+        }
+
+        public double ReadDouble(byte[] bytes, ref int index)
+        {
+            long longVal = ReadLong(bytes, ref index);
+            return BitConverter.Int64BitsToDouble(longVal);
+        }
+
+        public UnityEngine.Vector2 ReadVector2(byte[] bytes, ref int index)
+        {
+            float x = ReadFloat(bytes, ref index);
+            float y = ReadFloat(bytes, ref index);
+            return new UnityEngine.Vector2(x, y);
+        }
+
+        public UnityEngine.Vector3 ReadVector3(byte[] bytes, ref int index)
+        {
+            float x = ReadFloat(bytes, ref index);
+            float y = ReadFloat(bytes, ref index);
+            float z = ReadFloat(bytes, ref index);
+            return new UnityEngine.Vector3(x, y, z);
         }
 
         public string ReadString(byte[] bytes, ref int index)

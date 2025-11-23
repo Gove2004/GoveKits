@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-namespace GoveKits.Config
+namespace Game.Config
 {
     [Serializable]
     public class 语言_语言Config : IConfigData

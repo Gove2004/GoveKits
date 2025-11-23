@@ -1,97 +1,178 @@
 #!/usr/bin/env python3
 """
-Simple Asyncio TCP Server for Unity NetSession
-Protocol: Big-Endian (>), ID(int32) + Length(int32) + Body
+Unity NetSession Server (Matched with GoveKits.Network)
+-------------------------------------------------------
+Packet Structure:
+    [TotalLength (int32)] 
+    [MsgID (int32)] 
+    [SenderID (int32)] 
+    [TargetID (int32)] 
+    [Body (bytes...)]
+
+Endian: Little-Endian (<)
 """
+
 import asyncio
 import struct
 import argparse
 import datetime
+from typing import Dict
 
 # ================= 配置区域 =================
-# 对应 C# 里的 MsgID 定义
-MSG_HEARTBEAT = 0
-MSG_PLAYER_LOGIN = 1001
 
-# 对应 C# BinaryData 的写入顺序 (msgId = packet[0]<<24...)
-# '>' = Big-Endian (网络字节序)
-# '<' = Little-Endian (如果你的 C# 用的是 BitConverter，请改成这个)
-ENDIAN_FMT = '<' 
-HEADER_FMT = f'{ENDIAN_FMT}ii' # int32 id, int32 len
-HEADER_SIZE = 8
+# 协议常量 (必须与 C# BinaryData 读写一致)
+ENDIAN_FMT = '<'       # 小端序
+INT_SIZE = 4           # int32 字节数
+HEADER_SIZE = 12       # MsgID(4) + SenderID(4) + TargetID(4)
+
+# 消息 ID 定义 (需与 C# 保持一致)
+# 建议在 C# 定义一个 SystemProtocol
+MSG_PING               = 0     # 心跳包
+MSG_SYS_Init           = 1  # 登录回包，告诉客户端它的 PlayerID
+MSG_TRANSFORM          = 2  # 位置同步
+
 # ===========================================
+
+class Client:
+    def __init__(self, writer: asyncio.StreamWriter, player_id: int):
+        self.writer = writer
+        self.player_id = player_id
+        self.addr = writer.get_extra_info('peername')
+
+    async def send_raw(self, data: bytes):
+        """直接发送打包好的数据"""
+        try:
+            self.writer.write(data)
+            await self.writer.drain()
+        except Exception as e:
+            print(f"Send error to {self.player_id}: {e}")
+
+    async def send_message(self, msg_id: int, target_id: int, body: bytes):
+        """服务器主动组包发送"""
+        # 1. 构造 Header + Body
+        # Header: MsgID, SenderID(Server=0), TargetID
+        sender_id = 0 # 0 代表服务器
+        header = struct.pack(f'{ENDIAN_FMT}iii', msg_id, sender_id, target_id)
+        payload = header + body
+        
+        # 2. 构造 Length 前缀
+        length = len(payload)
+        packet = struct.pack(f'{ENDIAN_FMT}i', length) + payload
+        
+        await self.send_raw(packet)
+
+# 全局状态
+clients: Dict[asyncio.StreamWriter, Client] = {}
+next_player_id = 1000 
 
 def log(info):
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {info}")
 
-def build_packet(msg_id: int, body: bytes = b'') -> bytes:
-    """打包数据包: Header + Body"""
-    header = struct.pack(HEADER_FMT, msg_id, len(body))
-    return header + body
+async def broadcast(sender_client: Client, payload: bytes, include_self=False):
+    """
+    广播转发
+    Payload 必须是已经包含 Header 的完整数据块 (不包含 Length 前缀)
+    """
+    # 1. 预先打包好带 Length 的完整包，避免对每个客户端重复打包
+    length = len(payload)
+    packet = struct.pack(f'{ENDIAN_FMT}i', length) + payload
+
+    for writer, client in clients.items():
+        if not include_self and client == sender_client:
+            continue
+        await client.send_raw(packet)
 
 async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    addr = writer.get_extra_info('peername')
-    log(f'Client connected: {addr}')
+    global next_player_id
+    
+    # 1. 连接初始化
+    player_id = next_player_id
+    next_player_id += 1
+    client = Client(writer, player_id)
+    clients[writer] = client
+    
+    log(f"Client Connected: {client.addr} | Assigned ID: {player_id}")
+
+    # 2. 【关键】发送登录确认包 (告诉客户端它是谁)
+    # 对应 C# LoginMsg 的 Body 结构 (假设 LoginBody 只有一个 int UserId)
+    # C# 如果是: public class LoginBody { public int UserId; }
+    login_body = struct.pack(f'{ENDIAN_FMT}i', player_id)
+    await client.send_message(MSG_SYS_Init, player_id, login_body)
 
     try:
         while True:
-            # 1. 读取头部 (8字节)
-            header = await reader.readexactly(HEADER_SIZE)
-            msg_id, body_len = struct.unpack(HEADER_FMT, header)
-            # print(f"Debug: MsgID={msg_id}, BodyLen={body_len}")
+            # Step 1: 读取 Length (4字节)
+            length_data = await reader.readexactly(INT_SIZE)
+            if not length_data:
+                break
+            
+            (body_len,) = struct.unpack(f'{ENDIAN_FMT}i', length_data)
 
-            # 2. 读取包体
-            body = await reader.readexactly(body_len)
+            # Step 2: 读取 Payload
+            payload = await reader.readexactly(body_len)
 
-            # 3. 逻辑处理
-            if msg_id == MSG_HEARTBEAT:
-                # 收到心跳，通常服务器可以选择：
-                # A. 什么都不做 (TCP本身可靠)
-                # B. 回复一个心跳包 (Pong) -> 这里我们选择回复，证明链路通畅
-                log(f"Recv Heartbeat from {addr}") # 频繁打印太吵，注释掉
+            if len(payload) < HEADER_SIZE:
+                log(f"Error: Packet too short from {player_id}")
+                continue
+
+            # Step 3: 解析 Header
+            # C# Message Writing 顺序: MsgID -> SenderID -> TargetID
+            header_data = payload[:HEADER_SIZE]
+            body_data = payload[HEADER_SIZE:]
+            
+            msg_id, _, target_id = struct.unpack(f'{ENDIAN_FMT}iii', header_data)
+
+            # Step 4: 【安全覆写】
+            # 无论 C# 发来什么 SenderID，强制改成服务器分配的 player_id
+            # 这样接收方能确信消息来源是真实的
+            new_header = struct.pack(f'{ENDIAN_FMT}iii', msg_id, player_id, target_id)
+            
+            # 组合成待转发的 Payload (Header + Body)
+            forward_payload = new_header + body_data
+
+            # Step 5: 业务分发
+            if msg_id == MSG_PING:
+                # 默认转发
+                log(f"Relay Msg {msg_id}: {player_id} -> All")
+                await broadcast(client, forward_payload, include_self=True)
+ 
+            elif msg_id == MSG_TRANSFORM:
+                # 位置同步：转发给除自己以外的所有人
+                log(f"Relay Msg {msg_id}: {player_id} -> {target_id}")
+                # 看数据
+                net_id, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, sca_x, sca_y, sca_z = struct.unpack(f'{ENDIAN_FMT}ifffffffff', body_data)
+                log(f"  Pos: ({pos_x:.2f}, {pos_y:.2f}, {pos_z:.2f})")
+                log(f"  Rot: ({rot_x:.2f}, {rot_y:.2f}, {rot_z:.2f})")
+                log(f"  Sca: ({sca_x:.2f}, {sca_y:.2f}, {sca_z:.2f})")
+                await broadcast(client, forward_payload, include_self=True)
                 
-                # 回复心跳
-                writer.write(build_packet(MSG_HEARTBEAT))
-                await writer.drain()
-
-            elif msg_id == MSG_PLAYER_LOGIN:
-                # 解析 PlayerData (假设结构: int ID + int NameLen + NameStr)
-                # 注意：C# BinaryData.WriteInt 也是 Big-Endian
-                if len(body) >= 8:
-                    p_id = struct.unpack_from(f'{ENDIAN_FMT}i', body, 0)[0]
-                    name_len = struct.unpack_from(f'{ENDIAN_FMT}i', body, 4)[0]
-                    try:
-                        p_name = body[8:8+name_len].decode('utf-8')
-                        log(f"Player Login: ID={p_id}, Name={p_name}")
-                        
-                        # 这里可以模拟发送一个登录成功的包回去...
-                    except Exception as e:
-                        log(f"Decode name error: {e}")
-                else:
-                    log(f"Invalid Login Body Len: {len(body)}")
-
             else:
-                log(f"Unknown MsgID={msg_id}, BodyLen={body_len}")
+                # 默认转发
+                log(f"Relay Msg {msg_id}: {player_id} -> All")
+                await broadcast(client, forward_payload, include_self=True)
 
     except asyncio.IncompleteReadError:
-        log(f'Client disconnected: {addr}')
+        pass 
     except ConnectionResetError:
-        log(f'Connection reset: {addr}')
+        pass
     except Exception as e:
-        log(f'Error: {e}')
+        log(f"Error with {player_id}: {e}")
     finally:
+        log(f"Client Disconnected: {player_id}")
+        if writer in clients:
+            del clients[writer]
         writer.close()
         await writer.wait_closed()
 
 async def main(host, port):
     server = await asyncio.start_server(handle_client, host, port)
-    log(f'Serving on {host}:{port} ...')
+    log(f'Server running on {host}:{port}')
     async with server:
         await server.serve_forever()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('host', nargs='?', default='127.0.0.1')
+    parser.add_argument('host', nargs='?', default='0.0.0.0')
     parser.add_argument('port', nargs='?', default=12345, type=int)
     args = parser.parse_args()
     

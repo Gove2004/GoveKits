@@ -5,9 +5,8 @@ using UnityEngine;
 
 namespace GoveKits.Network
 {
-    public class Heartbeat : NetworkBehaviour
+    public class PingPong : NetworkBehaviour
     {
-        public const int HeartbeatMsgID = 0;
         public float Interval = 5f;
         public float Timeout = 15f; // 新增：超时时间（超过多久没收到回复判定断开）
         
@@ -48,12 +47,12 @@ namespace GoveKits.Network
 
         private void Ping()
         {
-            NetManager.Instance.Send(MessageBuilder.Create<HeartbeatMessage>(HeartbeatMsgID));
+            NetManager.Instance.Send(MessageBuilder.Create<PingPongMessage>(Protocol.PingPongMsgID));
         }
 
 
-        [MessageHandler(HeartbeatMsgID)]
-        private void Pong(HeartbeatMessage msg)
+        [MessageHandler(Protocol.PingPongMsgID)]
+        private void Pong(PingPongMessage msg)
         {
             lastRecvTime = Time.time; // 更新接收时间
             LastRTT = Time.time - lastSendTime; // 简单计算 RTT
@@ -64,14 +63,14 @@ namespace GoveKits.Network
 
 
     // 心跳消息定义
-    public class HeartbeatMessageData : BinaryData
+    public class PingPongBody : MessageBody
     {
         // 心跳包可以为空，或者包含时间戳等信息
         public override int Length() => 0;
         public override void Reading(byte[] buffer, ref int index) { }
         public override void Writing(byte[] buffer, ref int index) { }
     }
-    [Message(Heartbeat.HeartbeatMsgID)]
-    public class HeartbeatMessage : Message<HeartbeatMessageData> {}
+    [Message(Protocol.PingPongMsgID)]
+    public class PingPongMessage : Message<PingPongBody> {}
     
 }

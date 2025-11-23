@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 using UnityEngine.InputSystem;
+using Game.Config;
 using GoveKits.Config;
 
 public class UILanguageText : MonoBehaviour
