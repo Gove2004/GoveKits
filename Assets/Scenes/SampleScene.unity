@@ -165,7 +165,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   RemoteIP: 127.0.0.1
-  RemotePort: 12345
+  Port: 12345
+  AutoConnect: 1
 --- !u!114 &278760039
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -9,9 +9,9 @@ namespace GoveKits.Units
     {
         string Name { get; }
         AttributeContainer Attributes { get; }
-        BuffContainer buffs { get; }
+        MarkContainer Marks { get; }
         AbilityContainer Abilities { get; }
-        // BuffContainer Buffs { get; }
+        // MarkContainer Marks { get; }
     }
 
 
@@ -19,9 +19,9 @@ namespace GoveKits.Units
     {
         public string Name { get; } = "Unit";
         public AttributeContainer Attributes { get; } = new AttributeContainer();
-        public BuffContainer buffs { get; } = new BuffContainer();
+        public MarkContainer Marks { get; } = new MarkContainer();
         public AbilityContainer Abilities { get; } = new AbilityContainer();
-        // public BuffContainer Buffs { get; } = new BuffContainer();
+        // public MarkContainer Marks { get; } = new MarkContainer();
     }
 
 
@@ -29,22 +29,22 @@ namespace GoveKits.Units
     {
         public string Name => "UnitComponent";
         public AttributeContainer Attributes { get; } = new AttributeContainer();
-        public BuffContainer buffs { get; } = new BuffContainer();
+        public MarkContainer Marks { get; } = new MarkContainer();
         public AbilityContainer Abilities { get; } = new AbilityContainer();
-        // public BuffContainer Buffs { get; } = new BuffContainer();
+        // public MarkContainer Marks { get; } = new MarkContainer();
 
         private void Awake()
         {
 
-            // Buffs = new BuffContainer();
+            // Marks = new MarkContainer();
         }
 
         private void OnDestroy()
         {
             Attributes.Clear();
-            buffs.Clear();
+            Marks.Clear();
             Abilities.Clear();
-            // Buffs = null;
+            // Marks = null;
         }
 
         

@@ -59,14 +59,14 @@ namespace GoveKits.Demo
             unitB.Abilities.Add("Attack", new DamageAbility("Stab", attackDamage * 0.9f, 1));
             unitB.Abilities.Add("Heal", new HealAbility("FirstAid", healAmount * 1.2f, 3));
 
-            // 给 unitA 添加一个增加最大生命的 buff（示例堆叠）
-            var rage = new AttributeBuff("Rage", unitA.Attributes, "HP", 10f, 1);
-            unitA.buffs.Add("Rage", rage);
+            // 给 unitA 添加一个增加最大生命的 Mark（示例堆叠）
+            var rage = new AttributeMark("Rage", unitA.Attributes, "HP", 10f, 1);
+            unitA.Marks.Add("Rage", rage);
             // 再添加一层触发堆叠
-            unitA.buffs.Add("Rage", new AttributeBuff("Rage", unitA.Attributes, "HP", 10f, 1));
+            unitA.Marks.Add("Rage", new AttributeMark("Rage", unitA.Attributes, "HP", 10f, 1));
 
-            unitA.Attributes.TryGetValue("HP", out var afterBuffHp);
-            Debug.Log($"[Demo] 完成初始化：{goA.name} HP={afterBuffHp}");
+            unitA.Attributes.TryGetValue("HP", out var afterMarkHp);
+            Debug.Log($"[Demo] 完成初始化：{goA.name} HP={afterMarkHp}");
             Debug.Log($"[Demo] {goA.name} HP={initialHP}, {goB.name} HP={initialHP}");
         }
 
@@ -83,13 +83,13 @@ namespace GoveKits.Demo
                 Debug.Log($"[演示] 回合 {turn} - {attackerComp.gameObject.name} 开始行动");
 
                 // 如果被眩晕，跳过行动并移除眩晕（示例行为）
-                if (attacker.buffs.Any("Stun"))
+                if (attacker.Marks.Any("Stun"))
                 {
                     Debug.Log($"[演示] {attackerComp.gameObject.name} 被眩晕，跳过本回合");
-                    if (attacker.buffs.TryGet("Stun", out var stunBuff))
+                    if (attacker.Marks.TryGet("Stun", out var stunMark))
                     {
-                        stunBuff.Remove();
-                        attacker.buffs.Remove("Stun");
+                        stunMark.Remove();
+                        attacker.Marks.Remove("Stun");
                     }
                 }
                 else
@@ -106,28 +106,28 @@ namespace GoveKits.Demo
                     }
                 }
 
-                // 每隔若干回合触发一些 Buff 示例：DOT / 护盾 / 眩晕
+                // 每隔若干回合触发一些 Mark 示例：DOT / 护盾 / 眩晕
                 if (turn % 3 == 0)
                 {
                     // defender 对 attacker 施加 DOT
-                    var burn = new DotBuff("Burn", attacker.Attributes, 5f, 3, 1f);
-                    attacker.buffs.Add("Burn", burn);
+                    var burn = new DotMark("Burn", attacker.Attributes, 5f, 3, 1f);
+                    attacker.Marks.Add("Burn", burn);
                     Debug.Log($"[演示] {defenderComp.gameObject.name} 对 {attackerComp.gameObject.name} 施加了 DOT (Burn)");
                 }
 
                 if (turn % 4 == 0)
                 {
                     // attacker 获得护盾
-                    var shield = new ShieldBuff("Barrier", attacker.Attributes, 12f, 1);
-                    attacker.buffs.Add("Barrier", shield);
+                    var shield = new ShieldMark("Barrier", attacker.Attributes, 12f, 1);
+                    attacker.Marks.Add("Barrier", shield);
                     Debug.Log($"[演示] {attackerComp.gameObject.name} 获得护盾 Barrier");
                 }
 
                 if (UnityEngine.Random.value < 0.1f)
                 {
                     // defender 可能造成眩晕
-                    var stun = new StunBuff("Stun", 1);
-                    attacker.buffs.Add("Stun", stun);
+                    var stun = new StunMark("Stun", 1);
+                    attacker.Marks.Add("Stun", stun);
                     Debug.Log($"[演示] {defenderComp.gameObject.name} 触发了眩晕 {attackerComp.gameObject.name}");
                 }
 

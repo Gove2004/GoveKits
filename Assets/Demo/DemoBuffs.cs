@@ -7,14 +7,14 @@ namespace GoveKits.Demo
 {
     using GoveKits.Units;
 
-    // 演示：修改属性的 Buff（带中文日志）
-    public class AttributeBuff : Buff
+    // 演示：修改属性的 Mark（带中文日志）
+    public class AttributeMark : Mark
     {
         private readonly AttributeContainer attributes;
         private readonly string key;
         private readonly float delta;
 
-        public AttributeBuff(string name, AttributeContainer attributes, string key, float delta, int currentStack = 1) : base(name, currentStack)
+        public AttributeMark(string name, AttributeContainer attributes, string key, float delta, int currentStack = 1) : base(name, currentStack)
         {
             this.attributes = attributes;
             this.key = key;
@@ -28,7 +28,7 @@ namespace GoveKits.Demo
             if (attributes.TryGetValue(key, out var v))
             {
                 attributes.SetValue(key, v + delta);
-                Debug.Log($"[Buff] 应用 {Name}: {key} 增加 {delta} ({v} -> {v + delta})");
+                Debug.Log($"[Mark] 应用 {Name}: {key} 增加 {delta} ({v} -> {v + delta})");
             }
         }
 
@@ -38,7 +38,7 @@ namespace GoveKits.Demo
             if (attributes.TryGetValue(key, out var v))
             {
                 attributes.SetValue(key, v + delta * count);
-                Debug.Log($"[Buff] 堆叠 {Name}: {key} 增加 {delta * count}（当前层数 {CurrentStack}）");
+                Debug.Log($"[Mark] 堆叠 {Name}: {key} 增加 {delta * count}（当前层数 {CurrentStack}）");
             }
         }
 
@@ -49,14 +49,14 @@ namespace GoveKits.Demo
             if (attributes.TryGetValue(key, out var v))
             {
                 attributes.SetValue(key, v - total);
-                Debug.Log($"[Buff] 移除 {Name}: {key} 减少 {total} ({v} -> {v - total})");
+                Debug.Log($"[Mark] 移除 {Name}: {key} 减少 {total} ({v} -> {v - total})");
             }
         }
     }
 
 
-    // 周期性伤害（DOT）Buff
-    public class DotBuff : Buff
+    // 周期性伤害（DOT）Mark
+    public class DotMark : Mark
     {
         private readonly AttributeContainer attributes;
         private readonly int ticks;
@@ -64,7 +64,7 @@ namespace GoveKits.Demo
         private readonly float tickDamage;
         private CancellationTokenSource cts;
 
-        public DotBuff(string name, AttributeContainer attributes, float tickDamage, int ticks, float tickInterval = 1f) : base(name, 1)
+        public DotMark(string name, AttributeContainer attributes, float tickDamage, int ticks, float tickInterval = 1f) : base(name, 1)
         {
             this.attributes = attributes;
             this.tickDamage = tickDamage;
@@ -75,7 +75,7 @@ namespace GoveKits.Demo
         public override void Apply()
         {
             base.Apply();
-            Debug.Log($"[Buff] 应用 DOT {Name}: 每 {tickInterval}s 造成 {tickDamage} 点，持续 {ticks} 次");
+            Debug.Log($"[Mark] 应用 DOT {Name}: 每 {tickInterval}s 造成 {tickDamage} 点，持续 {ticks} 次");
             Duration().Forget();
         }
 
@@ -84,7 +84,7 @@ namespace GoveKits.Demo
             base.Remove();
             cts?.Cancel();
             cts?.Dispose();
-            Debug.Log($"[Buff] 移除 DOT {Name}");
+            Debug.Log($"[Mark] 移除 DOT {Name}");
         }
 
         public override async UniTask Duration()
@@ -104,32 +104,32 @@ namespace GoveKits.Demo
     }
 
 
-    // 眩晕 Buff（阻止行动）
-    public class StunBuff : Buff
+    // 眩晕 Mark（阻止行动）
+    public class StunMark : Mark
     {
-        public StunBuff(string name, int currentStack = 1) : base(name, currentStack) { }
+        public StunMark(string name, int currentStack = 1) : base(name, currentStack) { }
 
         public override void Apply()
         {
             base.Apply();
-            Debug.Log($"[Buff] 眩晕 {Name} 应用：单位无法行动（本次示例由 DemoController 检测并跳过行动）");
+            Debug.Log($"[Mark] 眩晕 {Name} 应用：单位无法行动（本次示例由 DemoController 检测并跳过行动）");
         }
 
         public override void Remove()
         {
             base.Remove();
-            Debug.Log($"[Buff] 眩晕 {Name} 移除：单位恢复行动");
+            Debug.Log($"[Mark] 眩晕 {Name} 移除：单位恢复行动");
         }
     }
 
 
-    // 护盾 Buff：在属性 `Shield` 上加值，移除时减回
-    public class ShieldBuff : Buff
+    // 护盾 Mark：在属性 `Shield` 上加值，移除时减回
+    public class ShieldMark : Mark
     {
         private readonly AttributeContainer attributes;
         private readonly float amount;
 
-        public ShieldBuff(string name, AttributeContainer attributes, float amount, int currentStack = 1) : base(name, currentStack)
+        public ShieldMark(string name, AttributeContainer attributes, float amount, int currentStack = 1) : base(name, currentStack)
         {
             this.attributes = attributes;
             this.amount = amount;
@@ -141,7 +141,7 @@ namespace GoveKits.Demo
             if (!attributes.Has("Shield")) attributes.Add("Shield", 0f);
             attributes.TryGetValue("Shield", out var v);
             attributes.SetValue("Shield", v + amount);
-            Debug.Log($"[Buff] 护盾 {Name} 应用：护盾 +{amount} ({v} -> {v + amount})");
+            Debug.Log($"[Mark] 护盾 {Name} 应用：护盾 +{amount} ({v} -> {v + amount})");
         }
 
         public override void Stack(int count = 1)
@@ -149,7 +149,7 @@ namespace GoveKits.Demo
             base.Stack(count);
             attributes.TryGetValue("Shield", out var v);
             attributes.SetValue("Shield", v + amount * count);
-            Debug.Log($"[Buff] 护盾 {Name} 堆叠：护盾 +{amount * count}（当前层数 {CurrentStack}）");
+            Debug.Log($"[Mark] 护盾 {Name} 堆叠：护盾 +{amount * count}（当前层数 {CurrentStack}）");
         }
 
         public override void Remove()
@@ -157,7 +157,7 @@ namespace GoveKits.Demo
             base.Remove();
             attributes.TryGetValue("Shield", out var v);
             attributes.SetValue("Shield", Math.Max(0f, v - amount * CurrentStack));
-            Debug.Log($"[Buff] 护盾 {Name} 移除：护盾 -{amount * CurrentStack}（剩余 {Math.Max(0f, v - amount * CurrentStack)}）");
+            Debug.Log($"[Mark] 护盾 {Name} 移除：护盾 -{amount * CurrentStack}（剩余 {Math.Max(0f, v - amount * CurrentStack)}）");
         }
     }
 }

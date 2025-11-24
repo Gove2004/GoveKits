@@ -300,14 +300,14 @@ namespace GoveKits.Units
             return new OverrideAttributeEffect(attributeContainer, attributeKey, newValue);
         }
 
-        public static IEffect AddBuff(BuffContainer buffContainer, string buffName, int initialStack = 1)
+        public static IEffect AddMark(MarkContainer MarkContainer, string MarkName, int initialStack = 1)
         {
-            return new AddBuffEffect(buffContainer, buffName, initialStack);
+            return new AddMarkEffect(MarkContainer, MarkName, initialStack);
         }
 
-        public static IEffect RemoveBuff(BuffContainer buffContainer, string buffName)
+        public static IEffect RemoveMark(MarkContainer MarkContainer, string MarkName)
         {
-            return new RemoveBuffEffect(buffContainer, buffName);
+            return new RemoveMarkEffect(MarkContainer, MarkName);
         }
 
         public static IEffect GrantAbility(AbilityContainer abilityContainer, string abilityKey, IAbility ability)
@@ -415,40 +415,40 @@ namespace GoveKits.Units
         }
     }
 
-    internal class AddBuffEffect : IEffect
+    internal class AddMarkEffect : IEffect
     {
-        private readonly BuffContainer _buffContainer;
-        private readonly string _buffNme;
+        private readonly MarkContainer _MarkContainer;
+        private readonly string _MarkNme;
         private readonly int _initialStack;
 
-        public AddBuffEffect(BuffContainer buffContainer, string buffNme, int initialStack = 1)
+        public AddMarkEffect(MarkContainer MarkContainer, string MarkNme, int initialStack = 1)
         {
-            _buffContainer = buffContainer;
-            _buffNme = buffNme;
+            _MarkContainer = MarkContainer;
+            _MarkNme = MarkNme;
             _initialStack = initialStack;
         }
 
         public UniTask Apply(UnitContext context)
         {
-            _buffContainer.Add(_buffNme, new Buff(_buffNme, _initialStack));
+            _MarkContainer.Add(_MarkNme, new Mark(_MarkNme, _initialStack));
             return UniTask.CompletedTask;
         }
     }
 
-    internal class RemoveBuffEffect : IEffect
+    internal class RemoveMarkEffect : IEffect
     {
-        private readonly BuffContainer _buffContainer;
-        private readonly string _buffName;
+        private readonly MarkContainer _MarkContainer;
+        private readonly string _MarkName;
 
-        public RemoveBuffEffect(BuffContainer buffContainer, string buffName)
+        public RemoveMarkEffect(MarkContainer MarkContainer, string MarkName)
         {
-            _buffContainer = buffContainer;
-            _buffName = buffName;
+            _MarkContainer = MarkContainer;
+            _MarkName = MarkName;
         }
 
         public UniTask Apply(UnitContext context)
         {
-            _buffContainer.Remove(_buffName);
+            _MarkContainer.Remove(_MarkName);
             return UniTask.CompletedTask;
         }
     }

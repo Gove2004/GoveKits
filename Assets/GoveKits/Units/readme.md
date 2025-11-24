@@ -3,7 +3,7 @@
 
 # 📘 GoveKits.Units 开发指南
 
-**GoveKits.Units** 是一套基于 **UniTask** 的高性能、响应式 RPG 游戏框架。它不依赖传统的 ECS，而是采用现代化的面向对象设计，提供了强大的**属性依赖图**、**异步能力系统**、**逻辑化 Buff** 以及 **声明式 Effect 构建器**。
+**GoveKits.Units** 是一套基于 **UniTask** 的高性能、响应式 RPG 游戏框架。它不依赖传统的 ECS，而是采用现代化的面向对象设计，提供了强大的**属性依赖图**、**异步能力系统**、**逻辑化 Mark** 以及 **声明式 Effect 构建器**。
 
 ---
 
@@ -72,7 +72,7 @@ await player.Abilities.TryExecute("Fireball", context);
 *   **获取值**：`unit.Attributes.TryGetValue("Health", out float hp);`
 *   **修改值**：
     *   **永久提升**：修改 `_Base` 属性。
-    *   **Buff 加成**：修改 `_Factor` 或 `_Bias` 属性。
+    *   **Mark 加成**：修改 `_Factor` 或 `_Bias` 属性。
     *   **直接修改**（如扣血）：`unit.Attributes.SetValue("Health", current - damage);`
 
 **高级用法：响应式公式**
@@ -86,24 +86,24 @@ var combatPower = (atk + (def * 2f)).As("CombatPower");
 player.Attributes.Add("CombatPower", combatPower);
 ```
 
-### 2. Buff 系统 (Buff System)
-Buff 是带有逻辑的 Tag。
+### 2. Mark 系统 (Mark System)
+Mark 是带有逻辑的 Tag。
 
-*   **添加 Buff**：
+*   **添加 Mark**：
     ```csharp
-    // 添加中毒 Buff，初始 1 层
-    unit.buffs.Add("Poison", new PoisonBuff()); 
+    // 添加中毒 Mark，初始 1 层
+    unit.Marks.Add("Poison", new PoisonMark()); 
     ```
-*   **Buff 查询 (BuffQuery)**：
+*   **Mark 查询 (MarkQuery)**：
     使用流式 API 进行复杂的逻辑判断（类似于 UE GameplayTags）。
     ```csharp
-    var canCastUlt = BuffQueryBuilder.All(
-        BuffQueryBuilder.None("Silenced"),  // 没有沉默
-        BuffQueryBuilder.None("Stunned"),   // 没有眩晕
-        BuffQueryBuilder.Has("PoweredUp")   // 拥有强化状态
+    var canCastUlt = MarkQueryBuilder.All(
+        MarkQueryBuilder.None("Silenced"),  // 没有沉默
+        MarkQueryBuilder.None("Stunned"),   // 没有眩晕
+        MarkQueryBuilder.Has("PoweredUp")   // 拥有强化状态
     );
 
-    if (unit.buffs.MatchQuery(canCastUlt)) { ... }
+    if (unit.Marks.MatchQuery(canCastUlt)) { ... }
     ```
 
 ### 3. 能力系统 (Ability System)
@@ -176,7 +176,7 @@ Attribute 的运算符重载（如 `attrA + attrB`）会创建新的 Attribute �
 1.  使用 `AppendLinear` 初始化 Health。
 2.  获取 `Health_Bias` 属性。
 3.  创建一个依赖于 Attack 的新属性，并修改 `Health_Bias` 的值（或手动相加）。
-*(注：当前框架版本属性公式一旦确定即只读，建议通过 Buff 或 Effect 监听 Attack 变化并手动修正 Health_Bias)*
+*(注：当前框架版本属性公式一旦确定即只读，建议通过 Mark 或 Effect 监听 Attack 变化并手动修正 Health_Bias)*
 
 ### 🔄 4. 循环依赖
 框架内置了 `HasCircularDependency` 检测。在构建复杂公式（如 A依赖B，B依赖A）时，如果检测到闭环会抛出异常，请确保属性流向是单向的（例如：一级属性 -> 二级属性 -> 战斗力）。
@@ -197,9 +197,9 @@ Assets/GoveKits/Units/
 ├── Ability/
 │   ├── IAbility.cs
 │   └── AbilityContainer.cs
-├── Buff/
-│   ├── Buff.cs
-│   └── BuffQuery.cs
+├── Mark/
+│   ├── Mark.cs
+│   └── MarkQuery.cs
 └── Effect/
     ├── IEffect.cs
     ├── BaseEffectBuilder.cs (逻辑控制)

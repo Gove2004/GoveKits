@@ -134,51 +134,102 @@ namespace GoveKits.Network
         }
     }
 
-    // ===================================================================================
-    // 3. 消息基类
-    // ===================================================================================
 
+    // ===================================================================================
+    // 消息基类
+    // ===================================================================================
     public abstract class Message : BinaryData
     {
-        public int MsgID = -1; // 消息ID必须是第一个字段
-    }
-
-    public abstract class MessageBody : BinaryData { }
-
-    public class Message<T> : Message where T : MessageBody, new()
-    {
+        // 协议固定结构
+        public int MsgID { get; protected set; } = -1;
         public MessageHeader Header = new MessageHeader();
-        public T Body = new T();
 
-        // 构造函数
-        public Message() => Init();
-        public Message(T body) 
-        { 
-            Init();
-            Body = body; 
-        }
-
-        // 初始化时直接去 Builder 查表
-        private void Init()
+        public Message()
         {
-            // 这里调用 MessageBuilder.GetMsgID，利用缓存获取 ID
+            // 构造时自动获取ID
             MsgID = MessageBuilder.GetMsgID(this.GetType());
         }
 
-        public override int Length() => 4 + Header.Length() + Body.Length(); // MsgID(4) + Header + Body
+        // ========================================================
+        // 1. 密封主流程：防止子类破坏协议头结构 (ID + Header + Body)
+        // ========================================================
 
-        public override void Writing(byte[] buffer, ref int index)
+        public override sealed int Length()
         {
-            WriteInt(buffer, MsgID, ref index); 
+            // 总长度 = ID(4) + Header(8) + Body长度
+            return 4 + Header.Length() + BodyLength(); 
+        }
+
+        public override sealed void Writing(byte[] buffer, ref int index)
+        {
+            // 1. 写 ID
+            WriteInt(buffer, MsgID, ref index);
+            // 2. 写 Header
             Header.Writing(buffer, ref index);
-            Body.Writing(buffer, ref index);
+            // 3. 写 Body (子类实现)
+            BodyWriting(buffer, ref index);
         }
 
-        public override void Reading(byte[] buffer, ref int index)
+        public override sealed void Reading(byte[] buffer, ref int index)
         {
+            // 1. 读 ID
             MsgID = ReadInt(buffer, ref index);
+            // 2. 读 Header
             Header.Reading(buffer, ref index);
-            Body.Reading(buffer, ref index);
+            // 3. 读 Body (子类实现)
+            BodyReading(buffer, ref index);
         }
+
+        // ========================================================
+        // 2. 子类必须实现的接口 (只关心自己的数据)
+        // ========================================================
+
+        /// <summary>
+        /// 子类数据的长度 (不包含 Header 和 ID)
+        /// </summary>
+        protected abstract int BodyLength();
+
+        /// <summary>
+        /// 序列化子类字段
+        /// </summary>
+        protected abstract void BodyWriting(byte[] buffer, ref int index);
+
+        /// <summary>
+        /// 反序列化子类字段
+        /// </summary>
+        protected abstract void BodyReading(byte[] buffer, ref int index);
+    }
+    
+    // ===================================================================================
+    // 如果你有一些不需要数据的空消息（如心跳），可以搞个基类方便继承
+    // ===================================================================================
+    public abstract class EmptyMessage : Message
+    {
+        protected override int BodyLength() => 0;
+        protected override void BodyWriting(byte[] buffer, ref int index) { }
+        protected override void BodyReading(byte[] buffer, ref int index) { }
+    }
+
+    
+    // 同步消息基类
+    public abstract class SyncMessage: Message
+    {
+        public int NetID;  // 目标对象的网络ID
+        // 
+        protected override int BodyLength() => 4 + SyncDataLength(); // NetID(4) + 数据长度
+        protected override void BodyWriting(byte[] buffer, ref int index)
+        {
+            WriteInt(buffer, NetID, ref index);  // 先写 NetID
+            SyncDataWriting(buffer, ref index);  // 再写数据
+        }
+        protected override void BodyReading(byte[] buffer, ref int index)
+        {
+            NetID = ReadInt(buffer, ref index);  // 先读 NetID
+            SyncDataReading(buffer, ref index);  // 再读数据
+        }
+        // 子类
+        protected abstract int SyncDataLength();
+        protected abstract void SyncDataWriting(byte[] buffer, ref int index);
+        protected abstract void SyncDataReading(byte[] buffer, ref int index);
     }
 }

@@ -1,18 +1,46 @@
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace GoveKits.Network
 {
     public class NetworkBehaviour : MonoBehaviour
     {
-        // 注册与解绑
-        protected virtual void OnEnable() => NetManager.Instance?.Bind(this);
-
-        protected virtual void OnDisable() => NetManager.Instance?.Unbind(this);
+        protected virtual void OnEnable() => NetworkManager.Instance?.Bind(this);
+        protected virtual void OnDisable() => NetworkManager.Instance?.Unbind(this);
 
 
 
-        // ========== NetworkIdentity 用于同步属性 ==========
-        
+
+        protected virtual void Awake()
+        {
+            // 预先缓存所有带 [Rpc] 标签的方法
+            _rpcCache = new Dictionary<string, MethodInfo>();
+            var methods = this.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (var method in methods)
+            {
+                if (method.GetCustomAttribute<RpcAttribute>() != null)
+                {
+                    _rpcCache[method.Name] = method;
+                }
+            }
+        }
+
+
+
+
+
+
+        // 发送普通网络消息
+        protected void SendMessage(Message msg)
+        {
+            NetworkManager.Instance.Send(msg);
+        }
+
+
+
+
+
 
         private NetworkIdentity _identity;
         public NetworkIdentity Identity => _identity ? _identity : (_identity = GetComponent<NetworkIdentity>());
@@ -20,17 +48,58 @@ namespace GoveKits.Network
         public int NetID => Identity.NetID;
         public bool IsMine => Identity.IsMine;
 
-        /// <summary>
-        /// 发送同步消息的辅助方法
-        /// </summary>
-        /// <typeparam name="TBody">Body类型</typeparam>
-        /// <param name="msg">完整的消息对象</param>
-        protected void SendSync<TBody>(Message<SyncBody<TBody>> msg) where TBody : MessageBody, new()
+
+        // 辅助发送同步消息
+        protected void SendSync(SyncMessage msg)
         {
-            // 自动填充 NetID，防止写漏
-            msg.Body.NetID = this.NetID;
-            Debug.Log($"[NetworkBehaviour] Sending Sync MsgID: {msg.MsgID} for NetID: {msg.Body.NetID}");
-            NetManager.Instance.Send(msg);
+            msg.NetID = this.NetID;
+            NetworkManager.Instance.Send(msg);
+        }
+
+
+
+
+
+
+        // --- RPC 缓存 (优化反射性能) ---
+        private Dictionary<string, MethodInfo> _rpcCache = new Dictionary<string, MethodInfo>();
+
+
+        // 辅助发送RPC调用
+        protected void CallRPC(string methodName, params object[] parameters)
+        {
+            if (NetID == 0) 
+            {
+                Debug.LogError("Cannot send RPC on object without NetID");
+                return;
+            }
+
+            // 1. 构造消息
+            var msg = new RPCMessage(this.NetID, methodName, parameters);
+
+            // 2. 发送网络消息
+            NetworkManager.Instance.Send(msg);
+
+            // 3. (可选) 如果是 Host 模式或预测逻辑，可能需要立即执行本地
+            // InvokeRpcLocal(methodName, args); 
+        }
+
+        // 辅助唤起本地RPC, 返回是否成功调用
+        public bool InvokeRPC(string methodName, object[] parameters)
+        {
+            try
+            {
+                if (_rpcCache.TryGetValue(methodName, out MethodInfo method))
+                {
+                    method.Invoke(this, parameters);
+                    return true;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[RPC] Error invoking RPC '{methodName}' on '{this.GetType().Name}': {ex}");
+            }
+            return false;
         }
     }
 }

@@ -7,7 +7,7 @@ GoveKits 演示
 
 •   DemoAbilities — 基于 BaseAbility 构建的简单 DamageAbility 和 HealAbility 实现。
 
-•   DemoBuffs — AttributeBuff 演示，该效果在应用/移除时会修改属性。
+•   DemoMarks — AttributeMark 演示，该效果在应用/移除时会修改属性。
 
 如何运行
 1.  在 Unity 编辑器中打开项目。

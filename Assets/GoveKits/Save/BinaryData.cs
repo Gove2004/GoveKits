@@ -34,13 +34,13 @@ namespace GoveKits.Save
 
         // ========== 0 GC 写方法 (使用位移) ==========
 
-        public void WriteBool(byte[] bytes, bool value, ref int index)
+        public static void WriteBool(byte[] bytes, bool value, ref int index)
         {
             EnsureAvailable(bytes, index, 1);
             bytes[index++] = value ? (byte)1 : (byte)0;
         }
 
-        public void WriteByte(byte[] bytes, byte value, ref int index)
+        public static void WriteByte(byte[] bytes, byte value, ref int index)
         {
             EnsureAvailable(bytes, index, 1);
             bytes[index++] = value;
@@ -49,14 +49,14 @@ namespace GoveKits.Save
         // ========== 0 GC 写方法 (改为 Little-Endian 小端序) ==========
         // 顺序：低位在前，高位在后
 
-        public void WriteShort(byte[] bytes, short value, ref int index)
+        public static void WriteShort(byte[] bytes, short value, ref int index)
         {
             EnsureAvailable(bytes, index, 2);
             bytes[index++] = (byte)value;          // 低位
             bytes[index++] = (byte)(value >> 8);   // 高位
         }
 
-        public void WriteInt(byte[] bytes, int value, ref int index)
+        public static void WriteInt(byte[] bytes, int value, ref int index)
         {
             EnsureAvailable(bytes, index, 4);
             bytes[index++] = (byte)value;          // 低8位
@@ -65,7 +65,7 @@ namespace GoveKits.Save
             bytes[index++] = (byte)(value >> 24);  // 高8位
         }
 
-        public void WriteLong(byte[] bytes, long value, ref int index)
+        public static void WriteLong(byte[] bytes, long value, ref int index)
         {
             EnsureAvailable(bytes, index, 8);
             for (int i = 0; i < 8; i++) 
@@ -74,7 +74,7 @@ namespace GoveKits.Save
             }
         }
 
-        public void WriteFloat(byte[] bytes, float value, ref int index)
+        public static void WriteFloat(byte[] bytes, float value, ref int index)
         {
             // Unity/C# 的 BitConverter 默认就是小端，不需要反转，但会有GC
             // 使用指针或转换来避免GC
@@ -82,26 +82,26 @@ namespace GoveKits.Save
             WriteInt(bytes, intVal, ref index);
         }
 
-        public void WriteDouble(byte[] bytes, double value, ref int index)
+        public static void WriteDouble(byte[] bytes, double value, ref int index)
         {
             long longVal = BitConverter.DoubleToInt64Bits(value);
             WriteLong(bytes, longVal, ref index);
         }
 
-        public void WriteVector2(byte[] bytes, UnityEngine.Vector2 value, ref int index)
+        public static void WriteVector2(byte[] bytes, UnityEngine.Vector2 value, ref int index)
         {
             WriteFloat(bytes, value.x, ref index);
             WriteFloat(bytes, value.y, ref index);
         }
 
-        public void WriteVector3(byte[] bytes, UnityEngine.Vector3 value, ref int index)
+        public static void WriteVector3(byte[] bytes, UnityEngine.Vector3 value, ref int index)
         {
             WriteFloat(bytes, value.x, ref index);
             WriteFloat(bytes, value.y, ref index);
             WriteFloat(bytes, value.z, ref index);
         }
         
-        public void WriteString(byte[] bytes, string value, ref int index)
+        public static void WriteString(byte[] bytes, string value, ref int index)
         {
             if (string.IsNullOrEmpty(value))
             {
@@ -118,7 +118,7 @@ namespace GoveKits.Save
         }
 
         // 嵌套数据写入优化：直接透传 buffer
-        public void WriteData(byte[] bytes, BinaryData dataValue, ref int index)
+        public static void WriteData(byte[] bytes, BinaryData dataValue, ref int index)
         {
             // 不再需要 dataValue.Writing() 创建中间数组
             // 也不需要 EnsureAvailable，因为 dataValue 内部会自己检查
@@ -127,13 +127,13 @@ namespace GoveKits.Save
 
         // ========== 读方法 (位移) ==========
 
-        public bool ReadBool(byte[] bytes, ref int index)
+        public static bool ReadBool(byte[] bytes, ref int index)
         {
             EnsureAvailable(bytes, index, 1);
             return bytes[index++] != 0;
         }
 
-        public byte ReadByte(byte[] bytes, ref int index)
+        public static byte ReadByte(byte[] bytes, ref int index)
         {
             EnsureAvailable(bytes, index, 1);
             return bytes[index++];
@@ -141,7 +141,7 @@ namespace GoveKits.Save
 
         // ========== 读方法 (改为 Little-Endian 小端序) ==========
 
-        public short ReadShort(byte[] bytes, ref int index)
+        public static short ReadShort(byte[] bytes, ref int index)
         {
             EnsureAvailable(bytes, index, 2);
             short val = (short)(bytes[index] | (bytes[index + 1] << 8));
@@ -149,7 +149,7 @@ namespace GoveKits.Save
             return val;
         }
 
-        public int ReadInt(byte[] bytes, ref int index)
+        public static int ReadInt(byte[] bytes, ref int index)
         {
             EnsureAvailable(bytes, index, 4);
             int val = bytes[index] | (bytes[index + 1] << 8) | (bytes[index + 2] << 16) | (bytes[index + 3] << 24);
@@ -157,13 +157,13 @@ namespace GoveKits.Save
             return val;
         }
 
-        public float ReadFloat(byte[] bytes, ref int index)
+        public static float ReadFloat(byte[] bytes, ref int index)
         {
             int intVal = ReadInt(bytes, ref index);
             return BitConverter.Int32BitsToSingle(intVal);
         }
 
-        public long ReadLong(byte[] bytes, ref int index)
+        public static long ReadLong(byte[] bytes, ref int index)
         {
             EnsureAvailable(bytes, index, 8);
             long val = 0;
@@ -175,20 +175,20 @@ namespace GoveKits.Save
             return val;
         }
 
-        public double ReadDouble(byte[] bytes, ref int index)
+        public static double ReadDouble(byte[] bytes, ref int index)
         {
             long longVal = ReadLong(bytes, ref index);
             return BitConverter.Int64BitsToDouble(longVal);
         }
 
-        public UnityEngine.Vector2 ReadVector2(byte[] bytes, ref int index)
+        public static UnityEngine.Vector2 ReadVector2(byte[] bytes, ref int index)
         {
             float x = ReadFloat(bytes, ref index);
             float y = ReadFloat(bytes, ref index);
             return new UnityEngine.Vector2(x, y);
         }
 
-        public UnityEngine.Vector3 ReadVector3(byte[] bytes, ref int index)
+        public static UnityEngine.Vector3 ReadVector3(byte[] bytes, ref int index)
         {
             float x = ReadFloat(bytes, ref index);
             float y = ReadFloat(bytes, ref index);
@@ -196,7 +196,7 @@ namespace GoveKits.Save
             return new UnityEngine.Vector3(x, y, z);
         }
 
-        public string ReadString(byte[] bytes, ref int index)
+        public static string ReadString(byte[] bytes, ref int index)
         {
             int len = ReadInt(bytes, ref index);
             EnsureAvailable(bytes, index, len);
@@ -205,7 +205,7 @@ namespace GoveKits.Save
             return s;
         }
 
-        public T ReadData<T>(byte[] bytes, ref int index) where T : BinaryData, new()
+        public static T ReadData<T>(byte[] bytes, ref int index) where T : BinaryData, new()
         {
             T data = new T();
             // 移除 data.Length() 检查，因为空对象的 Length 不代表实际数据 Length

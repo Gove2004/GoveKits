@@ -26,7 +26,7 @@ namespace GoveKits.Network
         private void Update()
         {
             // 只有连接状态才发心跳
-            if (!NetManager.Instance.IsConnected) return;
+            if (!NetworkManager.Instance.IsConnected) return;
 
             // 1. 发送逻辑
             if (Time.time - lastSendTime >= Interval)
@@ -40,14 +40,14 @@ namespace GoveKits.Network
             if (Time.time - lastRecvTime > Timeout)
             {
                 Debug.LogWarning("[Heartbeat] Connection Timeout! Disconnecting...");
-                NetManager.Instance.Close();
+                NetworkManager.Instance.Close();
             }
         }
 
 
         private void Ping()
         {
-            NetManager.Instance.Send(MessageBuilder.Create<PingPongMessage>(Protocol.PingPongMsgID));
+            NetworkManager.Instance.Send(MessageBuilder.Create<PingPongMessage>(Protocol.PingPongMsgID));
         }
 
 
@@ -63,14 +63,6 @@ namespace GoveKits.Network
 
 
     // 心跳消息定义
-    public class PingPongBody : MessageBody
-    {
-        // 心跳包可以为空，或者包含时间戳等信息
-        public override int Length() => 0;
-        public override void Reading(byte[] buffer, ref int index) { }
-        public override void Writing(byte[] buffer, ref int index) { }
-    }
     [Message(Protocol.PingPongMsgID)]
-    public class PingPongMessage : Message<PingPongBody> {}
-    
+    public class PingPongMessage : EmptyMessage {}
 }
