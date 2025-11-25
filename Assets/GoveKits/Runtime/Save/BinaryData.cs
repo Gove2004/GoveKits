@@ -7,7 +7,26 @@ namespace GoveKits.Save
     /// <summary>
     /// 二进制数据基类，提供读写方法
     /// </summary>
-    public abstract class BinaryData
+    public interface IBinaryData
+    {
+        /// <summary>
+        /// 获取数据的二进制长度
+        /// </summary>
+        public abstract int Length();
+
+        /// <summary>
+        /// 将数据写入目标 Buffer (核心修改：不返回数组，直接写入)
+        /// </summary>
+        public abstract void Writing(byte[] buffer, ref int index);
+
+        /// <summary>
+        /// 从字节数组中读取数据
+        /// </summary>
+        public abstract void Reading(byte[] buffer, ref int index);
+    }
+
+
+    public abstract class BinaryData : IBinaryData
     {
         /// <summary>
         /// 获取数据的二进制长度
@@ -25,6 +44,7 @@ namespace GoveKits.Save
         public abstract void Reading(byte[] buffer, ref int index);
 
         // ========== 辅助方法 ==========
+        
 
         protected static void EnsureAvailable(byte[] bytes, int index, int length)
         {
@@ -118,7 +138,7 @@ namespace GoveKits.Save
         }
 
         // 嵌套数据写入优化：直接透传 buffer
-        public static void WriteData(byte[] bytes, BinaryData dataValue, ref int index)
+        public static void WriteData(byte[] bytes, IBinaryData dataValue, ref int index)
         {
             // 不再需要 dataValue.Writing() 创建中间数组
             // 也不需要 EnsureAvailable，因为 dataValue 内部会自己检查
@@ -205,7 +225,7 @@ namespace GoveKits.Save
             return s;
         }
 
-        public static T ReadData<T>(byte[] bytes, ref int index) where T : BinaryData, new()
+        public static T ReadData<T>(byte[] bytes, ref int index) where T : IBinaryData, new()
         {
             T data = new T();
             // 移除 data.Length() 检查，因为空对象的 Length 不代表实际数据 Length

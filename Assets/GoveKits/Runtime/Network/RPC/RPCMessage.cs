@@ -1,9 +1,7 @@
 
-
-
-
 using System;
 using System.Text;
+
 
 namespace GoveKits.Network
 {
@@ -35,7 +33,7 @@ namespace GoveKits.Network
             {
                 foreach (var param in Parameters)
                 {
-                    length += BinaryExtensions.GetArgLength(param);
+                    length += ArgExtensions.GetArgLength(param);
                 }
             }
             return length;
@@ -51,7 +49,7 @@ namespace GoveKits.Network
             {
                 foreach (var param in Parameters)
                 {
-                    BinaryExtensions.WriteArg(buffer, param, ref index);
+                    ArgExtensions.WriteArg(buffer, param, ref index);
                 }
             }
         }
@@ -64,7 +62,7 @@ namespace GoveKits.Network
             Parameters = new object[argCount];
             for (int i = 0; i < argCount; i++)
             {
-                Parameters[i] = BinaryExtensions.ReadArg(buffer, ref index);
+                Parameters[i] = ArgExtensions.ReadArg(buffer, ref index);
             }
         }
     }
@@ -75,4 +73,8 @@ namespace GoveKits.Network
     // 标记哪些方法可以被 RPC 调用
     [AttributeUsage(AttributeTargets.Method)]
     public class RpcAttribute : Attribute { }
+
+
+    // 配合使用的枚举
+    public enum RpcTarget { Server, All, Others }
 }

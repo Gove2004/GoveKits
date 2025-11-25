@@ -22,7 +22,7 @@ namespace GoveKits.Network
     /// <summary>
     /// 扩展 BinaryData 的能力，使其能读写 object
     /// </summary>
-    public static class BinaryExtensions
+    public static class ArgExtensions
     {
         // 写入动态参数：先写类型(byte)，再写数据
         public static void WriteArg(byte[] buffer, object data, ref int index)

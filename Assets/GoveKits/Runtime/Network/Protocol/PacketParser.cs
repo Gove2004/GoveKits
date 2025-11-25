@@ -1,22 +1,35 @@
+
+
 using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 namespace GoveKits.Network
 {
+    // === 解析器 ===
     public class PacketParser
     {
-        private const int MaxPacketSize = 1024 * 1024 * 2; // 限制最大 2MB
-        private byte[] _buffer;
+        private const int MaxPacketSize = 1024 * 1024 * 2;
+        private byte[] _buffer = new byte[64 * 1024];
         private int _writeIndex = 0;
         private int _readIndex = 0;
         private const int LengthSize = 4;
         private readonly Func<Message, UniTask> _onMessageDecoded;
 
-        public PacketParser(Func<Message, UniTask> onMessageDecoded)
+        public PacketParser(Func<Message, UniTask> onMessageDecoded) => _onMessageDecoded = onMessageDecoded;
+
+        public static byte[] PackMessage(Message msg)
         {
-            _buffer = new byte[64 * 1024];
-            _onMessageDecoded = onMessageDecoded;
+            int totalLen = msg.Length();
+            byte[] packet = new byte[4 + totalLen];
+            int index = 4;
+            msg.Writing(packet, ref index);
+            int bodyLen = index - 4;
+            packet[0] = (byte)(bodyLen & 0xFF);
+            packet[1] = (byte)((bodyLen >> 8) & 0xFF);
+            packet[2] = (byte)((bodyLen >> 16) & 0xFF);
+            packet[3] = (byte)((bodyLen >> 24) & 0xFF);
+            return packet;
         }
 
         public void InputRawData(byte[] data, int offset, int count)
@@ -35,15 +48,7 @@ namespace GoveKits.Network
                               (_buffer[_readIndex + 2] << 16) | (_buffer[_readIndex + 3] << 24);
                 int fullLen = LengthSize + bodyLen;
 
-                // 【新增安全检查】
-                if (bodyLen < 0 || bodyLen > MaxPacketSize)
-                {
-                    Debug.LogError($"[Parser] Packet size too large: {bodyLen}. Closing connection.");
-                    // 这里应该抛出异常或回调通知上层断开连接
-                    _readIndex = _writeIndex; // 丢弃所有数据
-                    return;
-                }
-
+                if (bodyLen < 0 || bodyLen > MaxPacketSize) { _readIndex = _writeIndex; return; }
                 if (_writeIndex - _readIndex < fullLen) break;
 
                 int msgIdOffset = _readIndex + LengthSize;
@@ -60,38 +65,26 @@ namespace GoveKits.Network
                         _onMessageDecoded?.Invoke(msg).Forget();
                     }
                 }
-                catch (Exception ex) { Debug.LogError($"Parse Error: {ex}"); }
-
+                catch (Exception ex) { Debug.LogError($"[Parser] Decode Error: {ex}"); }
                 _readIndex += fullLen;
             }
-            // 内存整理
             if (_readIndex > 0 && _readIndex >= _buffer.Length / 2)
             {
                 int remain = _writeIndex - _readIndex;
                 if (remain > 0) Array.Copy(_buffer, _readIndex, _buffer, 0, remain);
-                _writeIndex = remain;
-                _readIndex = 0;
+                _writeIndex = remain; _readIndex = 0;
             }
         }
-
-
         
         private void EnsureCapacity(int count)
         {
             if (_writeIndex + count <= _buffer.Length) return;
-            
-            // 先尝试通过整理内存腾出空间
-            if (_readIndex > 0)
-            {
+            if (_readIndex > 0) {
                 int remain = _writeIndex - _readIndex;
                 Array.Copy(_buffer, _readIndex, _buffer, 0, remain);
-                _writeIndex = remain;
-                _readIndex = 0;
+                _writeIndex = remain; _readIndex = 0;
             }
-
-            // 如果还是不够，扩容
-            if (_writeIndex + count > _buffer.Length)
-            {
+            if (_writeIndex + count > _buffer.Length) {
                 int newSize = Math.Max(_buffer.Length * 2, _writeIndex + count);
                 byte[] newBuf = new byte[newSize];
                 Array.Copy(_buffer, 0, newBuf, 0, _writeIndex);

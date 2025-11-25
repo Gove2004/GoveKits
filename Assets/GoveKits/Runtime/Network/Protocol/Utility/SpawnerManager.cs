@@ -60,17 +60,17 @@ namespace GoveKits.Network
             // 【新增】监听玩家加入事件，用于状态同步
             if (NetworkManager.Instance != null)
             {
-                NetworkManager.Instance.OnPlayerJoined += OnPlayerJoined;
+                NetworkManager.Instance.OnClientConnected += OnPlayerJoined;
             }
         }
 
-        protected override void OnDestroy()
+        public override void OnDestroy()
         {
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.Unbind(this);
                 // 【新增】注销事件
-                NetworkManager.Instance.OnPlayerJoined -= OnPlayerJoined;
+                NetworkManager.Instance.OnClientDisconnected -= OnPlayerJoined;
             }
             base.OnDestroy();
         }
@@ -109,7 +109,7 @@ namespace GoveKits.Network
                 };
 
                 // 使用点对点发送，不要广播，否则老玩家会重复生成物体
-                NetworkManager.Instance.SendTo(newPlayerID, msg);
+                NetworkManager.Instance.SendToPlayer(newPlayerID, msg);
             }
         }
 

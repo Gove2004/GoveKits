@@ -1,96 +1,103 @@
-
-
 using System;
-using System.Net;
 using System.Net.Sockets;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
 
 namespace GoveKits.Network
 {
-    // === 传输层接口：负责建立连接 ===
-    public interface ITransport
+    // === 传输层接口 ===
+    public interface ITransport : IDisposable
     {
-        // 启动服务器监听
-        // onClientConnected: 当有新客户端连入时触发，返回建立好的连接对象
-        void StartServer(int port, Action<IConnection> onClientConnected);
-
-        // 连接到服务器
-        // onConnected: 连接成功触发
-        // onFailure: 连接失败触发
-        void ConnectClient(string ip, int port, Action<IConnection> onConnected, Action onFailure);
-
-        void Shutdown();
+        bool IsConnected { get; }
+        void Send(byte[] data);
+        Action<byte[]> OnReceiveData { get; set; }
+        Action OnDisconnected { get; set; }
+        void Close();
     }
 
 
-    public class TcpTransport : ITransport
+    
+    // TCP 实现
+    public class TcpSocketTransport : ITransport
     {
-        private Socket _listener;
-        private bool _isRunning;
+        private Socket _socket;
+        public bool IsConnected => _socket != null && _socket.Connected;
+        public Action<byte[]> OnReceiveData { get; set; }
+        public Action OnDisconnected { get; set; }
 
-        public void StartServer(int port, Action<IConnection> onClientConnected)
+        private readonly byte[] _recvBuffer = new byte[64 * 1024];
+
+        public TcpSocketTransport(Socket socket)
         {
-            if (_isRunning) return;
-            _isRunning = true;
-            
-            try
-            {
-                _listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                _listener.Bind(new IPEndPoint(IPAddress.Any, port));
-                _listener.Listen(NetworkManager.MaxConnections);
-                AcceptLoop(onClientConnected).Forget();
-                Debug.Log($"[TcpTransport] Listening on {port}...");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[TcpTransport] Start Error: {ex}");
-                Shutdown();
-            }
+            _socket = socket;
+            if(_socket != null) _socket.NoDelay = true;
+            ReceiveLoopAsync().Forget();
         }
 
-        private async UniTaskVoid AcceptLoop(Action<IConnection> onConnected)
+        private async UniTaskVoid ReceiveLoopAsync()
         {
-            while (_isRunning && _listener != null)
+            while (IsConnected)
             {
                 try
                 {
-                    var clientSocket = await _listener.AcceptAsync();
-                    // 创建新连接并回调
-                    var conn = new TcpConnection(NetworkManager.NextPlayerID++, clientSocket);
-                    onConnected?.Invoke(conn);
+                    int len = await _socket.ReceiveAsync(new ArraySegment<byte>(_recvBuffer), SocketFlags.None);
+                    if (len == 0) { Close(); break; }
+                    
+                    byte[] received = new byte[len];
+                    Array.Copy(_recvBuffer, received, len);
+                    OnReceiveData?.Invoke(received);
                 }
-                catch { break; }
+                catch { Close(); break; }
             }
         }
 
-        public async void ConnectClient(string ip, int port, Action<IConnection> onConnected, Action onFailure)
+        public void Send(byte[] data)
         {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            if (!IsConnected) return;
             try
             {
-                await socket.ConnectAsync(ip, port);
-                var conn = new TcpConnection(NetworkManager.ClientTempID, socket);  // 等待服务器分配
-                onConnected?.Invoke(conn);
+                _socket.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).AsUniTask().Forget();
             }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[TcpTransport] Connect Error: {ex}");
-                onFailure?.Invoke();
-            }
+            catch { Close(); }
         }
 
-        public void Shutdown()
+        public void Close()
         {
-            _isRunning = false;
-            _listener?.Close();
-            _listener = null;
+            if (_socket == null) return;
+            try { _socket.Shutdown(SocketShutdown.Both); _socket.Close(); } catch { }
+            _socket = null;
+            OnDisconnected?.Invoke();
         }
+        public void Dispose() => Close();
     }
 
+    // Host 模式本地管道
+    public class LocalTransport : ITransport
+    {
+        public bool IsConnected => true; // 始终连接
+        public Action<byte[]> OnReceiveData { get; set; }
+        public Action OnDisconnected { get; set; }
 
+        private LocalTransport _target;
 
+        public void ConnectTo(LocalTransport other)
+        {
+            _target = other;
+            other._target = this;
+        }
 
+        public void Send(byte[] data)
+        {
+            // 模拟 1帧 网络延迟，防止死锁并模拟真实环境
+            byte[] copy = new byte[data.Length];
+            Array.Copy(data, copy, data.Length);
+            
+            UniTask.Void(async () => {
+                await UniTask.Yield(); 
+                _target?.OnReceiveData?.Invoke(copy);
+            });
+        }
 
-
+        public void Close() => OnDisconnected?.Invoke();
+        public void Dispose() { }
+    }
 }

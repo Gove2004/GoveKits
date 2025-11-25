@@ -21,6 +21,7 @@ namespace GoveKits.Network
             SenderID = ReadInt(buffer, ref index);
             TargetID = ReadInt(buffer, ref index);
         }
+
         public override void Writing(byte[] buffer, ref int index)
         {
             WriteInt(buffer, SenderID, ref index);

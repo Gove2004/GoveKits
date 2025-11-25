@@ -1,22 +1,55 @@
+
 using UnityEngine;
 using DG.Tweening;
-using GoveKits.Save;
 
 namespace GoveKits.Network 
 {
+    [RequireComponent(typeof(NetworkIdentity))]
     public class NetworkTransform : NetworkBehaviour   
     {
+        [Header("Settings")]
+        public float SyncRate = 0.1f; // 同步间隔 (10次/秒)
+        public float MoveThreshold = 0.05f; // 移动阈值
+        public float RotThreshold = 1f; // 旋转阈值
+
+        private float _lastSyncTime;
+        private Vector3 _lastPos;
+        private Quaternion _lastRot;
+
+        private void Start()
+        {
+            _lastPos = transform.position;
+            _lastRot = transform.rotation;
+        }
+
         private void Update()
         {
-            if (IsMine && Input.GetKeyDown(KeyCode.T))
+            // 只有拥有者才发送
+            if (IsMine)
+            {
+                if (Time.time - _lastSyncTime > SyncRate)
+                {
+                    CheckAndSend();
+                    _lastSyncTime = Time.time;
+                }
+            }
+        }
+
+        private void CheckAndSend()
+        {
+            bool hasMoved = Vector3.Distance(transform.position, _lastPos) > MoveThreshold;
+            bool hasRotated = Quaternion.Angle(transform.rotation, _lastRot) > RotThreshold;
+
+            if (hasMoved || hasRotated)
             {
                 SendTransform();
+                _lastPos = transform.position;
+                _lastRot = transform.rotation;
             }
         }
 
         public void SendTransform()
         {
-            Debug.Log($"[NetworkTransform] Sending Transform {transform.position}, {transform.eulerAngles}, {transform.localScale}");
             var msg = new TransformSyncMessage()
             {
                 position = transform.position,
@@ -29,14 +62,21 @@ namespace GoveKits.Network
         [MessageHandler(Protocol.TransformSyncID)]
         public void OnReceiveTransform(TransformSyncMessage msg)
         {
-            Debug.Log($"[NetworkTransform] Received Transform for NetID {msg.NetID}: {msg.position}, {msg.rotation}, {msg.scale}");
+            // 过滤：只处理属于自己的 NetID
             if (msg.NetID != this.NetID) return;
-            transform.DOKill(); // 杀掉当前所有动画，防止冲突
-            transform.DOMove(msg.position, 0.1f);
-            transform.DORotate(msg.rotation, 0.1f);
-            transform.DOScale(msg.scale, 0.1f);
+            
+            // 过滤：如果你是拥有者（例如本地预测移动），不要被服务器的回包拉回去
+            // 除非你需要做强一致性的位置纠正
+            if (IsMine && !NetworkManager.Instance.IsServer) return;
+
+            // 使用 DOTween 平滑插值
+            transform.DOKill();
+            transform.DOMove(msg.position, SyncRate); // 时间设为 SyncRate 刚好衔接
+            transform.DORotate(msg.rotation, SyncRate);
+            transform.DOScale(msg.scale, SyncRate);
         }
     }
+
 
 
     [Message(Protocol.TransformSyncID)]

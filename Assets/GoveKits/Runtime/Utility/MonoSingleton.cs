@@ -56,7 +56,7 @@ public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     /// <summary>
     /// 应用退出时调用
     /// </summary>
-    protected virtual void OnDestroy()
+    public virtual void OnDestroy()
     {
         _applicationIsQuitting = true;
     }
