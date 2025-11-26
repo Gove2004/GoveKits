@@ -8,6 +8,15 @@ using GoveKits.Save;
 
 namespace GoveKits.Network
 {
+    // 标记哪些方法可以被 RPC 调用
+    [AttributeUsage(AttributeTargets.Method)]
+    public class RpcAttribute : Attribute { }
+
+
+    // 配合使用的枚举
+    public enum RpcTarget { Server, All, Others }
+
+
     // 支持的参数类型枚举
     public enum RpcArgType : byte
     {

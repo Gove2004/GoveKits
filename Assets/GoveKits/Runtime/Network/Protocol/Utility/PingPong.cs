@@ -30,14 +30,14 @@ namespace GoveKits.Network
             ResetTimers();
         }
 
-        private void OnDestroy()
+        public override void OnDestroy()
         {
             if (NetworkManager.Instance)
             {
-                NetworkManager.Instance.Unbind(this);
                 NetworkManager.Instance.OnClientConnected -= OnClientConnected;
                 NetworkManager.Instance.OnClientDisconnected -= OnClientDisconnected;
             }
+            base.OnDestroy();
         }
 
         private void ResetTimers()
@@ -59,7 +59,7 @@ namespace GoveKits.Network
             }
 
             // 如果我是服务器，记录新客户端的时间
-            if (NetworkManager.Instance.IsServer)
+            if (NetworkManager.Instance.IsHost)
             {
                 _clientKeepAlive[id] = Time.time;
             }
@@ -67,7 +67,7 @@ namespace GoveKits.Network
 
         private void OnClientDisconnected(int id)
         {
-            if (NetworkManager.Instance.IsServer)
+            if (NetworkManager.Instance?.IsHost == true)
             {
                 _clientKeepAlive.Remove(id);
             }
@@ -87,7 +87,7 @@ namespace GoveKits.Network
                 // 1. 定时发送 Ping
                 if (now - _lastSendTime >= Interval)
                 {
-                    SendPing();
+                    Ping();
                     _lastSendTime = now;
                 }
 
@@ -100,7 +100,7 @@ namespace GoveKits.Network
             }
 
             // === 服务器逻辑：检测客户端超时 ===
-            if (NetworkManager.Instance.IsServer)
+            if (NetworkManager.Instance.IsHost)
             {
                 // 遍历检查所有客户端
                 // 注意：不能在 foreach 中直接 Remove，收集需要断开的 ID
@@ -135,7 +135,7 @@ namespace GoveKits.Network
 
         // --- 消息处理 ---
 
-        private void SendPing()
+        private void Ping()
         {
             // 发送带有当前时间的包
             NetworkManager.Instance.SendToServer(new PingPongMessage(Time.realtimeSinceStartup));
@@ -143,10 +143,10 @@ namespace GoveKits.Network
 
 
         [MessageHandler(Protocol.PingPongMsgID)]
-        private void OnPingPong(PingPongMessage msg)
+        private void Pong(PingPongMessage msg)
         {
             // Server: 原样弹回
-            if (NetworkManager.Instance.IsServer)
+            if (NetworkManager.Instance.IsHost)
             {
                 _clientKeepAlive[msg.Header.SenderID] = Time.time;
                 NetworkManager.Instance.SendToPlayer(msg.Header.SenderID, msg);
@@ -167,24 +167,5 @@ namespace GoveKits.Network
                 else LastRTT = Mathf.Lerp(LastRTT, rtt, 0.2f);
             }
         }
-    }
-
-
-
-    // 消息定义保持不变
-    [Message(Protocol.PingPongMsgID)]
-    public class PingPongMessage : Message
-    {
-        public float Timestamp; // 发送时间戳
-
-        public PingPongMessage() { }
-
-        public PingPongMessage(float timestamp)
-        {
-            Timestamp = timestamp;
-        }
-        protected override int BodyLength() => 4;
-        protected override void BodyWriting(byte[] buffer, ref int index) => WriteFloat(buffer, Timestamp, ref index);
-        protected override void BodyReading(byte[] buffer, ref int index) => Timestamp = ReadFloat(buffer, ref index);
     }
 }

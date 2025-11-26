@@ -81,7 +81,7 @@ namespace GoveKits.Network
         private void OnPlayerJoined(int newPlayerID)
         {
             // 只有服务器/Host需要负责同步状态
-            if (!NetworkManager.Instance.IsServer && !NetworkManager.Instance.IsHost) return;
+            if (!NetworkManager.Instance.IsHost && !NetworkManager.Instance.IsHost) return;
 
             // 如果是Host自己加入，或者没有活跃物体，无需处理
             if (newPlayerID == NetworkManager.Instance.MyPlayerID) return;
@@ -164,7 +164,7 @@ namespace GoveKits.Network
             
             // 只有 Server/Host 有权限分配 NetID 并发起生成
             // 如果 Client 想生成，需要发送 RPC 请求给 Server (此处简化为仅Server调用)
-            if (NetworkManager.Instance.IsServer || NetworkManager.Instance.IsHost)
+            if (NetworkManager.Instance.IsHost || NetworkManager.Instance.IsHost)
             {
                 // 1. 分配 ID (简单的自增策略，实际项目可能需要回收机制)
                 int newNetId = Random.Range(1000, 999999); 

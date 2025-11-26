@@ -67,7 +67,7 @@ namespace GoveKits.Network
             
             // 过滤：如果你是拥有者（例如本地预测移动），不要被服务器的回包拉回去
             // 除非你需要做强一致性的位置纠正
-            if (IsMine && !NetworkManager.Instance.IsServer) return;
+            if (IsMine && !NetworkManager.Instance.IsHost) return;
 
             // 使用 DOTween 平滑插值
             transform.DOKill();

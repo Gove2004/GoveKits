@@ -8,75 +8,29 @@ using System.Text;
 
 namespace GoveKits.Network
 {
-    // 请确保在 Protocol.cs 中定义了 public const int NetworkDiscoveryID = 2000;
-    [Message(Protocol.NetworkDiscoveryID)]
-    public class NetworkDiscoveryMessage : Message
-    {
-        // 建议格式: "房间名|地图|人数|最大人数|TCP端口"
-        public string Info;
 
-        public NetworkDiscoveryMessage() { }
-        public NetworkDiscoveryMessage(string info)
-        {
-            Info = info;
-        }
-
-        protected override int BodyLength()
-        {
-            if (string.IsNullOrEmpty(Info)) return 4;
-            return 4 + Encoding.UTF8.GetByteCount(Info);
-        }
-
-        protected override void BodyWriting(byte[] buffer, ref int index)
-        {
-            WriteString(buffer, Info ?? "", ref index);
-        }
-
-        protected override void BodyReading(byte[] buffer, ref int index)
-        {
-            Info = ReadString(buffer, ref index);
-        }
-    }
-
-
-
-
-
-    
     public class NetworkDiscovery : MonoBehaviour
     {
         [Header("Settings")]
-        [Tooltip("UDP广播端口，必须与TCP游戏端口不同")]
-        public int DiscoveryPort = 8899;  // 用于接受广播消息的UDP固定端口
+        public int DiscoveryPort = 8899;
+        public float BroadcastInterval = 1.0f;
         
-        [Tooltip("广播间隔(秒)")]
-        public float BroadcastInterval = 3.0f;
+        // 【新增】是否接收自己发出的广播（调试本机联机时勾选）
+        public bool ReceiveSelfBroadcast = true; 
 
-        // 事件：当客户端发现房间时触发 (消息内容, 房间IP)
-        public event Action<NetworkDiscoveryMessage, IPEndPoint> OnRoomFound;
+        public event Action<DiscoveryMessage, IPEndPoint> OnRoomFound;
 
         private UdpClient _udpClient;
         private bool _isRunning;
-        
-        // 缓存：复用字节数组减少GC
-        private readonly byte[] _sendBuffer = new byte[2048];
-        
-        // 缓存：本机IP，用于客户端过滤自己
-        private string _localIpString;
+        private readonly byte[] _sendBuffer = new byte[1024];
 
-        private void OnDisable()
-        {
-            StopDiscovery();
-        }
+        private void OnDisable() => StopDiscovery();
 
         public void StopDiscovery()
         {
             _isRunning = false;
-            if (_udpClient != null)
-            {
-                try { _udpClient.Close(); } catch { }
-                _udpClient = null;
-            }
+            _udpClient?.Close();
+            _udpClient = null;
         }
 
         #region Host: 发送广播
@@ -84,42 +38,36 @@ namespace GoveKits.Network
         public void StartBroadcasting(string roomInfo)
         {
             StopDiscovery();
-
             try
             {
-                // 1. 获取最佳的物理网卡信息
+                // 1. 尝试获取物理网卡，如果失败则回退到 Broadcast 地址
                 var ipInfo = GetBestNetworkInterface();
-                if (ipInfo == null)
-                {
-                    Debug.LogError("[Discovery] 无法找到有效的局域网卡 (Check WiFi/Ethernet connection)");
-                    return;
-                }
+                IPAddress targetIp = (ipInfo != null) ? CalculateBroadcastAddress(ipInfo) : IPAddress.Broadcast;
 
-                IPAddress localIp = ipInfo.Address;
-                IPAddress broadcastIp = CalculateBroadcastAddress(ipInfo);
-
-                Debug.Log($"[Discovery] Host IP: {localIp} | Broadcast Target: {broadcastIp}");
-
-                // 2. 绑定到本机特定IP，强制从该网卡发送 (关键修改!)
-                _udpClient = new UdpClient(new IPEndPoint(localIp, 0));
+                // 2. 绑定 Socket
+                _udpClient = new UdpClient();
                 _udpClient.EnableBroadcast = true;
-                _udpClient.Ttl = 255; // 确保生存时间足够
-                _isRunning = true;
-
-                // 3. 准备消息数据
-                var msg = new NetworkDiscoveryMessage(roomInfo);
-                int length = 0;
-                msg.Writing(_sendBuffer, ref length); // 序列化到 buffer
                 
-                byte[] finalBytes = new byte[length];
-                Array.Copy(_sendBuffer, finalBytes, length);
+                // 【关键修改】不绑定特定 IP，直接绑定 Any，让系统决定路由
+                // 这样本机 Loopback 也能收到
+                _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-                // 4. 启动循环
-                BroadcastLoop(finalBytes, new IPEndPoint(broadcastIp, DiscoveryPort)).Forget();
+                Debug.Log($"[Discovery Host] Broadcasting to {targetIp}:{DiscoveryPort}...");
+
+                // 3. 序列化
+                var msg = new DiscoveryMessage(roomInfo);
+                int length = 0;
+                msg.Writing(_sendBuffer, ref length);
+                
+                byte[] data = new byte[length];
+                Array.Copy(_sendBuffer, data, length);
+
+                _isRunning = true;
+                BroadcastLoop(data, new IPEndPoint(targetIp, DiscoveryPort)).Forget();
             }
             catch (Exception e)
             {
-                Debug.LogError($"[Discovery] Start Host Failed: {e.Message}");
+                Debug.LogError($"[Discovery] Host Error: {e}");
                 StopDiscovery();
             }
         }
@@ -130,14 +78,11 @@ namespace GoveKits.Network
             {
                 try
                 {
+                    // UDP 发送
                     await _udpClient.SendAsync(data, data.Length, target);
                 }
-                catch (ObjectDisposedException) { break; }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[Discovery] Send Warning: {ex.Message}");
-                }
-
+                catch (Exception ex) { Debug.LogWarning($"[Discovery] Send warning: {ex.Message}"); }
+                
                 await UniTask.Delay(TimeSpan.FromSeconds(BroadcastInterval));
             }
         }
@@ -149,23 +94,25 @@ namespace GoveKits.Network
         public void StartListening()
         {
             StopDiscovery();
-
             try
             {
-                // 获取本机IP用于后续过滤自己
-                var localInfo = GetBestNetworkInterface();
-                _localIpString = localInfo?.Address.ToString();
-
-                // 客户端绑定到 Any (0.0.0.0)，这样能收到所有来源的广播
-                _udpClient = new UdpClient(DiscoveryPort);
+                // 1. 设置 UDP Client
+                _udpClient = new UdpClient();
+                
+                // 【关键修改】允许端口复用，防止本机多开报错
+                _udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                
+                // 绑定到任意地址 + 固定端口
+                _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, DiscoveryPort));
+                
                 _isRunning = true;
-
-                Debug.Log($"[Discovery] Listening on port {DiscoveryPort}...");
+                Debug.Log($"[Discovery Client] Listening on port {DiscoveryPort}...");
+                
                 ListenLoop().Forget();
             }
-            catch (SocketException e)
+            catch (Exception e)
             {
-                Debug.LogError($"[Discovery] Listen Failed (端口 {DiscoveryPort} 可能被占用): {e.Message}");
+                Debug.LogError($"[Discovery] Client Error: {e}");
             }
         }
 
@@ -177,112 +124,66 @@ namespace GoveKits.Network
                 {
                     var result = await _udpClient.ReceiveAsync();
                     
-                    // 过滤自己发出的广播
-                    if (result.RemoteEndPoint.Address.ToString() == _localIpString) 
-                        continue;
+                    // 【关键修复】移除了 IP 过滤逻辑，或者根据 ReceiveSelfBroadcast 决定
+                    // 如果你想在本机测试 Host 和 Client，必须允许接收自己
+                    if (!ReceiveSelfBroadcast)
+                    {
+                         // 如果需要过滤自己，需要获取本机所有IP进行比对，比较繁琐且容易出错
+                         // 建议在 DiscoveryMessage 内容里加个 Guid SessionID 来过滤，而不是靠 IP
+                    }
 
-                    ProcessPacket(result.Buffer, result.RemoteEndPoint);
+                    // 2. 预检 ID
+                    if (result.Buffer.Length < 4) continue;
+                    int msgId = result.Buffer[0] | (result.Buffer[1] << 8) | (result.Buffer[2] << 16) | (result.Buffer[3] << 24);
+                    
+                    if (msgId == Protocol.DiscoveryID)
+                    {
+                        var msg = new DiscoveryMessage();
+                        int index = 0;
+                        msg.Reading(result.Buffer, ref index);
+                        OnRoomFound?.Invoke(msg, result.RemoteEndPoint);
+                    }
                 }
                 catch (ObjectDisposedException) { break; }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[Discovery] Receive Error: {ex.Message}");
-                }
-            }
-        }
-
-        private void ProcessPacket(byte[] data, IPEndPoint sender)
-        {
-            try
-            {
-                if (data.Length < 4) return;
-
-                // 1. 预读 ID (假设是小端序，和 BinaryData 保持一致)
-                int msgId = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
-
-                if (msgId != Protocol.NetworkDiscoveryID) return;
-
-                // 2. 反序列化
-                var msg = new NetworkDiscoveryMessage();
-                int index = 0;
-                msg.Reading(data, ref index); // 调用基类完整读取逻辑
-
-                // 3. 回调
-                OnRoomFound?.Invoke(msg, sender);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[Discovery] Parse Error from {sender}: {ex.Message}");
+                catch (Exception ex) { Debug.LogWarning($"[Discovery] Recv error: {ex.Message}"); }
             }
         }
 
         #endregion
 
-        #region 网络工具方法 (核心优化)
+        #region Helper (精简版)
 
-        /// <summary>
-        /// 智能获取最佳网络接口 (过滤VMware/Docker/Loopback)
-        /// </summary>
+        // 获取最佳网卡用于计算广播地址
         private UnicastIPAddressInformation GetBestNetworkInterface()
         {
             foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
             {
-                // 1. 类型过滤 (只选以太网和Wifi)
                 if (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
-                    networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
-                    continue;
-
-                // 2. 状态过滤
-                if (networkInterface.OperationalStatus != OperationalStatus.Up) 
-                    continue;
-
-                // 3. 名称关键词过滤 (虚拟网卡)
-                string name = networkInterface.Description.ToLower();
-                if (name.Contains("vmware") || name.Contains("virtual") || 
-                    name.Contains("hyper-v") || name.Contains("docker") || 
-                    name.Contains("vpn") || name.Contains("software loopback"))
-                    continue;
+                    networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211) continue;
+                if (networkInterface.OperationalStatus != OperationalStatus.Up) continue;
 
                 var properties = networkInterface.GetIPProperties();
-                
-                // 4. 网关过滤 (没有网关通常意味着没有连入局域网)
-                if (properties.GatewayAddresses.Count == 0) continue;
-
-                foreach (var addressInfo in properties.UnicastAddresses)
+                foreach (var ip in properties.UnicastAddresses)
                 {
-                    // 5. 只取 IPv4
-                    if (addressInfo.Address.AddressFamily == AddressFamily.InterNetwork)
+                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork && 
+                        !ip.Address.ToString().StartsWith("169.254") && 
+                        !ip.Address.ToString().StartsWith("127."))
                     {
-                        // 排除 169.254.x.x (Windows自动分配的无效IP)
-                        if (addressInfo.Address.ToString().StartsWith("169.254")) continue;
-
-                        return addressInfo; // 找到最佳匹配
+                        return ip;
                     }
                 }
             }
             return null;
         }
 
-        /// <summary>
-        /// 根据IP和掩码，精确计算广播地址
-        /// 公式: Broadcast = IP | (~SubnetMask)
-        /// </summary>
         private IPAddress CalculateBroadcastAddress(UnicastIPAddressInformation unicastInfo)
         {
-            if (unicastInfo?.IPv4Mask == null) return IPAddress.Broadcast; // 降级
-
+            if (unicastInfo == null || unicastInfo.IPv4Mask == null) return IPAddress.Broadcast;
             byte[] ipBytes = unicastInfo.Address.GetAddressBytes();
             byte[] maskBytes = unicastInfo.IPv4Mask.GetAddressBytes();
             byte[] broadcastBytes = new byte[ipBytes.Length];
-
-            if (ipBytes.Length != maskBytes.Length) return IPAddress.Broadcast;
-
             for (int i = 0; i < ipBytes.Length; i++)
-            {
-                // 核心位运算
                 broadcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
-            }
-
             return new IPAddress(broadcastBytes);
         }
 

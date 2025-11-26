@@ -25,6 +25,8 @@ namespace GoveKits.Network
                     _rpcCache[method.Name] = method;
                 }
             }
+
+            NetworkManager.Instance.Bind(this);
         }
 
         protected virtual void OnEnable() => NetworkManager.Instance?.Bind(this);
@@ -49,8 +51,8 @@ namespace GoveKits.Network
         {
             if (NetID == 0) return;
 
-            // 1. 如果我是 Server/Host 且目标包含 Server，直接执行本地
-            if (NetworkManager.Instance.IsServer)
+            // 1. 如果我是 Host 且目标包含 Server，直接执行本地
+            if (NetworkManager.Instance.IsHost)
             {
                 // 服务器直接执行
                 InvokeRPC(methodName, parameters);
@@ -96,6 +98,12 @@ namespace GoveKits.Network
                 }
             }
             return false;
+        }
+
+
+        public virtual void OnDestroy()
+        {
+            NetworkManager.Instance?.Unbind(this);
         }
     }
 }
