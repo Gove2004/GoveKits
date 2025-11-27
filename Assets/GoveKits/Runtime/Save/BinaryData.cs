@@ -108,6 +108,20 @@ namespace GoveKits.Save
             WriteLong(bytes, longVal, ref index);
         }
 
+        public static void WriteBytes(byte[] bytes, byte[] value, ref int index)
+        {
+            if (value == null || value.Length == 0)
+            {
+                WriteInt(bytes, 0, ref index);
+                return;
+            }
+            int len = value.Length;
+            WriteInt(bytes, len, ref index);
+            EnsureAvailable(bytes, index, len);
+            Array.Copy(value, 0, bytes, index, len);
+            index += len;
+        }
+
         public static void WriteVector2(byte[] bytes, UnityEngine.Vector2 value, ref int index)
         {
             WriteFloat(bytes, value.x, ref index);
@@ -199,6 +213,16 @@ namespace GoveKits.Save
         {
             long longVal = ReadLong(bytes, ref index);
             return BitConverter.Int64BitsToDouble(longVal);
+        }
+
+        public static byte[] ReadBytes(byte[] bytes, ref int index)
+        {
+            int len = ReadInt(bytes, ref index);
+            EnsureAvailable(bytes, index, len);
+            byte[] result = new byte[len];
+            Array.Copy(bytes, index, result, 0, len);
+            index += len;
+            return result;
         }
 
         public static UnityEngine.Vector2 ReadVector2(byte[] bytes, ref int index)

@@ -13,10 +13,6 @@ namespace GoveKits.Network
     public class RpcAttribute : Attribute { }
 
 
-    // 配合使用的枚举
-    public enum RpcTarget { Server, All, Others }
-
-
     // 支持的参数类型枚举
     public enum RpcArgType : byte
     {

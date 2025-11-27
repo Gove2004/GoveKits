@@ -7,7 +7,6 @@ using UnityEngine;
 
 namespace GoveKits.Network
 {
-    // === Peer 策略接口 ===
     public interface IPeer
     {
         bool IsAlive { get; }
@@ -18,13 +17,13 @@ namespace GoveKits.Network
     }
 
     // =========================================================
-    // 1. Client Peer: 纯客户端
+    // Client Peer
     // =========================================================
     public class ClientPeer : IPeer
     {
-        public bool IsAlive => _connection != null && _connection.IsAlive;
-        private NetworkConnection _connection;
-        private MessageDispatcher _dispatcher;
+        public bool IsAlive => _serverConnection != null && _serverConnection.IsAlive;
+        private NetworkConnection _serverConnection;
+        private readonly MessageDispatcher _dispatcher;
 
         public ClientPeer(MessageDispatcher dispatcher) => _dispatcher = dispatcher;
 
@@ -36,13 +35,11 @@ namespace GoveKits.Network
                 await socket.ConnectAsync(ip, port);
                 var transport = new TcpSocketTransport(socket);
                 
-                // Client暂用临时ID，等待接收 HelloMessage 更新为正式ID
-                _connection = new NetworkConnection(NetworkManager.ClientTempID, transport, _dispatcher);
+                // Client 建立连接，此时不知道ID，但知道对面是 Server(0)
+                _serverConnection = new NetworkConnection(NetworkManager.ServerID, transport, _dispatcher, false);
+                // _serverConnection.OnDisconnected += NetworkManager.Instance.OnServerDisconnected;
                 
-                // 监听断开
-                _connection.OnDisconnected += () => NetworkManager.Instance.OnConnectionClose(NetworkManager.ClientTempID);
-                
-                Debug.Log("[Client] Socket Connected. Waiting for ID...");
+                Debug.Log("[Client] Connected to Server.");
             }
             catch (Exception ex)
             {
@@ -51,33 +48,27 @@ namespace GoveKits.Network
             }
         }
 
-        public void Send(Message msg)
-        {
-            // 客户端只有一个去处：发给服务器
-            _connection?.Send(msg);
-        }
+        public void Send(Message msg) => _serverConnection?.Send(msg);
 
-        public void Stop() { _connection?.Close(); _connection = null; }
+        public void Stop() { _serverConnection?.Close(); _serverConnection = null; }
         public void Update() { }
     }
 
     // =========================================================
-    // 2. Host Peer: 既是服务器，也是本地客户端
+    // Host Peer (Refactored)
     // =========================================================
     public class HostPeer : IPeer
     {
         public bool IsAlive { get; protected set; }
         
-        // --- 服务端部分 ---
-        // 所有连入的连接 (包括 Host 自己的本地连接 和 外部 TCP 连接)
-        private Dictionary<int, NetworkConnection> _connections = new Dictionary<int, NetworkConnection>();
+        // Server端：所有连入的玩家连接 (PlayerID -> Connection)
+        private readonly Dictionary<int, NetworkConnection> _playerConnections = new Dictionary<int, NetworkConnection>();
+        
+        // Client端：Host玩家自己通往Server逻辑的连接
+        private NetworkConnection _localClientConnection; 
+
         private Socket _listener;
-        
-        // --- 客户端部分 ---
-        // Host 玩家通往服务器的专用本地管道
-        private NetworkConnection _localClientConn; 
-        
-        private MessageDispatcher _dispatcher;
+        private readonly MessageDispatcher _dispatcher;
 
         public HostPeer(MessageDispatcher dispatcher) => _dispatcher = dispatcher;
 
@@ -85,7 +76,7 @@ namespace GoveKits.Network
         {
             IsAlive = true;
 
-            // 1. 启动 TCP 监听 (等待外部玩家)
+            // 1. 启动 TCP 监听
             try
             {
                 _listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -93,7 +84,6 @@ namespace GoveKits.Network
                 _listener.Bind(new IPEndPoint(IPAddress.Any, port));
                 _listener.Listen(NetworkManager.MaxConnections);
                 AcceptLoop().Forget();
-                Debug.Log($"[Host] Listening on port {port}...");
             }
             catch (Exception ex)
             {
@@ -102,99 +92,96 @@ namespace GoveKits.Network
                 return;
             }
 
-            // 2. 建立本地回环 (Host 自己连自己)
-            var serverTransport = new LocalTransport();
-            var clientTransport = new LocalTransport();
-            serverTransport.ConnectTo(clientTransport);
+            // 建立回环
+            var serverSideTransport = new LocalTransport();
+            var clientSideTransport = new LocalTransport();
+            serverSideTransport.ConnectTo(clientSideTransport);
 
-            // Server侧持有的连接 (ID = 1)
-            var serverConn = new NetworkConnection(NetworkManager.HostPlayerID, serverTransport, _dispatcher);
-            AddConnection(NetworkManager.HostPlayerID, serverConn);
+            // A. Server 侧记录 (对面是 HostPlayer): isServerSide = true
+            var connToHostPlayer = new NetworkConnection(NetworkManager.HostPlayerID, serverSideTransport, _dispatcher, true);
+            AddPlayerConnection(NetworkManager.HostPlayerID, connToHostPlayer);
 
-            // Client侧持有的连接
-            _localClientConn = new NetworkConnection(NetworkManager.HostPlayerID, clientTransport, _dispatcher);
+            // B. Client 侧记录 (对面是 Server): isServerSide = false
+            _localClientConnection = new NetworkConnection(NetworkManager.ServerID, clientSideTransport, _dispatcher, false);
             
-            Debug.Log("[Host] Local Loopback Started.");
+            Debug.Log("[Host] Loopback Established.");
         }
 
         private async UniTaskVoid AcceptLoop()
         {
-            while (IsAlive && _listener != null)
+            while (_listener != null)
             {
-                try
-                {
+                try {
                     var clientSocket = await _listener.AcceptAsync();
-                    
-                    // 分配新 ID
                     int newId = NetworkManager.NextPlayerID++;
                     
                     var transport = new TcpSocketTransport(clientSocket);
-                    var conn = new NetworkConnection(newId, transport, _dispatcher);
                     
-                    AddConnection(newId, conn);
-                }
-                catch { break; }
+                    // Server 接收的外部连接: isServerSide = true
+                    var conn = new NetworkConnection(newId, transport, _dispatcher, true);
+                    
+                    AddPlayerConnection(newId, conn);
+                } catch { break; }
             }
         }
 
-        private void AddConnection(int id, NetworkConnection conn)
+        private void AddPlayerConnection(int id, NetworkConnection conn)
         {
-            lock (_connections) _connections[id] = conn;
-            conn.OnDisconnected += () => RemoveConnection(id);
-            
-            // 通知 Manager 有新连接 (Manager 会判断是否需要发送 Hello)
+            lock (_playerConnections) _playerConnections[id] = conn;
+            conn.OnDisconnected += () => RemovePlayerConnection(id);
             NetworkManager.Instance.NotifyClientConnected(id);
         }
 
-        private void RemoveConnection(int id)
+        private void RemovePlayerConnection(int id)
         {
-            lock (_connections)
+            lock (_playerConnections)
             {
-                if (_connections.Remove(id))
+                if (_playerConnections.Remove(id))
                 {
                     NetworkManager.Instance.NotifyClientDisconnected(id);
-                    Debug.Log($"[Host] Client {id} disconnected.");
                 }
             }
         }
-        
-        // 供 Manager 广播 RPC 使用
-        public Dictionary<int, NetworkConnection> GetConnectionsCopy()
-        {
-            lock (_connections) return new Dictionary<int, NetworkConnection>(_connections);
-        }
 
-        // === 核心发送逻辑 ===
+        // === 路由发送逻辑 ===
+        
+        // 发送单条消息
         public void Send(Message msg)
         {
-            int targetId = msg.Header.TargetID;
+            int target = msg.Header.TargetID;
 
-            // 场景 A: Host 玩家发给服务器 (Client -> Server)
-            if (targetId == NetworkManager.ServerID) 
+            // 1. 如果 HostPlayer 发给 Server (Target=0)
+            if (target == NetworkManager.ServerID)
             {
-                _localClientConn?.Send(msg);
+                _localClientConnection?.Send(msg);
                 return;
             }
 
-            // 场景 B: 服务器发给客户端 (Server -> Client)
-            // 包括发给 Host 自己 (ID=1) 和 外部 TCP 客户端 (ID=100+)
-            
-            if (targetId == -1) // 广播
+            // 2. 如果 Server 发给 任意玩家 (Target > 0)
+            // (包括 Server 发给 HostPlayer 自己，也是走这里)
+            lock (_playerConnections)
             {
-                lock (_connections)
+                if (_playerConnections.TryGetValue(target, out var conn))
                 {
-                    foreach (var conn in _connections.Values) 
-                        conn.Send(msg);
+                    conn.Send(msg);
                 }
             }
-            else if (targetId > 0) // 单发
+        }
+
+        // 广播 (带有排除列表)
+        public void SendToAll(Message msg, int excludeId) 
+            => SendToAll(msg, new HashSet<int> { excludeId });
+
+        public void SendToAll(Message msg, HashSet<int> excludeIds)
+        {
+            lock (_playerConnections)
             {
-                lock (_connections)
+                foreach (var kv in _playerConnections)
                 {
-                    if (_connections.TryGetValue(targetId, out var conn)) 
-                        conn.Send(msg);
-                    else
-                        Debug.LogWarning($"[Host] Target connection {targetId} not found.");
+                    int id = kv.Key;
+                    if (excludeIds != null && excludeIds.Contains(id)) continue;
+                    
+                    kv.Value.Send(msg);
                 }
             }
         }
@@ -202,29 +189,22 @@ namespace GoveKits.Network
         public void Stop()
         {
             IsAlive = false;
-            
-            // 关闭监听
             try { _listener?.Close(); } catch { }
             _listener = null;
 
-            // 关闭所有服务端持有的连接
-            lock (_connections)
+            lock (_playerConnections)
             {
-                var list = new List<NetworkConnection>(_connections.Values);
-                foreach (var c in list) c.Close();
-                _connections.Clear();
+                foreach (var c in _playerConnections.Values) c.Close();
+                _playerConnections.Clear();
             }
-
-            // 关闭本地客户端连接
-            _localClientConn?.Close();
-            _localClientConn = null;
+            _localClientConnection?.Close();
         }
 
         public void Update() { }
     }
 
     // =========================================================
-    // 3. Offline Peer: 离线模式
+    // Offline Peer
     // =========================================================
     public class OfflinePeer : IPeer
     {
@@ -234,7 +214,7 @@ namespace GoveKits.Network
         public void Start(string address, int port) { }
         public void Send(Message msg)
         {
-            // 立即回环给自己
+            // 离线模式：直接派发给自己
             UniTask.Void(async () => {
                 await UniTask.Yield();
                 await _dispatcher.DispatchAsync(msg);

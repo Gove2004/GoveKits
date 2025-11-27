@@ -9,7 +9,7 @@ namespace GoveKits.Network
         public const int HelloID = 1;
         public const int RpcID = 5;
         public const int DiscoveryID = 6;
-
+        public const int RelayID = 7;
 
 
 

@@ -34,6 +34,13 @@ namespace GoveKits.Network
 
         // --- 核心功能 ---
 
+        protected void SendToServer(Message msg)
+            => NetworkManager.Instance.SendToServer(msg);
+        protected void SendToPlayer(int targetId, Message msg)
+            => NetworkManager.Instance.SendToPlayer(targetId, msg);
+        protected void SendToAll(Message msg, int excludeIds = -1)
+            => NetworkManager.Instance.Broadcast(msg, excludeIds);
+
         protected void SendSync(SyncMessage msg)
         {
             if (!IsMine) return; // 只有拥有者才能发送同步
@@ -42,43 +49,25 @@ namespace GoveKits.Network
         }
 
         /// <summary>
-        /// 调用 RPC 方法
+        /// 调用 RPC 方法, 约定先发送给服务器，由服务器分发给目标对象
         /// </summary>
         /// <param name="methodName">方法名</param>
         /// <param name="target">目标 (Server, All, Others)</param>
         /// <param name="parameters">参数</param>
-        protected void CallRPC(string methodName, RpcTarget target, params object[] parameters)
+        protected void CallRPC(string methodName, params object[] parameters)
         {
             if (NetID == 0) return;
 
-            // 1. 如果我是 Host 且目标包含 Server，直接执行本地
-            if (NetworkManager.Instance.IsHost)
+            var msg = new RPCMessage
             {
-                // 服务器直接执行
-                InvokeRPC(methodName, parameters);
-                
-                // 如果是 All 或 Others，广播给客户端
-                if (target == RpcTarget.All || target == RpcTarget.Others)
-                {
-                    var msg = new RPCMessage(NetID, methodName, parameters);
-                    NetworkManager.Instance.Broadcast(msg);
-                }
-            }
-            // 2. 如果我是 Client
-            else
-            {
-                // 构造消息发给 Server
-                var msg = new RPCMessage(NetID, methodName, parameters);
-                NetworkManager.Instance.SendToServer(msg);
-                
-                // 如果是 All (包含自己)，且不是 Host (Host已经在上面Server逻辑执行了)，预测执行
-                // 但通常 RPC 都是由 Server 确认后再下发的，这里建议先不执行本地，等待 Server 回传
-            }
+                NetID = this.NetID,
+                MethodName = methodName,
+                Parameters = parameters
+            };
+
+            SendToServer(msg);
         }
 
-        // 简化版重载，默认发给所有人
-        protected void CallRPC(string methodName, params object[] parameters) 
-            => CallRPC(methodName, RpcTarget.All, parameters);
 
         // 被 NetworkIdentity 调用
         public bool InvokeRPC(string methodName, object[] parameters)
@@ -87,8 +76,6 @@ namespace GoveKits.Network
             {
                 try
                 {
-                    // 参数类型转换处理 (Json反序列化时参数可能变成了 JObject 或 long/int 不匹配)
-                    // 这里假设 Parser 已经处理好了类型
                     method.Invoke(this, parameters);
                     return true;
                 }

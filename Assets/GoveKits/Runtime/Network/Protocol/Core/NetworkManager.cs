@@ -5,24 +5,22 @@ using UnityEngine;
 
 namespace GoveKits.Network
 {
-    // === 网络模式枚举 ===
     public enum NetworkMode { Offline, Client, Host }
 
     public class NetworkManager : MonoSingleton<NetworkManager>
     {
         // === 常量配置 ===
-        public const int ServerID = 0;           // 服务器逻辑ID
-        public const int HostPlayerID = 1;       // Host 玩家自身的ID
-        public const int ClientTempID = -1;      // 客户端临时ID
-        public const int BroadcastID = -1;       // 广播目标ID
-        
-        public static int NextPlayerID = 100;    // 外部客户端起始ID
-        public const int MaxConnections = 32;
+        public const int ServerID = 0;           
+        public const int HostPlayerID = 1;       // 房主作为玩家的 ID
+        public const int FirstClientPlayerID = 100;    
+        public static int NextPlayerID = FirstClientPlayerID;     
+        public const int BroadcastID = -1;       
+        public const int ClientTempID = -1;      
+        public const int MaxConnections = 32;    
 
         [Header("Settings")]
         public string IP = "127.0.0.1";
         public int Port = 12345;
-        [Tooltip("是否启动时自动作为客户端连接服务器")]
         public bool AutoConnect = false;
 
         // === 状态属性 ===
@@ -32,10 +30,7 @@ namespace GoveKits.Network
         public bool IsHost => Mode == NetworkMode.Host;
         public bool IsClient => Mode == NetworkMode.Client || Mode == NetworkMode.Host; 
         
-        // Host 拥有服务器权限
-        public bool IsServer => Mode == NetworkMode.Host; 
-        
-        // 当前玩家的 ID
+        // 当前实例代表的玩家ID (Server端逻辑无所谓这个值，但Host作为玩家时是1)
         public int MyPlayerID = ClientTempID;
 
         // === 事件系统 ===
@@ -43,18 +38,15 @@ namespace GoveKits.Network
         public event Action<int> OnClientDisconnected;
         public event Action OnServerDisconnected; 
 
-        // === 核心组件 ===
         private IPeer _peer;
         private readonly MessageDispatcher _dispatcher = new MessageDispatcher();
-        
-        // 对象管理 (NetID -> Identity)
-        private readonly Dictionary<int, NetworkIdentity> _networkObjects = new Dictionary<int, NetworkIdentity>();
 
         protected void Awake()
         {
-            _dispatcher.Bind(this); // 绑定自身消息
+            _dispatcher.Bind(this); 
             
             MessageBuilder.Register(typeof(HelloMessage), Protocol.HelloID);
+            MessageBuilder.Register(typeof(RelayMessage), Protocol.RelayID);
             MessageBuilder.AutoRegisterAll();
 
             if (AutoConnect) StartClient();
@@ -65,28 +57,28 @@ namespace GoveKits.Network
         public void StartHost()
         {
             StartPeer(NetworkMode.Host);
+            // 触发自己连接的事件
+            OnClientConnected?.Invoke(MyPlayerID);
+            // 作为 Host，玩家ID 固定为 1
             MyPlayerID = HostPlayerID;
-            // Host 启动即连接成功 (本地回环)
-            NotifyClientConnected(MyPlayerID); 
         }
 
         public void StartClient()
         {
+            MyPlayerID = ClientTempID; // 等待服务器分配
             StartPeer(NetworkMode.Client);
-            MyPlayerID = ClientTempID; 
-            // Socket连接建立，等待 HelloMessage
         }
 
         public void StartOffline()
         {
-            StartPeer(NetworkMode.Offline);
             MyPlayerID = 0;
-            NotifyClientConnected(0);
+            StartPeer(NetworkMode.Offline);
+            OnClientConnected?.Invoke(0);
         }
 
         private void StartPeer(NetworkMode mode)
         {
-            Close(); // 清理旧状态
+            Close();
             Mode = mode;
             switch (mode)
             {
@@ -94,33 +86,161 @@ namespace GoveKits.Network
                 case NetworkMode.Client:  _peer = new ClientPeer(_dispatcher); break;
                 case NetworkMode.Host:    _peer = new HostPeer(_dispatcher); break;
             }
-            
-            if (mode != NetworkMode.Offline)
-                _peer.Start(IP, Port);
+            if (mode != NetworkMode.Offline) _peer.Start(IP, Port);
         }
 
-        // ================== 2. 连接管理与握手 ==================
+        // ================== 2. 外观发送接口 (智能路由) ==================
 
         /// <summary>
-        /// 供 Peer 调用：通知有底层连接建立
+        /// 发送给服务器 (Target = 0)
         /// </summary>
+        public void SendToServer(Message msg) => SendToPlayer(ServerID, msg);
+
+        /// <summary>
+        /// 发送给指定玩家 (自动处理中转)
+        /// </summary>
+        public void SendToPlayer(int targetId, Message msg)
+        {
+            // 1. 填充 Header
+            msg.Header.SenderID = MyPlayerID;
+            msg.Header.TargetID = targetId;
+
+            // 2. 路由策略
+            if (IsHost)
+            {
+                // Host 是上帝，拥有所有连接，直接发
+                // HostPeer 内部会处理：如果是发给Server(0)走回环，发给Client走TCP
+                _peer.Send(msg);
+            }
+            else
+            {
+                // Client 视角
+                if (targetId == ServerID)
+                {
+                    // 直连服务器
+                    _peer.Send(msg);
+                }
+                else
+                {
+                    // 发给其他玩家 -> 请求服务器 Relay
+                    // 外层包是发给 Server 的
+                    var relay = new RelayMessage(targetId, msg);
+                    relay.Header.SenderID = MyPlayerID;
+                    relay.Header.TargetID = ServerID; 
+                    _peer.Send(relay);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 广播 (默认排除自己) 默认-1 表示不排除任何人, 0 表示排除自己
+        /// </summary>
+        public void Broadcast(Message msg, int excludeClientId = -1)
+        {
+            if (excludeClientId == 0) excludeClientId = MyPlayerID;
+            
+            msg.Header.SenderID = MyPlayerID;
+            msg.Header.TargetID = BroadcastID;
+
+            if (IsHost)
+            {
+                // Host 直接向所有连接分发
+                if (_peer is HostPeer hostPeer)
+                {
+                    hostPeer.SendToAll(msg, excludeClientId);
+                }
+            }
+            else
+            {
+                // Client 请求服务器 Relay 广播
+                var relay = new RelayMessage(BroadcastID, msg, new int[] { excludeClientId });
+                relay.Header.SenderID = MyPlayerID;
+                relay.Header.TargetID = ServerID;
+                _peer.Send(relay);
+            }
+        }
+
+        // ================== 3. 服务器中转逻辑 (核心) ==================
+
+        [MessageHandler(Protocol.RelayID)]
+        private void OnHandleRelay(RelayMessage relayMsg)
+        {
+            // 只有 Server 权限才能执行转发
+            if (!IsHost) return;
+
+            // 1. 还原内部消息
+            Message innerMsg = relayMsg.GetMessage<Message>();
+            if (innerMsg == null) return;
+
+            // 2. 安全校验：强制修正 Sender 为实际发包者 (防止 Client A 冒充 Client B)
+            innerMsg.Header.SenderID = relayMsg.Header.SenderID; 
+            innerMsg.Header.TargetID = relayMsg.targetId;
+
+            // Debug.Log($"[Server Relay] {innerMsg.MsgID} From {innerMsg.Header.SenderID} To {relayMsg.targetId}");
+
+            // 3. 执行分发
+            if (_peer is HostPeer hostPeer)
+            {
+                if (relayMsg.targetId == BroadcastID)
+                {
+                    // 广播模式：处理排除列表
+                    var excludes = relayMsg.ExcludeIDs != null
+                        ? new HashSet<int>(relayMsg.ExcludeIDs)
+                        : new HashSet<int>();
+                    if (relayMsg.ExcludeIDs != null)
+                    {
+                        foreach (var id in relayMsg.ExcludeIDs) excludes.Add(id);
+                    }
+                    
+                    hostPeer.SendToAll(innerMsg, excludes);
+                }
+                else
+                {
+                    // 单发模式
+                    hostPeer.Send(innerMsg);
+                }
+            }
+        }
+
+        // ================== 4. RPC 处理 ==================
+        
+        [MessageHandler(Protocol.RpcID)]
+        private void OnHandleRPC(RPCMessage msg)
+        {
+            // 现在向 SpawnerManager 查询物体
+            if (SpawnerManager.Instance == null) return;
+            var targetObj = SpawnerManager.Instance.GetObject(msg.NetID);
+
+            // RPC 的执行逻辑：收到消息意味着“有人让我执行”。
+            targetObj.InvokeRPCLocal(msg.MethodName, msg.Parameters);
+
+             // 如果我是 Host，我还肩负着“转发给其他人”的责任（如果是广播RPC）。
+            if (IsHost)
+            {
+                // 如果是广播 RPC，Server 收到后需要转发给其他人
+                var excludes = new HashSet<int>();
+                // excludes.Add(msg.Header.SenderID); // 排除发送者
+                excludes.Add(HostPlayerID);        // 排除 Host 自己 (因为上面Invoke过了)
+                
+                if (_peer is HostPeer hostPeer)
+                {
+                    hostPeer.SendToAll(msg, excludes);
+                }
+            }
+        }
+
+        // ================== 5. 连接管理 ==================
+
         public void NotifyClientConnected(int id)
         {
-            // 如果我是 Host，并且连进来的不是我自己 (即外部 TCP 客户端)
-            if (IsHost && id != MyPlayerID)
+            if (IsHost)
             {
-                Debug.Log($"[Host] TCP Client {id} Connected. Sending Hello...");
-                // 主动发送握手包，分配 ID
-                SendToPlayer(id, new HelloMessage(id));
+                var hello = new HelloMessage(id);
+                SendToPlayer(id, hello);
             }
-
-            // 触发事件
             UniTask.Post(() => OnClientConnected?.Invoke(id));
         }
 
-        /// <summary>
-        /// 客户端处理：收到服务器分配的 ID
-        /// </summary>
         [MessageHandler(Protocol.HelloID)]
         private void OnReceiveIDAssign(HelloMessage msg)
         {
@@ -128,7 +248,7 @@ namespace GoveKits.Network
             {
                 MyPlayerID = msg.PlayerID;
                 Debug.Log($"[Client] Handshake Complete. Assigned ID: {MyPlayerID}");
-                NotifyClientConnected(MyPlayerID);
+                OnClientConnected?.Invoke(MyPlayerID);
             }
         }
 
@@ -139,10 +259,7 @@ namespace GoveKits.Network
 
         public void OnConnectionClose(int connId)
         {
-            if (IsHost)
-            {
-                NotifyClientDisconnected(connId);
-            }
+            if (IsHost) NotifyClientDisconnected(connId);
             else
             {
                 Debug.LogWarning("Disconnected from server.");
@@ -151,99 +268,8 @@ namespace GoveKits.Network
             }
         }
 
-        // ================== 3. RPC 路由逻辑 ==================
+        // ================== 6. 基础功能 ==================
         
-        [MessageHandler(Protocol.RpcID)]
-        private void OnHandleRPC(RPCMessage msg)
-        {
-            var targetObj = GetObject(msg.NetID);
-            if (targetObj == null) return;
-
-            // A. Host 逻辑 (权威方)
-            if (IsHost)
-            {
-                // 1. 执行本地逻辑 (更新 Host 自己的游戏世界)
-                targetObj.InvokeRPCLocal(msg.MethodName, msg.Parameters);
-
-                // 2. 广播给其他 TCP 客户端 (排除发送者)
-                BroadcastRPC(msg, msg.Header.SenderID);
-            }
-            // B. Client 逻辑
-            else
-            {
-                // 客户端只执行，不转发
-                targetObj.InvokeRPCLocal(msg.MethodName, msg.Parameters);
-            }
-        }
-
-        /// <summary>
-        /// 辅助广播 RPC (仅 Host 可用)
-        /// </summary>
-        public void BroadcastRPC(RPCMessage msg, int excludeId)
-        {
-            if (_peer is HostPeer hostPeer)
-            {
-                var connections = hostPeer.GetConnectionsCopy();
-                
-                foreach (var kvp in connections)
-                {
-                    int connId = kvp.Key;
-                    
-                    // 1. 排除 excludeId (触发者)
-                    // 2. 排除 HostPlayerID (Host 本地已执行，防止回环重复执行)
-                    if (connId != excludeId && connId != HostPlayerID)
-                    {
-                        kvp.Value.Send(msg);
-                    }
-                }
-            }
-        }
-
-        // ================== 4. 外观发送接口 ==================
-
-        /// <summary>
-        /// 发送给服务器 (Client/Host通用)
-        /// </summary>
-        public void SendToServer(Message msg) => SendTo(msg, ServerID);
-        
-        /// <summary>
-        /// 广播 (仅 Host 可用)
-        /// </summary>
-        public void Broadcast(Message msg) => SendTo(msg, BroadcastID);
-        
-        /// <summary>
-        /// 发送给特定玩家 (仅 Host 可用)
-        /// </summary>
-        public void SendToPlayer(int playerId, Message msg) => SendTo(msg, playerId);
-
-        private void SendTo(Message msg, int targetID)
-        {
-            if (_peer == null) return;
-            msg.Header.SenderID = MyPlayerID;
-            msg.Header.TargetID = targetID;
-            _peer.Send(msg);
-        }
-
-        // ================== 5. 对象与辅助 ==================
-        
-        public void RegisterObject(NetworkIdentity identity)
-        {
-            if (!_networkObjects.ContainsKey(identity.NetID))
-                _networkObjects.Add(identity.NetID, identity);
-        }
-
-        public void UnregisterObject(NetworkIdentity identity)
-        {
-            if (_networkObjects.ContainsKey(identity.NetID))
-                _networkObjects.Remove(identity.NetID);
-        }
-
-        public NetworkIdentity GetObject(int netId)
-        {
-            _networkObjects.TryGetValue(netId, out var identity);
-            return identity;
-        }
-
         public void Bind(object target) => _dispatcher.Bind(target);
         public void Unbind(object target) => _dispatcher.Unbind(target);
 
@@ -251,28 +277,12 @@ namespace GoveKits.Network
         {
             var prevMode = Mode;
             Mode = NetworkMode.Offline; 
-
-            if (_peer != null)
-            {
-                _peer.Stop();
-                _peer = null;
-            }
-
+            if (_peer != null) { _peer.Stop(); _peer = null; }
             MyPlayerID = ClientTempID;
-            _networkObjects.Clear();
-            
-            if (prevMode != NetworkMode.Offline)
-            {
-                Debug.Log("[NetworkManager] Closed.");
-            }
+            if (prevMode != NetworkMode.Offline) Debug.Log("[NetworkManager] Closed.");
         }
 
-        public override void OnDestroy()
-        {
-            Close();
-            base.OnDestroy();
-        }
-
+        public override void OnDestroy() { Close(); base.OnDestroy(); }
         private void Update() => _peer?.Update();
     }
 }

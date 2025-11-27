@@ -233,4 +233,7 @@ namespace GoveKits.Network
         protected abstract void SyncDataWriting(byte[] buffer, ref int index);
         protected abstract void SyncDataReading(byte[] buffer, ref int index);
     }
+
+
+    
 }

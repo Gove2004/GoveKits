@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Linq; // 用于 First() 方法
 
-public class UITest : MonoBehaviour
+public class UITest : NetworkBehaviour
 {
     [Header("UI References")]
     public Button hostButton;
@@ -18,8 +18,14 @@ public class UITest : MonoBehaviour
     public TextMeshProUGUI roomsText;
     public TextMeshProUGUI myIDText;
 
+    public TMP_InputField editInputField;
+    public TMP_InputField targetInputField;
+    public Button sendButton;
+
     [Header("Components")]
     public NetworkDiscovery discovery;
+
+
 
     // key: IP:Port 字符串 (保证唯一性) -> value: (Info, EndPoint)
     private Dictionary<string, RoomInfo> _discoveredRooms = new Dictionary<string, RoomInfo>();
@@ -38,6 +44,8 @@ public class UITest : MonoBehaviour
         joinButton.onClick.AddListener(OnJoinButton);
         stopButton.onClick.AddListener(OnStopButton);
         connectButton.onClick.AddListener(OnConnectButton);
+
+        sendButton.onClick.AddListener(OnSendButton);
 
         // 发现事件
         discovery.OnRoomFound += OnHostFound;
@@ -61,7 +69,7 @@ public class UITest : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
+    public override void OnDestroy()
     {
         if(discovery) discovery.OnRoomFound -= OnHostFound;
     }
@@ -133,6 +141,62 @@ public class UITest : MonoBehaviour
         NetworkManager.Instance.StartClient();
     }
 
+
+
+    public void OnSendButton()
+    {
+        string text = editInputField.text;
+        if (string.IsNullOrEmpty(text))
+        {
+            Log("Input is empty, cannot send.");
+            return;
+        }
+
+        if (NetworkManager.Instance && NetworkManager.Instance.IsConnected)
+        {
+            // 构造消息
+            TextMessage msg = new TextMessage();
+            msg.Text = text;
+
+            // 发送消息
+            int targetId;
+            if (!int.TryParse(targetInputField.text, out targetId))
+            {
+                targetId = 0;
+            }
+            
+
+            if (targetId == -1)
+            {
+                NetworkManager.Instance.Broadcast(msg, NetworkManager.Instance.MyPlayerID);  // 发给除了自己外的所有人
+            }
+            else if (targetId == 0)
+            {
+                NetworkManager.Instance.SendToServer(msg); // 发给服务器
+            }
+            else
+            {
+                msg.Header.TargetID = targetId; // 指定目标玩家ID
+                NetworkManager.Instance.SendToPlayer(targetId, msg); // 发给指定玩家
+            }
+
+
+
+            CallRPC("Log", $"From PlayerID: {NetworkManager.Instance.MyPlayerID} sent a message");
+
+
+
+            Log($"Sent: {text}");
+
+            // 清空输入框
+            editInputField.text = "";
+        }
+        else
+        {
+            Log("Not connected to any server.");
+        }
+    }
+
     #endregion
 
     #region Callbacks
@@ -164,6 +228,13 @@ public class UITest : MonoBehaviour
 
             UpdateRoomsText();
         }
+    }
+
+
+    [MessageHandler(100)]
+    public void OnTextMessageReceived(TextMessage msg)
+    {
+        Log($"[From {msg.Header.SenderID}] {msg.Text}");
     }
 
     #endregion
@@ -199,4 +270,24 @@ public class UITest : MonoBehaviour
     }
 
     #endregion
+
+
+
+
+
+
+
+
+
+
+
+
+    [Message(100)]
+    public class TextMessage : Message
+    {
+        public string Text;
+        protected override int BodyLength() => sizeof(int) + System.Text.Encoding.UTF8.GetByteCount(Text);
+        protected override void BodyWriting(byte[] buffer, ref int index) => WriteString(buffer, Text, ref index);
+        protected override void BodyReading(byte[] buffer, ref int index) => Text = ReadString(buffer, ref index);
+    }
 }
