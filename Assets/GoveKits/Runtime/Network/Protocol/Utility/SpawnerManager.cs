@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using UnityEngine;
 
 namespace GoveKits.Network
@@ -19,9 +18,9 @@ namespace GoveKits.Network
             
             if (NetworkManager.Instance != null)
             {
-                NetworkManager.Instance.OnClientConnected += OnPlayerJoined;
+                NetworkManager.Instance.OnClientConnectedEvent += OnPlayerJoined;
                 // 如果断开连接，清空所有物体
-                NetworkManager.Instance.OnServerDisconnected += CleanupAllObjects;
+                NetworkManager.Instance.OnServerDisconnectedEvent += CleanupAllObjects;
             }
         }
 
@@ -30,8 +29,8 @@ namespace GoveKits.Network
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.Unbind(this);
-                NetworkManager.Instance.OnClientConnected -= OnPlayerJoined;
-                NetworkManager.Instance.OnServerDisconnected -= CleanupAllObjects;
+                NetworkManager.Instance.OnClientConnectedEvent -= OnPlayerJoined;
+                NetworkManager.Instance.OnServerDisconnectedEvent -= CleanupAllObjects;
             }
             CleanupAllObjects();
             base.OnDestroy();

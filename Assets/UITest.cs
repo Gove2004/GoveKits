@@ -53,9 +53,9 @@ public class UITest : NetworkBehaviour
         // 网络状态事件 (让 Log 也能显示连接结果)
         if (NetworkManager.Instance)
         {
-            NetworkManager.Instance.OnClientConnected += (id) => Log($"<color=green>Connected! My ID: {id}</color>");
-            NetworkManager.Instance.OnClientDisconnected += (id) => Log($"<color=red>Client {id} Disconnected</color>");
-            NetworkManager.Instance.OnServerDisconnected += () => Log($"<color=red>Disconnected from Server</color>");
+            NetworkManager.Instance.OnClientConnectedEvent += (id) => Log($"<color=green>Connected! My ID: {id}</color>");
+            NetworkManager.Instance.OnClientDisconnectedEvent += (id) => Log($"<color=red>Client {id} Disconnected</color>");
+            NetworkManager.Instance.OnServerDisconnectedEvent += () => Log($"<color=red>Disconnected from Server</color>");
         }
     }
 
@@ -93,6 +93,9 @@ public class UITest : NetworkBehaviour
         
         discovery.StartBroadcasting(info);
         Log($"Broadcasting: {info}");
+
+        // 禁用 Join 按钮防止误触
+        joinButton.interactable = false;
     }
 
     public void OnJoinButton()
@@ -112,6 +115,7 @@ public class UITest : NetworkBehaviour
         NetworkManager.Instance.Close();
         discovery.StopDiscovery();
         hostButton.interactable = true;
+        joinButton.interactable = true;
     }
 
     public void OnConnectButton()

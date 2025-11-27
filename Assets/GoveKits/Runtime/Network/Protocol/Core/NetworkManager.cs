@@ -10,12 +10,12 @@ namespace GoveKits.Network
     public class NetworkManager : MonoSingleton<NetworkManager>
     {
         // === 常量配置 ===
+
+        public const int OfflineID = -1;   
         public const int ServerID = 0;           
-        public const int HostPlayerID = 1;       // 房主作为玩家的 ID
-        public const int FirstClientPlayerID = 100;    
-        public static int NextPlayerID = FirstClientPlayerID;     
+        public const int HostPlayerID = 1;   
+        public static int NextPlayerID = 100;     
         public const int BroadcastID = -1;       
-        public const int ClientTempID = -1;      
         public const int MaxConnections = 32;    
 
         [Header("Settings")]
@@ -28,15 +28,17 @@ namespace GoveKits.Network
         public bool IsConnected => _peer != null && _peer.IsAlive;
         
         public bool IsHost => Mode == NetworkMode.Host;
-        public bool IsClient => Mode == NetworkMode.Client || Mode == NetworkMode.Host; 
+        public bool IsClient => Mode == NetworkMode.Client; 
         
         // 当前实例代表的玩家ID (Server端逻辑无所谓这个值，但Host作为玩家时是1)
-        public int MyPlayerID = ClientTempID;
+        public int MyPlayerID = OfflineID;
 
         // === 事件系统 ===
-        public event Action<int> OnClientConnected;
-        public event Action<int> OnClientDisconnected;
-        public event Action OnServerDisconnected; 
+        public event Action<int> OnClientConnectedEvent;
+        public event Action<int> OnClientDisconnectedEvent;
+        public event Action OnServerConnectedEvent;
+        public event Action OnServerDisconnectedEvent; 
+
 
         private IPeer _peer;
         private readonly MessageDispatcher _dispatcher = new MessageDispatcher();
@@ -45,8 +47,6 @@ namespace GoveKits.Network
         {
             _dispatcher.Bind(this); 
             
-            MessageBuilder.Register(typeof(HelloMessage), Protocol.HelloID);
-            MessageBuilder.Register(typeof(RelayMessage), Protocol.RelayID);
             MessageBuilder.AutoRegisterAll();
 
             if (AutoConnect) StartClient();
@@ -56,24 +56,20 @@ namespace GoveKits.Network
 
         public void StartHost()
         {
+            MyPlayerID = OfflineID;
             StartPeer(NetworkMode.Host);
-            // 触发自己连接的事件
-            OnClientConnected?.Invoke(MyPlayerID);
-            // 作为 Host，玩家ID 固定为 1
-            MyPlayerID = HostPlayerID;
         }
 
         public void StartClient()
         {
-            MyPlayerID = ClientTempID; // 等待服务器分配
+            MyPlayerID = OfflineID; // 等待服务器分配
             StartPeer(NetworkMode.Client);
         }
 
         public void StartOffline()
         {
-            MyPlayerID = 0;
+            MyPlayerID = OfflineID;
             StartPeer(NetworkMode.Offline);
-            OnClientConnected?.Invoke(0);
         }
 
         private void StartPeer(NetworkMode mode)
@@ -86,6 +82,20 @@ namespace GoveKits.Network
                 case NetworkMode.Client:  _peer = new ClientPeer(_dispatcher); break;
                 case NetworkMode.Host:    _peer = new HostPeer(_dispatcher); break;
             }
+            
+            if (_peer is ClientPeer clientPeer)
+            {
+                clientPeer.OnServerConnectedEvent += OnServerConnected;
+                clientPeer.OnServerDisconnectedEvent += OnServerDisconnected;
+            }
+            else if (_peer is HostPeer hostPeer)
+            {
+                hostPeer.OnClientConnectedEvent += OnClientConnected;
+                hostPeer.OnClientDisconnectedEvent += OnClientDisconnected;
+                hostPeer.OnServerConnectedEvent += OnServerConnected;
+                hostPeer.OnServerDisconnectedEvent += OnServerDisconnected;
+            }
+
             if (mode != NetworkMode.Offline) _peer.Start(IP, Port);
         }
 
@@ -104,7 +114,7 @@ namespace GoveKits.Network
             // 1. 填充 Header
             msg.Header.SenderID = MyPlayerID;
             msg.Header.TargetID = targetId;
-
+            
             // 2. 路由策略
             if (IsHost)
             {
@@ -231,54 +241,89 @@ namespace GoveKits.Network
 
         // ================== 5. 连接管理 ==================
 
-        public void NotifyClientConnected(int id)
+        public void KickPlayer(int id)
+        {
+            if (IsHost && _peer is HostPeer hostPeer)
+            {
+                hostPeer.KickClient(id);
+            }
+        }
+
+
+        public void SendIDAssign(int clientId)
         {
             if (IsHost)
             {
-                var hello = new HelloMessage(id);
-                SendToPlayer(id, hello);
+                var hello = new HelloMessage(clientId);
+                SendToPlayer(clientId, hello);
             }
-            UniTask.Post(() => OnClientConnected?.Invoke(id));
         }
+
 
         [MessageHandler(Protocol.HelloID)]
         private void OnReceiveIDAssign(HelloMessage msg)
         {
-            if (Mode == NetworkMode.Client)
-            {
-                MyPlayerID = msg.PlayerID;
-                Debug.Log($"[Client] Handshake Complete. Assigned ID: {MyPlayerID}");
-                OnClientConnected?.Invoke(MyPlayerID);
-            }
+            MyPlayerID = msg.PlayerID;
+            Debug.Log($"[Client] Handshake Complete. Assigned ID: {MyPlayerID}");
         }
 
-        public void NotifyClientDisconnected(int id)
+
+        private void OnServerConnected()
         {
-            UniTask.Post(() => OnClientDisconnected?.Invoke(id));
+            Debug.Log("[Client] Connected to Server.");
+
+            OnServerConnectedEvent?.Invoke();
         }
 
-        public void OnConnectionClose(int connId)
+        private void OnServerDisconnected()
         {
-            if (IsHost) NotifyClientDisconnected(connId);
-            else
-            {
-                Debug.LogWarning("Disconnected from server.");
-                UniTask.Post(() => OnServerDisconnected?.Invoke());
-                Close();
-            }
+            Debug.LogWarning("[Client] Disconnected from Server.");
+
+            OnServerDisconnectedEvent?.Invoke();
         }
+
+        private void OnClientConnected(int clientId)
+        {
+            Debug.Log($"[Server] Client {clientId} Connected.");
+            SendIDAssign(clientId);
+
+            OnClientConnectedEvent?.Invoke(clientId);
+        }
+
+        private void OnClientDisconnected(int clientId)
+        {
+            Debug.Log($"[Server] Client {clientId} Disconnected.");
+
+            OnClientDisconnectedEvent?.Invoke(clientId);
+        }
+
 
         // ================== 6. 基础功能 ==================
-        
         public void Bind(object target) => _dispatcher.Bind(target);
         public void Unbind(object target) => _dispatcher.Unbind(target);
 
         public void Close()
         {
             var prevMode = Mode;
-            Mode = NetworkMode.Offline; 
-            if (_peer != null) { _peer.Stop(); _peer = null; }
-            MyPlayerID = ClientTempID;
+            Mode = NetworkMode.Offline;
+
+            if (_peer is ClientPeer clientPeer)
+            {
+                clientPeer.OnServerConnectedEvent -= OnServerConnected;
+                clientPeer.OnServerDisconnectedEvent -= OnServerDisconnected;
+            }
+            else if (_peer is HostPeer hostPeer)
+            {
+                hostPeer.OnServerConnectedEvent -= OnServerConnected;
+                hostPeer.OnServerDisconnectedEvent -= OnServerDisconnected;
+                hostPeer.OnClientConnectedEvent -= OnClientConnected;
+                hostPeer.OnClientDisconnectedEvent -= OnClientDisconnected;
+            }
+            _peer?.Stop();
+            _peer = null;
+
+            MyPlayerID = OfflineID;
+
             if (prevMode != NetworkMode.Offline) Debug.Log("[NetworkManager] Closed.");
         }
 

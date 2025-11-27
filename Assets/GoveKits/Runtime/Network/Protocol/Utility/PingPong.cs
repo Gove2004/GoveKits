@@ -3,65 +3,53 @@ using UnityEngine;
 
 namespace GoveKits.Network
 {
-
     public class PingPong : NetworkBehaviour
     {
         [Header("Config")]
-        public float Interval = 2f;    // 发送频率
-        public float Timeout = 10f;    // 超时阈值
+        public float Interval = 2f;    
+        public float Timeout = 10f;    
 
         [Header("Client Stats")]
-        public float LastRTT = -1f;    // 往返时延 (毫秒)
+        public float LastRTT = -1f;    
         
-        // --- 客户端状态 ---
         private float _lastSendTime;
         private float _lastRecvTime;
         
-        // --- 服务器状态 (记录所有客户端的最后活跃时间) ---
         private Dictionary<int, float> _clientKeepAlive = new Dictionary<int, float>();
 
         private void Start()
         {
-            // 1. 订阅连接事件
-            NetworkManager.Instance.OnClientConnected += OnClientConnected;
-            NetworkManager.Instance.OnClientDisconnected += OnClientDisconnected;
+            NetworkManager.Instance.OnServerConnectedEvent += OnServerConnected;
+            NetworkManager.Instance.OnServerDisconnectedEvent += OnServerDisconnected;
+            NetworkManager.Instance.OnClientConnectedEvent += OnClientConnected;
+            NetworkManager.Instance.OnClientDisconnectedEvent += OnClientDisconnected;
 
-            // 初始化计时器
             ResetTimers();
         }
 
         public override void OnDestroy()
         {
-            if (NetworkManager.Instance)
-            {
-                NetworkManager.Instance.OnClientConnected -= OnClientConnected;
-                NetworkManager.Instance.OnClientDisconnected -= OnClientDisconnected;
-            }
+            if (NetworkManager.Instance == null) return;
+            NetworkManager.Instance.OnServerConnectedEvent -= OnServerConnected;
+            NetworkManager.Instance.OnServerDisconnectedEvent -= OnServerDisconnected;
+            NetworkManager.Instance.OnClientConnectedEvent -= OnClientConnected;
+            NetworkManager.Instance.OnClientDisconnectedEvent -= OnClientDisconnected;
             base.OnDestroy();
         }
 
         private void ResetTimers()
         {
-            _lastSendTime = Time.time;
-            _lastRecvTime = Time.time;
+            // 使用 unscaledTime 防止游戏暂停导致心跳停止
+            _lastSendTime = Time.unscaledTime;
+            _lastRecvTime = Time.unscaledTime;
             _clientKeepAlive.Clear();
         }
 
-        // --- 事件处理 ---
-
         private void OnClientConnected(int id)
         {
-            // 如果我是客户端，且连接的是我自己，重置本地计时
-            if (NetworkManager.Instance.IsClient && id == NetworkManager.Instance.MyPlayerID)
-            {
-                _lastSendTime = Time.time;
-                _lastRecvTime = Time.time;
-            }
-
-            // 如果我是服务器，记录新客户端的时间
             if (NetworkManager.Instance.IsHost)
             {
-                _clientKeepAlive[id] = Time.time;
+                _clientKeepAlive[id] = Time.unscaledTime;
             }
         }
 
@@ -73,41 +61,51 @@ namespace GoveKits.Network
             }
         }
 
-        // --- 主循环 ---
+        public void OnServerConnected()
+        {
+            Debug.Log("[Client]ResetTimersResetTimersResetTimersResetTimersResetTimersResetTimers");
+            ResetTimers();
+        }
+
+        public void OnServerDisconnected()
+        {
+            // 清理状态
+            ResetTimers();
+        }
 
         private void Update()
         {
             if (!NetworkManager.Instance.IsConnected) return;
+            float now = Time.unscaledTime; // 改用 unscaledTime
 
-            float now = Time.time;
-
-            // === 客户端逻辑：发包 + 检测服务器超时 ===
+            // === 客户端逻辑 ===
             if (NetworkManager.Instance.IsClient)
             {
-                // 1. 定时发送 Ping
+                // 检测超时
+                if (now - _lastRecvTime > Timeout)
+                {
+                    Debug.LogError($"[Heartbeat] Server Timeout! ({now - _lastRecvTime:F1}s > {Timeout}s)");
+                    NetworkManager.Instance.Close();
+                    return;
+                }
+    
                 if (now - _lastSendTime >= Interval)
                 {
                     Ping();
                     _lastSendTime = now;
                 }
-
-                // 2. 检测服务器是否挂了
-                if (now - _lastRecvTime > Timeout)
-                {
-                    Debug.LogError($"[Heartbeat] Server Timeout! ({now - _lastRecvTime:F1}s > {Timeout}s)");
-                    NetworkManager.Instance.Close();
-                }
             }
 
-            // === 服务器逻辑：检测客户端超时 ===
+            // === 服务器逻辑 ===
             if (NetworkManager.Instance.IsHost)
             {
-                // 遍历检查所有客户端
-                // 注意：不能在 foreach 中直接 Remove，收集需要断开的 ID
                 List<int> timeoutClients = null;
 
                 foreach (var kvp in _clientKeepAlive)
                 {
+                    // Host 不需要踢掉自己 (ID=1)
+                    if (kvp.Key == NetworkManager.HostPlayerID) continue;
+
                     if (now - kvp.Value > Timeout)
                     {
                         if (timeoutClients == null) timeoutClients = new List<int>();
@@ -120,49 +118,52 @@ namespace GoveKits.Network
                     foreach (int id in timeoutClients)
                     {
                         Debug.LogWarning($"[Heartbeat] Client {id} Timeout. Kicking...");
-                        // 这里调用 Manager 的底层方法断开连接
-                        // 注意：你需要确保 Peer 层有公开的方法断开指定 ID，或者直接 Close
-                        // 在之前的 ServerPeer 代码中，你可以调用 RemoveConnection(id)
-                        // 但为了架构统一，通常 ServerPeer 检测到底层断开会自动处理。
-                        // 这里我们只能做到逻辑上的剔除，或者扩展 NetworkManager 增加 Kick(id) 方法
-                        
-                        // 暂时从列表移除，实际项目建议在 NetworkManager 增加 KickPlayer(id)
+                        NetworkManager.Instance.KickPlayer(id); 
                         _clientKeepAlive.Remove(id); 
                     }
                 }
             }
         }
 
-        // --- 消息处理 ---
-
         private void Ping()
         {
-            // 发送带有当前时间的包
-            NetworkManager.Instance.SendToServer(new PingPongMessage(Time.realtimeSinceStartup));
+            Debug.Log("[Heartbeat] Ping");
+            NetworkManager.Instance.SendToServer(new PingPongMessage(Time.unscaledTime));
         }
-
 
         [MessageHandler(Protocol.PingPongMsgID)]
         private void Pong(PingPongMessage msg)
         {
-            // Server: 原样弹回
+            Debug.Log("[Heartbeat] Pong");
+            float now = Time.unscaledTime;
+
+            // === Server 端处理 ===
             if (NetworkManager.Instance.IsHost)
             {
-                _clientKeepAlive[msg.Header.SenderID] = Time.time;
-                NetworkManager.Instance.SendToPlayer(msg.Header.SenderID, msg);
+                int senderId = msg.Header.SenderID;
+                
+                // 刷新该 Client 的保活时间
+                _clientKeepAlive[senderId] = now;
+
+                // Host 收到自己发的包，不要回复，否则死循环
+                if (senderId != NetworkManager.HostPlayerID)
+                {
+                    NetworkManager.Instance.SendToPlayer(senderId, msg);
+                }
+                else 
+                {
+                    // 如果是 Host 自己发的 Ping，直接在这里作为 Pong 接收处理 RTT 相当于本地回环立即完成
+                }
             }
 
-            // Client: 计算 RTT
+            // === Client 端处理 ===
             if (NetworkManager.Instance.IsClient)
             {
-                // 只有当这是服务器回给我的包时 (Host模式下要注意区分)
-                // 简单处理：收到就更新
-                _lastRecvTime = Time.time;
+                // 收到服务器回包（或者是 Host 本地直接处理）
+                _lastRecvTime = now;
                 
-                // RTT = 当前时间 - 包里带的发送时间
-                float rtt = (Time.realtimeSinceStartup - msg.Timestamp) * 1000f;
-                
-                // 平滑处理
+                // 计算 RTT
+                float rtt = (now - msg.Timestamp) * 1000f;
                 if (LastRTT < 0) LastRTT = rtt;
                 else LastRTT = Mathf.Lerp(LastRTT, rtt, 0.2f);
             }

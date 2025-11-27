@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using Cysharp.Threading.Tasks;
@@ -25,6 +26,9 @@ namespace GoveKits.Network
         private NetworkConnection _serverConnection;
         private readonly MessageDispatcher _dispatcher;
 
+        public event Action OnServerConnectedEvent;
+        public event Action OnServerDisconnectedEvent;
+
         public ClientPeer(MessageDispatcher dispatcher) => _dispatcher = dispatcher;
 
         public async void Start(string ip, int port)
@@ -37,9 +41,13 @@ namespace GoveKits.Network
                 
                 // Client 建立连接，此时不知道ID，但知道对面是 Server(0)
                 _serverConnection = new NetworkConnection(NetworkManager.ServerID, transport, _dispatcher, false);
-                // _serverConnection.OnDisconnected += NetworkManager.Instance.OnServerDisconnected;
+                _serverConnection.OnDisconnected += () =>
+                {
+                    _serverConnection = null;
+                    OnServerDisconnectedEvent?.Invoke();
+                };
                 
-                Debug.Log("[Client] Connected to Server.");
+                OnServerConnectedEvent?.Invoke();
             }
             catch (Exception ex)
             {
@@ -50,7 +58,12 @@ namespace GoveKits.Network
 
         public void Send(Message msg) => _serverConnection?.Send(msg);
 
-        public void Stop() { _serverConnection?.Close(); _serverConnection = null; }
+        public void Stop()
+        {
+            _serverConnection?.Close();
+            _serverConnection = null;
+        }
+
         public void Update() { }
     }
 
@@ -69,6 +82,11 @@ namespace GoveKits.Network
 
         private Socket _listener;
         private readonly MessageDispatcher _dispatcher;
+
+        public event Action OnServerConnectedEvent;
+        public event Action OnServerDisconnectedEvent;
+        public event Action<int> OnClientConnectedEvent;
+        public event Action<int> OnClientDisconnectedEvent;
 
         public HostPeer(MessageDispatcher dispatcher) => _dispatcher = dispatcher;
 
@@ -103,8 +121,12 @@ namespace GoveKits.Network
 
             // B. Client 侧记录 (对面是 Server): isServerSide = false
             _localClientConnection = new NetworkConnection(NetworkManager.ServerID, clientSideTransport, _dispatcher, false);
-            
-            Debug.Log("[Host] Loopback Established.");
+            _localClientConnection.OnDisconnected += () =>
+            {
+                _localClientConnection = null;
+                OnServerDisconnectedEvent?.Invoke();
+            };
+            OnServerConnectedEvent?.Invoke();
         }
 
         private async UniTaskVoid AcceptLoop()
@@ -125,20 +147,30 @@ namespace GoveKits.Network
             }
         }
 
+        public void KickClient(int id)
+        {
+            
+            RemovePlayerConnection(id);
+        }
+
         private void AddPlayerConnection(int id, NetworkConnection conn)
         {
             lock (_playerConnections) _playerConnections[id] = conn;
             conn.OnDisconnected += () => RemovePlayerConnection(id);
-            NetworkManager.Instance.NotifyClientConnected(id);
+            OnClientConnectedEvent?.Invoke(id);
         }
 
         private void RemovePlayerConnection(int id)
         {
+           
             lock (_playerConnections)
             {
-                if (_playerConnections.Remove(id))
+                if (_playerConnections.TryGetValue(id, out var conn))
                 {
-                    NetworkManager.Instance.NotifyClientDisconnected(id);
+                    conn.Close();
+                    _playerConnections.Remove(id);
+
+                    OnClientDisconnectedEvent?.Invoke(id);
                 }
             }
         }
@@ -189,15 +221,30 @@ namespace GoveKits.Network
         public void Stop()
         {
             IsAlive = false;
+            
+            // 1. 关闭监听 Socket
             try { _listener?.Close(); } catch { }
             _listener = null;
 
+            // 2. 关闭本地回环连接
+            _localClientConnection?.Close();
+            _localClientConnection = null;
+
+            // 3. 关闭所有远程玩家连接
             lock (_playerConnections)
             {
-                foreach (var c in _playerConnections.Values) c.Close();
-                _playerConnections.Clear();
+                if (_playerConnections.Count > 0)
+                {
+                    var connectionsToClose = _playerConnections.Values.ToList();
+                    _playerConnections.Clear();
+                    foreach (var conn in connectionsToClose)
+                    {
+                        conn.Close();
+
+                        OnClientDisconnectedEvent?.Invoke(conn.RemoteID);
+                    }
+                }
             }
-            _localClientConnection?.Close();
         }
 
         public void Update() { }

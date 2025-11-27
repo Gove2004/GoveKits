@@ -7,18 +7,16 @@ namespace GoveKits.Network
     {
         public const int PingPongMsgID = 0;
         public const int HelloID = 1;
-        public const int RpcID = 5;
-        public const int DiscoveryID = 6;
-        public const int RelayID = 7;
+        public const int RpcID = 2;
+        public const int DiscoveryID = 3;
+        public const int RelayID = 4;
+        public const int SpawnID = 5;
+        public const int DespawnID = 6;
+        
 
 
 
-
-
-
-        public const int TransformSyncID = 2;
-        public const int SpawnID = 3;
-        public const int DespawnID = 4;
+        public const int TransformSyncID = 7;
         
         
     }
