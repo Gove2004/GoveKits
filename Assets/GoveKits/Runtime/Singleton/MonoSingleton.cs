@@ -1,33 +1,31 @@
 using UnityEngine;
 
 
-
-/// <summary>
-/// Mono单例基类
-/// </summary>
-/// <typeparam name="T"></typeparam>
-public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
+namespace GoveKits.Singleton
 {
-    private static T _instance;
-    private static readonly object _lock = new object();
-    private static bool _applicationIsQuitting = false;
-
     /// <summary>
-    /// 单例实例
+    /// Mono单例基类, Unity单线程不需要锁
     /// </summary>
-    public static T Instance
+    /// <typeparam name="T"></typeparam>
+    public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
-        get
-        {
-            // 应用退出检测
-            if (_applicationIsQuitting)
-            {
-                Debug.LogWarning("[MonoSingleton] 实例已销毁");
-                return null;
-            }
+        private static T _instance;
+        private static bool _applicationIsQuitting = false;
 
-            lock (_lock)  // 线程安全锁
+        /// <summary>
+        /// 单例实例
+        /// </summary>
+        public static T Instance
+        {
+            get
             {
+                // 应用退出检测
+                if (_applicationIsQuitting)
+                {
+                    Debug.LogWarning("[MonoSingleton] 实例已销毁");
+                    return null;
+                }
+
                 if (_instance == null)  // 首次访问时创建
                 {
                     // 在场景中查找现有实例（包括未激活对象）
@@ -51,13 +49,10 @@ public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
                 return _instance;
             }
         }
-    }
 
-    /// <summary>
-    /// 应用退出时调用
-    /// </summary>
-    public virtual void OnDestroy()
-    {
-        _applicationIsQuitting = true;
+        /// <summary>
+        /// 应用退出时调用
+        /// </summary>
+        public virtual void OnDestroy() => _applicationIsQuitting = true;
     }
 }

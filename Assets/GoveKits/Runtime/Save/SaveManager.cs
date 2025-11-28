@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using UnityEngine;
 using Newtonsoft.Json;
+using GoveKits.Singleton;
 
 
 namespace GoveKits.Save

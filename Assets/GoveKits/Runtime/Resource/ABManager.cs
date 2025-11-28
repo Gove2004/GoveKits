@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using GoveKits.Singleton;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -9,8 +10,7 @@ namespace GoveKits.Resource
     /// <summary>
     /// 资源管理器，负责AssetBundle的加载和缓存
     /// </summary>
-    public 
-    class ABManager : MonoSingleton<ABManager>
+    public class ABManager : MonoSingleton<ABManager>
     {
         private AssetBundle _mainAB;
         private AssetBundleManifest _manifest;

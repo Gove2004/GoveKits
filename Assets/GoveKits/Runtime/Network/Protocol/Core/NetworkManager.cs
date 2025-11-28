@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Cysharp.Threading.Tasks;
+using GoveKits.Singleton;
 using UnityEngine;
 
 namespace GoveKits.Network
