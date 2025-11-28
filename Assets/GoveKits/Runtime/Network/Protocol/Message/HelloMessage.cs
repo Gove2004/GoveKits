@@ -1,6 +1,8 @@
 
 
 
+using GoveKits.Network;
+
 namespace GoveKits.Network
 {
     // === 握手消息 ===
@@ -17,3 +19,6 @@ namespace GoveKits.Network
         protected override void BodyReading(byte[] buffer, ref int index) => PlayerID = ReadInt(buffer, ref index);
     }
 }
+
+
+

@@ -235,5 +235,32 @@ namespace GoveKits.Network
     }
 
 
-    
+
+
+
+
+
+    /// <summary>
+    /// 标记一个纯数据类，用于生成继承自 Message 的网络消息类
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class)]
+    public class AutoMessageAttribute : Attribute
+    {
+        public int Id { get; }
+        // 是否生成到独立文件中，默认 true
+        public bool GenerateFile { get; set; } = true;
+
+        public AutoMessageAttribute(int id)
+        {
+            Id = id;
+        }
+    }
+
+
+    /// <summary>
+    /// 标记字段不参与网络序列化
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field)]
+    public class AutoMessageIgnoreFieldAttribute : Attribute { }
+
 }
