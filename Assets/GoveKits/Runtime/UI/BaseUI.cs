@@ -1,25 +1,45 @@
 using UnityEngine;
 
-// 类似 安卓 Activity 的生命周期管理
+
+
+///
+/// 基于安卓 Activity 生命周期设计的 UI 面板基类
+/// 包含 OnCreate, OnStart, OnResume, OnPause, OnStop, OnFinish 六个生命周期方法
+/// 通过 UIController 来驱动这些生命周期方法
+/// 
+namespace GoveKits.UI
+{
+    // 这个接口只在 UIController 内部使用，用来驱动生命周期
+    public interface IUILifeCycle
+    {
+        void OnCreate();
+        void OnStart(object payload = null);  // 增加 payload 参数
+        void OnResume();
+        void OnPause();
+        void OnStop();
+        void OnFinish();
+    }
+}
+
+
+
+
 
 namespace GoveKits.UI
 {
     [RequireComponent(typeof(CanvasGroup))]
-    public abstract class PanelUI : MonoBehaviour
+    // 实现 IUILifeCycle 接口
+    public abstract class PanelUI : MonoBehaviour, IUILifeCycle
     {
-        [Header("UI Configuration")]
-        public bool isEntry = false;
-        public bool isPopup = false; 
-        
-        public bool IsCreated { get; private set; } = false;
-        
-        // 参数存储
-        protected object Parameters;
+        public bool isEntry = false;  // 是否为入口面板
+        public bool isPopup = false;  // 是否为弹窗（弹窗不隐藏下层面板）
+        public bool IsCreated { get; private set; } = false;  // 是否已创建
         
         protected UIController uiController;
         public void SetUIController(UIController controller) => uiController = controller;
-        
         private CanvasGroup canvasGroup;
+        
+        // 供子类访问的 CanvasGroup
         public CanvasGroup CanvasGroup 
         {
             get 
@@ -29,72 +49,62 @@ namespace GoveKits.UI
             }
         }
 
-        #region 内部生命周期方法（仅供Controller调用）
 
-        internal void InternalOnCreate()
+        #region 显式接口实现 (外界点不出来，只有 Controller 能调)
+
+        void IUILifeCycle.OnCreate() => OnCreate();
+        
+        // 核心改动：接收参数并转发给 protected 方法
+        void IUILifeCycle.OnStart(object payload) => OnStart(payload);
+        
+        void IUILifeCycle.OnResume() => OnResume();
+        void IUILifeCycle.OnPause() => OnPause();
+        void IUILifeCycle.OnStop() => OnStop();
+        void IUILifeCycle.OnFinish() => OnFinish();
+
+        #endregion
+
+        #region 子类可重写的逻辑 (Protected)
+
+        // 子类只能 override 这些 protected 方法
+        // 别的脚本拿到 PanelUI 实例也无法调用这些方法，只有 Controller 能通过接口触发
+
+        protected virtual void OnCreate() 
         {
             IsCreated = true;
-            OnCreate();
         }
 
-        internal void InternalOnStart(object parameters)
+        /// <summary>
+        /// 界面显示。
+        /// <param name="payload">传入的参数 (如弹窗的标题、回调等)</param>
+        /// </summary>
+        protected virtual void OnStart(object payload) 
         {
-            this.Parameters = parameters;
             this.gameObject.SetActive(true);
             this.transform.SetAsLastSibling();
-            
-            OnStart();
         }
 
-        internal void InternalOnResume()
+        protected virtual void OnResume() 
         {
             CanvasGroup.alpha = 1;
             CanvasGroup.interactable = true;
             CanvasGroup.blocksRaycasts = true;
-            OnResume();
         }
 
-        internal void InternalOnPause()
+        protected virtual void OnPause() 
         {
             CanvasGroup.interactable = false;
-            CanvasGroup.blocksRaycasts = true;
-            OnPause();
         }
 
-        internal void InternalOnStop()
+        protected virtual void OnStop() 
         {
             this.gameObject.SetActive(false);
-            OnStop();
         }
 
-        #endregion
-
-        #region 子类可重写的受保护方法
-
-        /// <summary>
-        /// 界面创建时调用（只执行一次）
-        /// </summary>
-        protected virtual void OnCreate() { }
-
-        /// <summary>
-        /// 界面显示时调用，可在这里处理参数
-        /// </summary>
-        protected virtual void OnStart() { }
-
-        /// <summary>
-        /// 界面获取焦点时调用
-        /// </summary>
-        protected virtual void OnResume() { }
-
-        /// <summary>
-        /// 界面失去焦点时调用
-        /// </summary>
-        protected virtual void OnPause() { }
-
-        /// <summary>
-        /// 界面隐藏时调用
-        /// </summary>
-        protected virtual void OnStop() { }
+        protected virtual void OnFinish() 
+        {
+            IsCreated = false;
+        }
 
         #endregion
     }

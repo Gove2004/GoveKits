@@ -638,7 +638,6 @@ GameObject:
   m_Component:
   - component: {fileID: 358287465}
   - component: {fileID: 358287464}
-  - component: {fileID: 358287466}
   m_Layer: 0
   m_Name: Square
   m_TagString: Untagged
@@ -669,7 +668,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 2d53c0d4c75081542865779bb4c94239, type: 2}
+  - {fileID: 2100000, guid: 73e878fc085072c48ad0d15bf2a7d6eb, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -710,24 +709,12 @@ Transform:
   m_GameObject: {fileID: 358287463}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -6.52, y: -2.53, z: 0}
-  m_LocalScale: {x: 15, y: 11, z: 1}
+  m_LocalPosition: {x: -5.3, y: -0.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &358287466
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 358287463}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2ce4adda7e8c72440b3329f35c0de1e6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &369644746
 GameObject:
   m_ObjectHideFlags: 0

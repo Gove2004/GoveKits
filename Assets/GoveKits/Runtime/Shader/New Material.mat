@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: "\u526A\u7EB8"
-  m_Shader: {fileID: 4800000, guid: 9ee2a726cd96db94d84b89dcb0fc9cc9, type: 3}
+  m_Name: New Material
+  m_Shader: {fileID: 4800000, guid: ef2775f7fffa13f4592917d4244e3238, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -41,13 +41,29 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _CanvasScale: 1.1
+    - _ColorCount: 16
+    - _EdgeSens: 0.01
     - _EnableExternalAlpha: 0
-    - _OutlineWidth: 0.5
+    - _FilterRadius: 0
+    - _Flatness: 0.5
+    - _GradientStr: 0
+    - _OutlineThreshold: 0.62
+    - _OutlineWidth: 0
+    - _Posterize: 2
+    - _Saturation: 1
+    - _Scale: 5
+    - _ShadowWidth: 0.02
+    - _Shape: 0
+    - _Smoothness: 0.01
+    - _Spacing: 0.4
+    - _Steps: 4
     - _ZWrite: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _OutlineColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Color1: {r: 1, g: 0.9, b: 0.8, a: 1}
+    - _Color2: {r: 1, g: 0.39999998, b: 0.39999998, a: 1}
+    - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}
     - _RendererColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ShadowColor: {r: 0, g: 0, b: 0, a: 0.3}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -49,7 +49,7 @@ Material:
     - _Sensitivity: 1
     - _ShowOriginal: 0
     - _Smoothness: 0
-    - _Thickness: 5
+    - _Thickness: 0.29
     - _Threshold: 0.05
     - _Width: 10
     - _ZWrite: 0

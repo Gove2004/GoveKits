@@ -2,20 +2,16 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+
 namespace GoveKits.UI
 {
     public class UIController : MonoBehaviour
     {
-        [Tooltip("注册的所有UI面板, 请在Inspector中配置, 确保唯一性, 启动时会自动初始化注册")]
         [SerializeField] private PanelUI[] uiPanelsArray;
-        
         private Dictionary<Type, PanelUI> uiPanels = new Dictionary<Type, PanelUI>();
         private Stack<PanelUI> panelStack = new Stack<PanelUI>();
 
-        private void Awake()
-        {
-            InitPanels();
-        }
+        private void Awake() => InitPanels();
 
         private void InitPanels()
         {
@@ -26,129 +22,87 @@ namespace GoveKits.UI
                 {
                     uiPanels.Add(type, panel);
                     panel.SetUIController(this);
-                    
-                    // 默认全部隐藏，不触发任何生命周期
-                    panel.gameObject.SetActive(false); 
+                    panel.gameObject.SetActive(false);
                 }
             }
-
-            // 处理入口界面
+            // 启动入口 (入口一般没参数)
             foreach (var panel in uiPanelsArray)
             {
-                if (panel.isEntry)
+                if (panel.isEntry) 
                 {
-                    ShowInternal(panel, null);
-                    break; 
+                    Show(panel, null);
+                    break;
                 }
             }
         }
 
         public T GetPanel<T>() where T : PanelUI
         {
-            if (uiPanels.TryGetValue(typeof(T), out PanelUI panel))
-                return panel as T;
+            if (uiPanels.TryGetValue(typeof(T), out PanelUI panel)) return panel as T;
             return null;
         }
 
-
         /// <summary>
-        /// 打开界面
+        /// 打开面板，可传参
         /// </summary>
-        public void Show<T>(object parameters = null) where T : PanelUI
+        /// <param name="payload">参数对象 (可以是 string, int, 或自定义类)</param>
+        public void Show<T>(object payload = null) where T : PanelUI
         {
             var nextPanel = GetPanel<T>();
-            if (nextPanel == null)
-            {
-                Debug.LogError($"UI Panel not found: {typeof(T).Name}");
-                return;
-            }
-            
-            ShowInternal(nextPanel, parameters);
+            if (nextPanel != null) Show(nextPanel, payload);
         }
 
-        /// <summary>
-        /// 内部显示方法，统一处理生命周期
-        /// </summary>
-        private void ShowInternal(PanelUI nextPanel, object parameters)
+        private void Show(PanelUI nextPanel, object payload)
         {
-            // 如果已经在栈顶，不重复打开
+            // 将 PanelUI 转为接口，这样才能调用隐藏的生命周期方法
+            IUILifeCycle nextLifeCycle = nextPanel;
+            
             if (panelStack.Count > 0 && panelStack.Peek() == nextPanel) return;
 
-            // 1. 处理当前栈顶界面
             if (panelStack.Count > 0)
             {
-                var currentPanel = panelStack.Peek();
-                
-                // 失去焦点
-                currentPanel.InternalOnPause();
+                PanelUI currentPanel = panelStack.Peek();
+                IUILifeCycle currentLifeCycle = currentPanel;
 
-                // 如果是全屏界面，需要隐藏底层界面
+                currentLifeCycle.OnPause();
+
                 if (!nextPanel.isPopup)
                 {
-                    currentPanel.InternalOnStop();
+                    currentLifeCycle.OnStop();
                 }
             }
 
-            // 2. 压栈
             panelStack.Push(nextPanel);
 
-            // 3. 处理新界面
-            if (!nextPanel.IsCreated)
-            {
-                nextPanel.InternalOnCreate();
-            }
+            if (!nextPanel.IsCreated) nextLifeCycle.OnCreate();
             
-            // 传递参数并启动
-            nextPanel.InternalOnStart(parameters);
-            nextPanel.InternalOnResume();
+            // 将参数传进去
+            nextLifeCycle.OnStart(payload); 
+            nextLifeCycle.OnResume();
         }
 
-        /// <summary>
-        /// 关闭当前界面
-        /// </summary>
+
         public void Hide()
         {
             if (panelStack.Count == 0) return;
 
-            // 1. 移除当前界面
-            var closingPanel = panelStack.Pop();
+            PanelUI closingPanel = panelStack.Pop();
+            IUILifeCycle closingLifeCycle = closingPanel;
 
-            closingPanel.InternalOnPause();
-            closingPanel.InternalOnStop();
+            closingLifeCycle.OnPause();
+            closingLifeCycle.OnStop();
 
-            // 2. 恢复上一个界面
             if (panelStack.Count > 0)
             {
-                var resumingPanel = panelStack.Peek();
+                PanelUI resumingPanel = panelStack.Peek();
+                IUILifeCycle resumingLifeCycle = resumingPanel;
 
-                // 如果上一个界面被Stop了，需要重新Start
                 if (!resumingPanel.gameObject.activeSelf)
                 {
-                    resumingPanel.InternalOnStart(null); // 恢复时不传递新参数
+                    // 恢复时通常不需要传参，或者传 null
+                    resumingLifeCycle.OnStart(null); 
                 }
-
-                resumingPanel.InternalOnResume();
-            }
-        }
-
-        /// <summary>
-        /// 获取当前栈顶界面
-        /// </summary>
-        public PanelUI GetCurrentPanel()
-        {
-            return panelStack.Count > 0 ? panelStack.Peek() : null;
-        }
-
-        /// <summary>
-        /// 清空所有界面（返回主界面等场景使用）
-        /// </summary>
-        public void ClearStack()
-        {
-            while (panelStack.Count > 0)
-            {
-                var panel = panelStack.Pop();
-                panel.InternalOnPause();
-                panel.InternalOnStop();
+                resumingLifeCycle.OnResume();
             }
         }
     }
