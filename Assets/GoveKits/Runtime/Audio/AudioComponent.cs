@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GoveKits.Audio
 {
     // 音频组件
-    public class AudioBehaviour : MonoBehaviour
+    public class AudioComponent : MonoBehaviour
     {
         public AudioConfig[] audioConfigs;
 
@@ -35,20 +35,5 @@ namespace GoveKits.Audio
         {
             AudioManager.Instance.PlaySFX(clip, volume);
         }
-    }
-
-
-
-
-
-
-    // 音频配置
-    [System.Serializable]
-    public class AudioConfig
-    {
-        public string configName = "";
-        public AudioClip audioClip = null;
-        public float volume = 1f;
-        public bool isBGMLoop = false;
     }
 }

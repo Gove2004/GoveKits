@@ -9,18 +9,6 @@ using UnityEngine.Audio;
 namespace GoveKits.Audio
 {
     /// <summary>
-    /// 音频资源类
-    /// </summary>
-    public enum AudioChannel
-    {
-        Master,
-        BGM,
-        SFX,
-        UI,
-        Voice
-    }
-
-    /// <summary>
     /// 音频管理器
     /// </summary>
     public class AudioManager : MonoSingleton<AudioManager>
