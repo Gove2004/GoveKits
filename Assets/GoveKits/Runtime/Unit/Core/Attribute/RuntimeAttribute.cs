@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 
 namespace GoveKits.Unit
 {
@@ -32,7 +31,7 @@ namespace GoveKits.Unit
         /// <summary>依赖的上限属性的当前值（Max）</summary>
         public float Max => _maxAttr.Value;
         /// <summary>当前值与上限的比率（0~1）</summary>
-        public float Ratio => Max > 0 ? Mathf.Clamp01(_current / Max) : 0f;
+        public float Ratio => Max > 0 ? Math.Clamp(_current / Max, 0, 1) : 0f;
         /// <summary>是否已满（Current >= Max）</summary>
         public bool IsFull => _current >= Max;
 
@@ -45,7 +44,7 @@ namespace GoveKits.Unit
         public void ApplyChange(float delta)
         {
             float old = _current;
-            _current = Mathf.Clamp(_current + delta, 0, Max);
+            _current = Math.Clamp(_current + delta, 0, Max);
             NotifyChange(old, _current);
         }
         /// <summary>把当前值设为上限（补满）</summary>

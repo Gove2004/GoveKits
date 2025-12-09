@@ -1,5 +1,5 @@
 using System;
-using UnityEngine;
+
 
 namespace GoveKits.Unit
 {
@@ -114,14 +114,14 @@ namespace GoveKits.Unit
             else if (Duration != Infinite)
             {
                 // 如果两个都是有时限的，取最大值
-                Duration = Mathf.Max(Duration, newMark.Duration);
-                MaxDuration = Mathf.Max(MaxDuration, newMark.MaxDuration);
+                Duration = Math.Max(Duration, newMark.Duration);
+                MaxDuration = Math.Max(MaxDuration, newMark.MaxDuration);
             }
 
             // 2. 堆叠层数
             int addStack = newMark.CurrentStack;
             if (MaxStack > 0)
-                CurrentStack = Mathf.Min(CurrentStack + addStack, MaxStack);
+                CurrentStack = Math.Min(CurrentStack + addStack, MaxStack);
             else
                 CurrentStack += addStack;
         }

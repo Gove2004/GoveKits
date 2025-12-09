@@ -78,7 +78,7 @@ namespace GoveKits.Events
         /// <param name="initializer">初始化回调，用于设置事件参数</param>
         public void Publish<T>(Action<T> initializer = null) where T : EventInfo, new()
         {
-            var evt = EventPool<T>.Get();
+            var evt = Pools.Pool.Get<T>();
             try
             {
                 initializer?.Invoke(evt);
@@ -87,7 +87,8 @@ namespace GoveKits.Events
             finally
             {
                 // 无论是否发生异常，都必须回收事件对象
-                EventPool<T>.Return(evt);
+                evt.IsStopped = false; // 框架级的重置
+                Pools.Pool.Recycle(evt);
             }
         }
 

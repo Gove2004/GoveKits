@@ -159,9 +159,9 @@ namespace GoveKits.RichCombat
 
         public void AddMark(GameMark mark) => ApplyMarks.Add(mark);
 
-        public override void Reset() 
+        public override void OnRecycle() 
         {
-            base.Reset();
+            base.OnRecycle();
             InstantChanges.Clear();
             ApplyMarks.Clear();
             IsCritical = false;
@@ -210,7 +210,7 @@ namespace GoveKits.RichCombat
             var reaction = new DelegateReaction<RichCombatEvent>("HandleCombat", this, evt => 
             {
                 // 1. 闪避判定 (仅针对受害者，且不是治疗，也不是真实伤害)
-                if (evt.Target == this && evt.InstantChanges.TryGetValue("HP", out float hpDelta) && hpDelta < 0)
+                if ((Object)evt.Target == this && evt.InstantChanges.TryGetValue("HP", out float hpDelta) && hpDelta < 0)
                 {
                     if (!evt.HasTag("TrueDamage")) // 真实伤害不可闪避
                     {
@@ -235,7 +235,7 @@ namespace GoveKits.RichCombat
 
                         // 仅处理针对自己的数值变化
                         // (注意：这里简化了逻辑，假设事件里的 HP 变化就是给 Target 的)
-                        if (evt.Target == this)
+                        if ((Object)evt.Target == this)
                         {
                             if (tag == "HP" && val < 0) // 是伤害
                             {
@@ -304,7 +304,7 @@ namespace GoveKits.RichCombat
                 }
 
                 // 3. 应用状态 (Buff/Debuff) - 只有 Target 才会获得 Buff
-                if (evt.Target == this && evt.ApplyMarks.Count > 0)
+                if ((Object)evt.Target == this && evt.ApplyMarks.Count > 0)
                 {
                     foreach(var mark in evt.ApplyMarks)
                     {

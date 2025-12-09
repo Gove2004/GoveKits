@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using UnityEngine;
+
 
 namespace GoveKits.Unit
 {
@@ -126,7 +126,7 @@ namespace GoveKits.Unit
         {
             if (TryGet(tag, out var mark) && mark.MaxDuration > 0)
             {
-                return Mathf.Clamp01(mark.Duration / mark.MaxDuration);
+                return 1f - (mark.Duration / mark.MaxDuration);
             }
             return 0f;
         }

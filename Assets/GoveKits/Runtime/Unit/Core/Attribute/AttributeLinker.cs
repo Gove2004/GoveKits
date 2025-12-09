@@ -12,7 +12,7 @@ namespace GoveKits.Unit
         /// <param name="source">源属性 (Stamina)</param>
         /// <param name="target">目标属性 (MaxHP)</param>
         /// <param name="convertFunc">转换公式 (val => val * 3)</param>
-        public static void Link(StateAttribute source, StateAttribute target, Func<float, float> convertFunc)
+        public static Action Link(StateAttribute source, StateAttribute target, Func<float, float> convertFunc)
         {
             // 1. 定义更新逻辑
             void OnSourceChanged(float oldVal, float newVal)
@@ -35,6 +35,22 @@ namespace GoveKits.Unit
 
             // 3. 订阅事件 (当体力变化时，自动更新血量)
             source.OnValueChanged += OnSourceChanged;
+            return () => source.OnValueChanged -= OnSourceChanged;
+        }
+
+
+        /// <summary>
+        /// 解除单向链接：移除 Target 上所有由 Source 添加的 Modifier
+        /// </summary>
+        /// <param name="source">源属性 (Stamina)</param>
+        /// <param name="target">目标属性 (MaxHP)</param>
+        public static void Unlink(StateAttribute source, StateAttribute target, Action unsubscribe)
+        {
+            // 移除所有由 source 作为 Source 的 modifier
+            target.RemoveBySource(source);
+
+            // 取消订阅事件
+            unsubscribe?.Invoke();
         }
     }
 }

@@ -1,4 +1,6 @@
-using UnityEngine;
+
+
+using System;
 
 namespace GoveKits.Unit
 {
@@ -18,7 +20,7 @@ namespace GoveKits.Unit
         {
             // 比如：当前还剩 2s，新冷却 5s -> 变为 5s
             // 比如：当前还剩 5s，被重置为 1s -> 保持 5s (通常冷却不会被短时间覆盖，除非是强制 Reset)
-            Duration = Mathf.Max(Duration, newMark.Duration);
+            Duration = Math.Max(Duration, newMark.Duration);
             // 这里的 MaxDuration 不需要变，通常是固定的
         }
 

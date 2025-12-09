@@ -49,7 +49,7 @@ namespace GoveKits.Unit
         /// <summary>
         /// 重置对象以供对象池复用：清空来源、目标和标签集合。
         /// </summary>
-        public override void Reset()
+        public override void OnRecycle()
         {
             Source = null;
             Target = null;

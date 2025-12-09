@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GoveKits.Audio
 {
     // 音频组件
-    public class AudioComponent : MonoBehaviour
+    public class AudioBehaviour : MonoBehaviour
     {
         public AudioConfig[] audioConfigs;
 

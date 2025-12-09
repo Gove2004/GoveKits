@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using UnityEngine;
 
 
 namespace GoveKits.Unit
@@ -54,7 +54,7 @@ namespace GoveKits.Unit
         /// </summary>
         public void SetBase(float val)
         {
-            if (Mathf.Abs(_baseValue - val) > 1e-5f)
+            if (Math.Abs(_baseValue - val) > 1e-5f)
             {
                 // 读取旧值（会触发懒计算 if needed）
                 float old = Value;
@@ -143,7 +143,7 @@ namespace GoveKits.Unit
             {
                 // 标准 RPG 公式
                 float val = (_baseValue + sumFlat) * (1f + sumPercentAdd) * prodPercentMult;
-                _cachedValue = Mathf.Max(val, _minLimit);
+                _cachedValue = Math.Max(val, _minLimit);
             }
 
             _isDirty = false;

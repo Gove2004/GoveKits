@@ -93,7 +93,7 @@ public class DamageEffect : GameEffect
 {
     public float Amount { get; set; }
 
-    public override void Reset()
+    public override void OnRecycle()
     {
         Amount = 0f;
     }
