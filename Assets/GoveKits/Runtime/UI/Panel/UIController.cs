@@ -55,7 +55,7 @@ namespace GoveKits.UI
         public T GetPanel<T>() where T : BasePanel
         {
             if (uiPanels.TryGetValue(typeof(T), out BasePanel panel)) return panel as T;
-            Debugger.Logger.LogWarning($"[UIController] 未找到类型为 {typeof(T).Name} 的面板，请检查是否已在 Inspector 中配置。");
+            DebugLogger.LogWarning("UIController", $"未找到类型为 {typeof(T).Name} 的面板，请检查是否已在 Inspector 中配置。");
             return null;
         }
 

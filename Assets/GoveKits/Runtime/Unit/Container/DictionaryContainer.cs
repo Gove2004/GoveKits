@@ -19,9 +19,6 @@ namespace GoveKits.Unit
         public event Action<T> OnItemAdded;
         public event Action<T> OnItemRemoved;
 
-        // 供子类重写的 Update (例如 Marks 需要 Tick，Attributes 不需要)
-        public virtual void Update(float deltaTime) { }
-
         #region 核心虚方法
 
         /// <summary>

@@ -1,28 +1,50 @@
+
 using GoveKits.Audio;
+using GoveKits.Config;
+using GoveKits.Localization;
+using GoveKits.Singleton;
+using GoveKits.Time;
 using UnityEngine;
 
 namespace GoveKits
 {
-    public static class GoveKit
+    public class GoveKit : MonoSingleton<GoveKit>
     {
-        public static AudioManager AudioManagerInstance { get; private set; }
-
-
-
-
-
-
-
-        
-        public static void Initialize()
+        public void Awake()
         {
-            Debug.Log("GoveKit Initialized");
+            // 确保单例实例化
+            _ = Instance;
 
-            GameObject gameObject = new GameObject("AudioManager");
-            AudioManagerInstance = gameObject.AddComponent<AudioManager>();
-            Object.DontDestroyOnLoad(gameObject);
+            // 执行初始化逻辑
+            Initialize();
+            DebugLogger.LogGreen("GoveKit", "initialized");
+        }
 
-            // 在这里添加其他全局初始化逻辑
+
+        public void Update()
+        {
+            TimerManager.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+        private static void Initialize()
+        {
+            AudioManager.Initialize();
+            ConfigManager.Initialize();
+            LanguageManager.Initialize();
+            TimerManager.Initialize();
+            // 在这里添加其他全局初始化逻辑...
         }
     }
 }

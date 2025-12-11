@@ -1,22 +1,14 @@
-
-
+using GoveKits.Binary;
 
 namespace GoveKits.Network
 {
-    // === PingPong 消息 ===
-    [Message(Protocol.PingPongMsgID)]
-    public class PingPongMessage : Message
+    [Message(Protocol.PingPongMsgID, "GoveKits/Runtime/Network/Protocol/Message/Generated")]
+    public partial class PingPongMessage : Message
     {
-        public float Timestamp; // 发送时间戳
+        [BinaryMember(10)] 
+        public float Timestamp;
 
         public PingPongMessage() { }
-
-        public PingPongMessage(float timestamp)
-        {
-            Timestamp = timestamp;
-        }
-        protected override int BodyLength() => 4;
-        protected override void BodyWriting(byte[] buffer, ref int index) => WriteFloat(buffer, Timestamp, ref index);
-        protected override void BodyReading(byte[] buffer, ref int index) => Timestamp = ReadFloat(buffer, ref index);
+        public PingPongMessage(float timestamp) => Timestamp = timestamp;
     }
 }

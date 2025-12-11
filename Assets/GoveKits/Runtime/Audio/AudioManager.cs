@@ -1,294 +1,375 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using GoveKits.Singleton;
 using UnityEngine;
-using UnityEngine.Audio;
-
+using DG.Tweening;       // 依赖 DOTween
+using GoveKits.Save;     // 依赖 SaveManager
+using GoveKits.Res; // 依赖 ResManager
 
 namespace GoveKits.Audio
 {
     /// <summary>
-    /// 音频管理器
+    /// 静态音频管理器 (无 Mixer 版，集成自动资源管理)
     /// </summary>
-    public class AudioManager : MonoSingleton<AudioManager>
+    public static class AudioManager
     {
-        [Header("Mixer Groups")]
-        [SerializeField] private AudioMixer _audioMixer;
+        // --- 常量与配置 ---
+        public const string SavePath = "AudioSetting";
+        private const int SFX_POOL_SIZE = 15;
 
-        [Header("Audio Sources")]
-        private AudioSource _BGMSource;
-        private AudioSource _uiSource;
-        [SerializeField] private int _sfxPoolSize = 10;
-        private List<AudioSource> _sfxSources = new List<AudioSource>();
-        private Coroutine _BGMFadeCoroutine;
+        // --- 运行时引用 ---
+        private static GameObject _rootObj;
+        private static AudioSource _bgmSource;
+        private static AudioSource _uiSource;
+        private static List<AudioSource> _sfxSources = new List<AudioSource>();
+        
+        // --- 状态与缓存控制 ---
+        private static Tweener _bgmTweener;
+        private static bool _isInitialized = false;
 
-        private Dictionary<string, AudioClip> _audioClips = new Dictionary<string, AudioClip>();
+        // BGM 路径记录 (用于单曲引用的释放)
+        private static string _currentBGMPath = "";
+        
+        // SFX/UI 路径集合 (用于关卡结束时的批量释放)
+        // HashSet 自动去重，防止同一个音效播放多次导致记录膨胀，但 ResManager 内部引用计数会正确处理多次 Load
+        private static readonly HashSet<string> _loadedAudioPaths = new HashSet<string>();
 
-        // 音量属性
-        public float MasterVolume { get; private set; } = 1f;
-        public float BGMVolume { get; private set; } = 1f;
-        public float SFXVolume { get; private set; } = 1f;
-        public float UIVolume { get; private set; } = 1f;
-        public float VoiceVolume { get; private set; } = 1f;
+        // --- 数据 ---
+        public static AudioSetting Setting { get; private set; } = new AudioSetting();
 
-        private void Awake()
+        /// <summary>
+        /// 初始化音频系统
+        /// </summary>
+        public static void Initialize()
         {
-            Initialize();
-        }
+            if (_isInitialized) return;
 
-        private void Initialize()
-        {
-            // 创建BGM音频源
-            GameObject bgmSourceObj = new GameObject("BGM_Source");
-            bgmSourceObj.transform.SetParent(transform);
-            _BGMSource = bgmSourceObj.AddComponent<AudioSource>();
-            _BGMSource.outputAudioMixerGroup = _audioMixer.FindMatchingGroups("BGM")[0];
-            // 创建UI音频源
-            GameObject uiSourceObj = new GameObject("UI_Source");
-            uiSourceObj.transform.SetParent(transform);
-            _uiSource = uiSourceObj.AddComponent<AudioSource>();
-            _uiSource.outputAudioMixerGroup = _audioMixer.FindMatchingGroups("UI")[0];
-            // 创建SFX音频源池
-            for (int i = 0; i < _sfxPoolSize; i++)
+            // 1. 加载音量设置
+            LoadSettings();
+
+            // 2. 创建承载对象 (DontDestroyOnLoad)
+            _rootObj = new GameObject("[AudioManager_Runtime]");
+            Object.DontDestroyOnLoad(_rootObj);
+
+            // 3. 初始化 BGM Source
+            _bgmSource = _rootObj.AddComponent<AudioSource>();
+            _bgmSource.playOnAwake = false;
+            _bgmSource.loop = true;
+
+            // 4. 初始化 UI Source
+            _uiSource = _rootObj.AddComponent<AudioSource>();
+            _uiSource.playOnAwake = false;
+
+            // 5. 初始化 SFX 对象池
+            for (int i = 0; i < SFX_POOL_SIZE; i++)
             {
-                GameObject sfxSourceObj = new GameObject($"SFX_Source_{i}");
-                sfxSourceObj.transform.SetParent(transform);
-                AudioSource source = sfxSourceObj.AddComponent<AudioSource>();
-                source.outputAudioMixerGroup = _audioMixer.FindMatchingGroups("SFX")[0];
+                var source = _rootObj.AddComponent<AudioSource>();
+                source.playOnAwake = false;
                 _sfxSources.Add(source);
             }
 
-            // 加载音量设置
-            LoadVolumeSettings();
+            // 6. 应用初始音量
+            RefreshAllVolumes();
+
+            _isInitialized = true;
+            DebugLogger.LogGreen("AudioManager", "Initialized.");
         }
 
-        #region 持久化
-        private void SaveVolumeSettings()
+        #region BGM 控制
+
+        /// <summary>
+        /// 播放背景音乐 (自动管理资源引用)
+        /// </summary>
+        public static void PlayBGM(string path, bool loop = true, float fadeDuration = 1f)
         {
-            // PlayerPrefs.SetFloat("Master", MasterVolume);
-            // PlayerPrefs.SetFloat("BGM", BGMVolume);
-            // PlayerPrefs.SetFloat("SFX", SFXVolume);
-            // PlayerPrefs.SetFloat("UI", UIVolume);
-            // PlayerPrefs.SetFloat("Voice", VoiceVolume);
-            // PlayerPrefs.Save();
-        }
+            // 0. 如果路径没变，直接返回（避免重复加载）
+            if (_currentBGMPath == path) return;
 
-        private void LoadVolumeSettings()
-        {
-            // SetVolume(AudioChannel.Master, PlayerPrefs.GetFloat("Master", 1f));
-            // SetVolume(AudioChannel.BGM, PlayerPrefs.GetFloat("BGM", 1f));
-            // SetVolume(AudioChannel.SFX, PlayerPrefs.GetFloat("SFX", 1f));
-            // SetVolume(AudioChannel.UI, PlayerPrefs.GetFloat("UI", 1f));
-            // SetVolume(AudioChannel.Voice, PlayerPrefs.GetFloat("Voice", 1f));
-        }
-        #endregion
+            // 1. 加载新 BGM (ResManager 引用计数 +1)
+            // 使用泛型 Load，支持 Res/AB/AA 策略切换
+            AudioClip clip = ResManager.Load<AudioClip>(path);
 
-        #region 背景音乐控制
-        public void PlayBGM(AudioClip clip, bool loop = true, float fadeDuration = 1f)
-        {
-            if (_BGMSource.clip == clip && _BGMSource.isPlaying)
-                return;
-
-            if (_BGMFadeCoroutine != null)
-                StopCoroutine(_BGMFadeCoroutine);
-
-            _BGMFadeCoroutine = StartCoroutine(FadeBGM(clip, loop, fadeDuration));
-        }
-
-        public void StopBGM(float fadeDuration = 1f)
-        {
-            if (_BGMFadeCoroutine != null)
-                StopCoroutine(_BGMFadeCoroutine);
-
-            _BGMFadeCoroutine = StartCoroutine(FadeOutBGM(fadeDuration));
-        }
-
-        public void PauseBGM()
-        {
-            _BGMSource.Pause();
-        }
-
-        public void ResumeBGM()
-        {
-            _BGMSource.UnPause();
-        }
-
-        private IEnumerator FadeBGM(AudioClip clip, bool loop, float fadeDuration)
-        {
-            // 淡出当前音乐
-            if (_BGMSource.isPlaying)
+            if (clip != null)
             {
-                float startVolume = _BGMSource.volume;
-                for (float t = 0; t < fadeDuration; t += Time.deltaTime)
+                // 2. 释放旧 BGM (ResManager 引用计数 -1)
+                // 必须在 Load 之后 Release，确保如果是同一资源，引用计数不会归零导致卸载
+                if (!string.IsNullOrEmpty(_currentBGMPath))
                 {
-                    _BGMSource.volume = Mathf.Lerp(startVolume, 0, t / fadeDuration);
-                    yield return null;
+                    ResManager.Release(_currentBGMPath);
                 }
-                _BGMSource.Stop();
+
+                // 3. 更新路径记录
+                _currentBGMPath = path;
+
+                // 4. 执行播放逻辑
+                PlayBGM(clip, loop, fadeDuration);
             }
-
-            // 设置新音乐并淡入
-            _BGMSource.clip = clip;
-            _BGMSource.loop = loop;
-            _BGMSource.Play();
-
-            float targetVolume = BGMVolume;
-            for (float t = 0; t < fadeDuration; t += Time.deltaTime)
+            else
             {
-                _BGMSource.volume = Mathf.Lerp(0, targetVolume, t / fadeDuration);
-                yield return null;
+                DebugLogger.LogError("AudioManager", $"BGM Load Failed: {path}");
             }
-
-            _BGMSource.volume = targetVolume;
-            _BGMFadeCoroutine = null;
         }
 
-        private IEnumerator FadeOutBGM(float fadeDuration)
+        public static void PlayBGM(AudioClip clip, bool loop = true, float fadeDuration = 1f)
         {
-            float startVolume = _BGMSource.volume;
-            for (float t = 0; t < fadeDuration; t += Time.deltaTime)
+            CheckInit();
+            if (_bgmSource.clip == clip && _bgmSource.isPlaying) return;
+
+            _bgmTweener?.Kill();
+
+            float targetVol = Setting.BGMVolume * Setting.MasterVolume;
+
+            // 淡入淡出逻辑
+            if (_bgmSource.isPlaying && _bgmSource.volume > 0.01f)
             {
-                _BGMSource.volume = Mathf.Lerp(startVolume, 0, t / fadeDuration);
-                yield return null;
+                // 先淡出旧的
+                _bgmTweener = _bgmSource.DOFade(0, fadeDuration * 0.5f)
+                    .SetEase(Ease.Linear)
+                    .OnComplete(() =>
+                    {
+                        _bgmSource.clip = clip;
+                        _bgmSource.loop = loop;
+                        _bgmSource.Play();
+                        // 再淡入新的
+                        _bgmTweener = _bgmSource.DOFade(targetVol, fadeDuration * 0.5f).SetEase(Ease.Linear);
+                    });
             }
-            _BGMSource.Stop();
-            _BGMSource.volume = startVolume;
-            _BGMFadeCoroutine = null;
+            else
+            {
+                // 直接播放并淡入
+                _bgmSource.clip = clip;
+                _bgmSource.loop = loop;
+                _bgmSource.volume = 0;
+                _bgmSource.Play();
+                _bgmTweener = _bgmSource.DOFade(targetVol, fadeDuration).SetEase(Ease.Linear);
+            }
         }
+
+        public static void StopBGM(float fadeDuration = 1f)
+        {
+            CheckInit();
+            _bgmTweener?.Kill();
+
+            if (fadeDuration <= 0)
+            {
+                _bgmSource.Stop();
+                _bgmSource.volume = 0;
+            }
+            else
+            {
+                _bgmTweener = _bgmSource.DOFade(0, fadeDuration)
+                    .SetEase(Ease.Linear)
+                    .OnComplete(() => _bgmSource.Stop());
+            }
+        }
+
+        public static void PauseBGM() { CheckInit(); _bgmSource.Pause(); }
+        public static void ResumeBGM() { CheckInit(); _bgmSource.UnPause(); }
+
         #endregion
 
-        #region 音效控制
-        public void PlaySFX(AudioClip clip, float volumeScale = 1f, bool loop = false)
-        {
-            AudioSource source = GetAvailableSFXSource();
-            if (source == null) return;
+        #region SFX / UI 控制
 
+        /// <summary>
+        /// 播放音效 (自动记录引用)
+        /// </summary>
+        public static void PlaySFX(string path, float volumeScale = 1f)
+        {
+            // 1. 加载资源 (Ref +1)
+            AudioClip clip = ResManager.Load<AudioClip>(path);
+            
+            if (clip != null)
+            {
+                // 2. 记录路径，用于后续统一释放
+                _loadedAudioPaths.Add(path);
+
+                // 3. 播放
+                PlaySFX(clip, volumeScale);
+            }
+        }
+
+        public static void PlaySFX(AudioClip clip, float volumeScale = 1f)
+        {
+            CheckInit();
+            AudioSource source = GetAvailableSFXSource();
+            
+            // 最终音量 = 基础配置 * 主音量 * 本次缩放
+            float finalVol = Setting.SFXVolume * Setting.MasterVolume * volumeScale;
+            
             source.clip = clip;
-            source.volume = SFXVolume * volumeScale;
-            source.loop = loop;
+            source.volume = finalVol;
+            source.loop = false;
             source.Play();
         }
 
-        public void PlaySFXAtPosition(AudioClip clip, Vector3 position, float volumeScale = 1f)
+        /// <summary>
+        /// 播放 UI 音效 (自动记录引用)
+        /// </summary>
+        public static void PlayUISound(string path, float volumeScale = 1f)
         {
-            AudioSource.PlayClipAtPoint(clip, position, SFXVolume * volumeScale);
-        }
-
-        public void PlayUISound(AudioClip clip, float volumeScale = 1f)
-        {
-            _uiSource.PlayOneShot(clip, UIVolume * volumeScale);
-        }
-
-        public void StopAllSFX()
-        {
-            foreach (AudioSource source in _sfxSources)
+            AudioClip clip = ResManager.Load<AudioClip>(path);
+            if(clip != null) 
             {
-                source.Stop();
+                _loadedAudioPaths.Add(path);
+                PlayUISound(clip, volumeScale);
             }
         }
 
-        private AudioSource GetAvailableSFXSource()
+        public static void PlayUISound(AudioClip clip, float volumeScale = 1f)
         {
-            foreach (AudioSource source in _sfxSources)
-            {
-                if (!source.isPlaying)
-                    return source;
-            }
+            CheckInit();
+            float finalVol = Setting.UIVolume * Setting.MasterVolume * volumeScale;
+            _uiSource.PlayOneShot(clip, finalVol);
+        }
 
-            // 如果没有可用源，使用最早播放的源
+        public static void StopAllSFX()
+        {
+            if (!_isInitialized) return;
+            foreach (var s in _sfxSources) s.Stop();
+        }
+
+        private static AudioSource GetAvailableSFXSource()
+        {
+            // 简单策略：找空闲的，没有则打断最早的(index 0)
+            foreach (var s in _sfxSources)
+            {
+                if (!s.isPlaying) return s;
+            }
             return _sfxSources[0];
         }
+
+        #endregion
+
+        #region 资源清理 (关键)
+
+        /// <summary>
+        /// 清理关卡音频缓存
+        /// <para>请在【切换场景】或【关卡卸载】时调用此方法</para>
+        /// </summary>
+        public static void ClearLevelAudioCache()
+        {
+            // 释放所有通过 PlaySFX / PlayUISound 加载的资源引用
+            foreach (var path in _loadedAudioPaths)
+            {
+                ResManager.Release(path);
+            }
+            _loadedAudioPaths.Clear();
+
+            DebugLogger.LogGreen("AudioManager", "Level Audio Cache Cleared.");
+        }
+
+        /// <summary>
+        /// 完全重置 (包括 BGM)
+        /// </summary>
+        public static void ReleaseAll()
+        {
+            // 1. 停止并释放 BGM
+            StopBGM(0);
+            if (!string.IsNullOrEmpty(_currentBGMPath))
+            {
+                ResManager.Release(_currentBGMPath);
+                _currentBGMPath = "";
+            }
+
+            // 2. 释放所有 SFX
+            ClearLevelAudioCache();
+        }
+
         #endregion
 
         #region 音量控制
-        public void SetVolume(AudioChannel channel, float volume)
+
+        public static void SetVolume(AudioChannel channel, float volume, bool saveImmediately = true)
         {
             volume = Mathf.Clamp01(volume);
 
             switch (channel)
             {
                 case AudioChannel.Master:
-                    MasterVolume = volume;
-                    _audioMixer.SetFloat("Master", VolumeToDB(volume));
+                    Setting.MasterVolume = volume;
+                    RefreshAllVolumes(); // Master 影响所有
                     break;
                 case AudioChannel.BGM:
-                    BGMVolume = volume;
-                    _audioMixer.SetFloat("BGM", VolumeToDB(volume));
-                    _BGMSource.volume = volume;
+                    Setting.BGMVolume = volume;
+                    UpdateBGMVolume();
                     break;
                 case AudioChannel.SFX:
-                    SFXVolume = volume;
-                    _audioMixer.SetFloat("SFX", VolumeToDB(volume));
+                    Setting.SFXVolume = volume;
                     break;
                 case AudioChannel.UI:
-                    UIVolume = volume;
-                    _audioMixer.SetFloat("UI", VolumeToDB(volume));
+                    Setting.UIVolume = volume;
+                    _uiSource.volume = Setting.UIVolume * Setting.MasterVolume;
                     break;
                 case AudioChannel.Voice:
-                    VoiceVolume = volume;
-                    _audioMixer.SetFloat("Voice", VolumeToDB(volume));
+                    Setting.VoiceVolume = volume;
                     break;
             }
 
-            SaveVolumeSettings();
+            if (saveImmediately)
+                SaveSettings();
         }
 
-        private float VolumeToDB(float volume)
+        private static void RefreshAllVolumes()
         {
-            // 将0-1线性音量转换为分贝值
-            return volume <= 0 ? -80f : Mathf.Log10(volume) * 20;
+            if (!_isInitialized) return;
+
+            UpdateBGMVolume();
+            _uiSource.volume = Setting.UIVolume * Setting.MasterVolume;
+            // 注意：正在播放的 SFX 此处未实时更新，只影响新播放的
         }
+
+        private static void UpdateBGMVolume()
+        {
+            if (_bgmSource == null) return;
+            // 避免打断正在进行的 Fade 动画
+            if (_bgmTweener != null && _bgmTweener.IsActive()) return;
+            
+            _bgmSource.volume = Setting.BGMVolume * Setting.MasterVolume;
+        }
+
+        public static float GetVolume(AudioChannel channel)
+        {
+            switch (channel)
+            {
+                case AudioChannel.Master: return Setting.MasterVolume;
+                case AudioChannel.BGM: return Setting.BGMVolume;
+                case AudioChannel.SFX: return Setting.SFXVolume;
+                case AudioChannel.UI: return Setting.UIVolume;
+                case AudioChannel.Voice: return Setting.VoiceVolume;
+                default: return 1f;
+            }
+        }
+
         #endregion
 
-        // #region 资源管理
-        // public void PreloadAudio(string clipName)
-        // {
-        //     if (_audioClips.ContainsKey(clipName)) return;
+        #region 持久化
 
-        //     AudioClip clip = Resources.Load<AudioClip>($"Audio/{clipName}");
-        //     if (clip != null)
-        //     {
-        //         _audioClips.Add(clipName, clip);
-        //     }
-        // }
+        private static void SaveSettings()
+        {
+            // 假设 SaveManager.SaveData 已适配
+            SaveManager.SaveData(Setting, SavePath);
+        }
 
-        // public AudioClip GetAudioClip(string clipName)
-        // {
-        //     if (_audioClips.TryGetValue(clipName, out AudioClip clip))
-        //     {
-        //         return clip;
-        //     }
+        private static void LoadSettings()
+        {
+            // 假设 SaveManager.TryLoad 已适配泛型
+            if (SaveManager.TryLoadData<AudioSetting>(SavePath, out AudioSetting loadedData))
+            {
+                Setting = loadedData;
+            }
+            else
+            {
+                Setting = new AudioSetting();
+            }
+        }
 
-        //     // 如果没有预加载，尝试直接加载
-        //     clip = Resources.Load<AudioClip>($"Audio/{clipName}");
-        //     if (clip != null)
-        //     {
-        //         _audioClips.Add(clipName, clip);
-        //     }
+        #endregion
 
-        //     return clip;
-        // }
-
-        // public void UnloadAudio(string clipName)
-        // {
-        //     if (_audioClips.ContainsKey(clipName))
-        //     {
-        //         Resources.UnloadAsset(_audioClips[clipName]);
-        //         _audioClips.Remove(clipName);
-        //     }
-        // }
-
-        // public void UnloadAllAudio()
-        // {
-        //     foreach (var clip in _audioClips.Values)
-        //     {
-        //         Resources.UnloadAsset(clip);
-        //     }
-        //     _audioClips.Clear();
-        // }
-        // #endregion
+        private static void CheckInit()
+        {
+            if (!_isInitialized)
+            {
+                DebugLogger.LogError("AudioManager", "Not Initialized! Call AudioManager.Initialize() first.");
+                Initialize(); // 自动补救
+            }
+        }
     }
-
-
 }

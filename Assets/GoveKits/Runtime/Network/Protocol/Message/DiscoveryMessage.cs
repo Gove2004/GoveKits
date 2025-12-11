@@ -1,18 +1,14 @@
-
-
-using System.Text;
+using GoveKits.Binary;
 
 namespace GoveKits.Network
 {
-    // === 发现消息 ===
-    [Message(Protocol.DiscoveryID)]
-    public class DiscoveryMessage : Message
+    [Message(Protocol.DiscoveryID, "GoveKits/Runtime/Network/Protocol/Message/Generated")]
+    public partial class DiscoveryMessage : Message
     {
+        [BinaryMember(10)] 
         public string Info;
+
         public DiscoveryMessage() { }
         public DiscoveryMessage(string info) => Info = info;
-        protected override int BodyLength() => 4 + Encoding.UTF8.GetByteCount(Info ?? "");
-        protected override void BodyWriting(byte[] buffer, ref int index) => WriteString(buffer, Info ?? "", ref index);
-        protected override void BodyReading(byte[] buffer, ref int index) => Info = ReadString(buffer, ref index);
     }
 }

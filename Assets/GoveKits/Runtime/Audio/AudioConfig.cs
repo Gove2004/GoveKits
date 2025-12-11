@@ -1,17 +1,18 @@
-
-
-
 using UnityEngine;
 
 namespace GoveKits.Audio
 {
-        // AudioConfig 类保持不变
     [System.Serializable]
     public class AudioConfig
     {
         public string configName = "";
-        public AudioClip audioClip = null;
+        
+        [Tooltip("相对路径，不带扩展名。例如: 'Audio/BGM/BattleMusic'")]
+        public string clipPath = "Audio/SFX/DefaultSound"; 
+        
+        [Range(0f, 1f)]
         public float volume = 1f;
-        public bool isBGMLoop = false;
+        
+        public AudioChannel audioChannel = AudioChannel.SFX;
     }
 }

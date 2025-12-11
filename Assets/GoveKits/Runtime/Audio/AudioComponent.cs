@@ -1,39 +1,37 @@
 using UnityEngine;
 
-
 namespace GoveKits.Audio
 {
-    // 音频组件
     public class AudioComponent : MonoBehaviour
     {
         public AudioConfig[] audioConfigs;
 
-        /// <summary>
-        /// 播放音频
-        /// </summary>
-        /// <param name="soundName"></param>
         public void Play(string soundName)
         {
             foreach (var config in audioConfigs)
             {
-                if (config.configName == soundName && config.audioClip != null)
+                if (config.configName == soundName)
                 {
-                    if (config.isBGMLoop)  // 播放背景音乐
+                    if (string.IsNullOrEmpty(config.clipPath)) return;
+
+                    switch (config.audioChannel)
                     {
-                        AudioManager.Instance.PlayBGM(config.audioClip);
+                        case AudioChannel.BGM:
+                            AudioManager.PlayBGM(config.clipPath);
+                            break;
+                        case AudioChannel.SFX:
+                            AudioManager.PlaySFX(config.clipPath, config.volume);
+                            break;
+                        case AudioChannel.UI:
+                            AudioManager.PlayUISound(config.clipPath, config.volume);
+                            break;
+                        case AudioChannel.Voice:
+                            AudioManager.PlaySFX(config.clipPath, config.volume);
+                            break;
                     }
-                    else  // 播放音效
-                    {
-                        AudioManager.Instance.PlaySFX(config.audioClip, config.volume);
-                    }
+                    return;
                 }
             }
-        }
-
-
-        public void Play(AudioClip clip, float volume = 1f)
-        {
-            AudioManager.Instance.PlaySFX(clip, volume);
         }
     }
 }

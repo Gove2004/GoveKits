@@ -45,15 +45,6 @@ namespace GoveKits.Unit
             InitializeReactions();
         }
 
-        public virtual void Update()
-        {
-            // 把 Unity 的帧时间转发给容器，容器根据需要处理 Tick
-            Attributes.Update(Time.deltaTime);
-            Marks.Update(Time.deltaTime);
-            Abilities.Update(Time.deltaTime);
-            Reactions.Update(Time.deltaTime);
-        }
-
         public virtual void OnDestroy()
         {
             // 清理资源，确保事件订阅被解除

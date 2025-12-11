@@ -1,5 +1,6 @@
 using System;
 using GoveKits.Events;
+using GoveKits;
 
 namespace GoveKits.Unit
 {
@@ -103,7 +104,7 @@ namespace GoveKits.Unit
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogError($"[Reaction] Error in '{Name}': {ex}");
+                DebugLogger.LogError("Reaction", $"Error in '{Name}': {ex}");
             }
         }
 

@@ -97,7 +97,7 @@ namespace GoveKits.Pools
             var record = instance.GetComponent<PoolRecord>();
             if (record == null || record.Pool == null)
             {
-                Debugger.Logger.LogWarning($"对象 '{instance.name}' 不是由池创建的或已被销毁，将执行 Object.Destroy()。");
+                DebugLogger.LogWarning("Pool", $"对象 '{instance.name}' 不是由池创建的或已被销毁，将执行 Object.Destroy()。");
                 Object.Destroy(instance);
                 return;
             }

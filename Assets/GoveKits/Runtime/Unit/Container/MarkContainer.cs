@@ -6,7 +6,7 @@ namespace GoveKits.Unit
     public class TagMark : GameMark
     {
         // 仅作为标签存在的 Mark，不具有任何额外逻辑
-        public TagMark(GameTag tag) : base(tag, Infinite, 1) { }
+        public TagMark(GameTag tag) : base(tag) { }
     }
 
 
@@ -68,39 +68,6 @@ namespace GoveKits.Unit
             return false;
         }
 
-        /// <summary>
-        /// 每帧更新 (驱动所有 Mark 的 Tick)
-        /// </summary>
-        public override void Update(float delta)
-        {
-            // 收集过期列表 (不能在遍历时修改字典)
-            List<GameTag> toRemove = null;
-
-            foreach (var kvp in _items)
-            {
-                var mark = kvp.Value;
-                
-                // 驱动 Mark 逻辑
-                mark.OnTick(delta);
-
-                // 检查过期
-                if (mark.IsExpired)
-                {
-                    if (toRemove == null) toRemove = new List<GameTag>();
-                    toRemove.Add(kvp.Key);
-                }
-            }
-
-            // 统一清理
-            if (toRemove != null)
-            {
-                foreach (var key in toRemove)
-                {
-                    Remove(key);
-                }
-            }
-        }
-
         #region 辅助查询
 
         /// <summary>
@@ -116,7 +83,7 @@ namespace GoveKits.Unit
         /// </summary>
         public float GetRemainingTime(GameTag tag)
         {
-            return TryGet(tag, out var mark) ? mark.Duration : 0f;
+            return TryGet(tag, out var mark) ? mark.RemainingTime : 0f;
         }
 
         /// <summary>
@@ -124,11 +91,7 @@ namespace GoveKits.Unit
         /// </summary>
         public float GetTimeProgress(GameTag tag)
         {
-            if (TryGet(tag, out var mark) && mark.MaxDuration > 0)
-            {
-                return 1f - (mark.Duration / mark.MaxDuration);
-            }
-            return 0f;
+            return TryGet(tag, out var mark) ? mark.Progress : 0f;
         }
 
         #endregion

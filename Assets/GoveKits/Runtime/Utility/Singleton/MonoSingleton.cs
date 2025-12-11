@@ -1,4 +1,5 @@
 using UnityEngine;
+using GoveKits;
 
 
 namespace GoveKits.Singleton
@@ -22,7 +23,7 @@ namespace GoveKits.Singleton
                 // 应用退出检测
                 if (_applicationIsQuitting)
                 {
-                    Debug.LogWarning("[MonoSingleton] 实例已销毁");
+                    DebugLogger.LogWarning("MonoSingleton", "实例已销毁");
                     return null;
                 }
 
@@ -34,7 +35,7 @@ namespace GoveKits.Singleton
                     // 错误检查：确保只有一个实例
                     if (FindObjectsByType<T>(FindObjectsSortMode.None).Length > 1)
                     {
-                        Debug.LogError("存在多个单例实例！");
+                        DebugLogger.LogError("MonoSingleton", "存在多个单例实例！");
                     }
 
                     // 如果不存在则创建新实例

@@ -1,96 +1,95 @@
 using System;
+using System.Collections.Generic;
+using GoveKits.Pools;
 
-
-namespace GoveKits.Timer
+namespace GoveKits.Time
 {
-    public class Timer
+    public class Timer : IPoolable
     {
-        // 时间属性
-        private float durationTime; // 持续时间
-        private float elapsedTime; // 已经过的时间
-        private int loopCount; // 循环次数, -1表示无限循环
-        // 状态属性
-        public bool IsRunning { get; private set; } // 是否运行中
-        // 事件属性
-        private event Action onComplete;
+        // --- 基础属性 ---
+        public long Id { get; private set; }
+        public bool IsPaused { get; private set; }
+        public bool IsDone { get; private set; }
+        public bool IsCancelled { get; private set; }
 
-        // durationTime持续时间，loops循环次数，-1表示无限循环
-        public Timer(float duration, int loops = -1)
+        // --- 内部数据 (供 TimeWheel 使用) ---
+        internal Action Callback;
+        internal float Interval;      // 循环间隔
+        internal int LoopCount;       // 剩余循环次数 (-1 无限)
+        internal long TargetTick;     // 目标触发的 Tick 时间点
+        internal int Rounds;          // 剩余圈数
+        internal bool UseRealTime;    // 是否受 TimeScale 影响
+        
+        // 关键优化：持有链表节点引用，实现 O(1) 删除/暂停
+        internal LinkedListNode<Timer> LinkNode;
+        // 归属的时间轮引用
+        internal TimeWheel BelongsToWheel;
+
+        // --- 暂停计算用 ---
+        private float _remainingTimeOnPause; // 暂停那一刻，距离触发还剩多少秒
+
+        public void SetID(long id) => Id = id;
+
+        public void OnRecycle()
         {
-            durationTime = duration;
-            elapsedTime = 0f;
-            IsRunning = false;
-            loopCount = loops;
+            IsPaused = false;
+            IsDone = false;
+            IsCancelled = false;
+            LinkNode = null;
+            BelongsToWheel = null;
+            Callback = null;
+            _remainingTimeOnPause = 0;
         }
 
-        public void Update(float deltaTime)
+        // --- Public API ---
+
+        /// <summary>
+        /// 暂停 (精确暂停：冻结时间)
+        /// </summary>
+        public void Pause()
         {
-            if (!IsRunning) return;
-            elapsedTime += deltaTime;
-            if (elapsedTime >= durationTime)
+            if (IsPaused || IsDone || IsCancelled || BelongsToWheel == null) return;
+
+            IsPaused = true;
+
+            // 1. 计算当前时刻距离目标触发还有多久
+            // 公式：(目标Tick - 当前Tick) * Tick间隔 + 剩余圈数 * 轮盘总时长
+            long currentTick = BelongsToWheel.CurrentTick;
+            long tickDiff = TargetTick - currentTick; // 还有多少 Tick
+            if (tickDiff < 0) tickDiff = 0;
+            
+            // 加上圈数的时间 (如果有的话)
+            // 注意：这里简化计算，直接让 Wheel 帮我们移除，并计算剩余时间
+            // 为了准确，我们在 Wheel 里处理移除逻辑
+            _remainingTimeOnPause = BelongsToWheel.RemoveAndGetRemainingTime(this);
+        }
+
+        /// <summary>
+        /// 恢复
+        /// </summary>
+        public void Resume()
+        {
+            if (!IsPaused || IsDone || IsCancelled || BelongsToWheel == null) return;
+
+            IsPaused = false;
+
+            // 2. 将剩余时间重新加入时间轮
+            BelongsToWheel.Reschedule(this, _remainingTimeOnPause);
+        }
+
+        /// <summary>
+        /// 取消
+        /// </summary>
+        public void Cancel()
+        {
+            if (IsDone || IsCancelled) return;
+            IsCancelled = true;
+
+            // 从时间轮中移除
+            if (BelongsToWheel != null)
             {
-                elapsedTime = 0f;
-                onComplete?.Invoke();
-                if (loopCount > 0)
-                {
-                    loopCount--;
-                }
-                else if (loopCount == 0)
-                {
-                    IsRunning = false;
-                }
-                else if (loopCount == -1)
-                {
-                    // 无限循环，不做任何处理
-                }
+                BelongsToWheel.RemoveTimer(this);
             }
-        }
-
-        // public void Start()
-        // {
-        //     IsRunning = true;
-        //     elapsedTime = 0f;
-        // }
-
-        // // 停止计时器
-        // public void Stop()
-        // {
-        //     IsRunning = false;
-        // }
-
-        // // 重置计时器
-        // public void Reset()
-        // {
-        //     elapsedTime = 0f;
-        // }
-    }
-
-
-    public class TimerID : IEquatable<TimerID>
-    {
-        private int id;
-        private static int nextId = 0;
-
-        public static TimerID GetNextId()
-        {
-            return new TimerID { id = nextId++ };
-        }
-
-        public override int GetHashCode() => id;
-
-        public bool Equals(TimerID other)
-        {
-            if (other is null) return false;
-            return this.GetHashCode() == other.GetHashCode();
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj is TimerID other)
-            {
-                return Equals(other);
-            }
-            return false;
         }
     }
 }

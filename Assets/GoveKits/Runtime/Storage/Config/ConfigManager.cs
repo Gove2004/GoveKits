@@ -1,119 +1,206 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
-using GoveKits.Singleton;
 using Newtonsoft.Json;
 using UnityEngine;
-
-
-
-namespace Game.Config
-{
-    public interface IConfigData { } 
-}
-
-
-
+using GoveKits.Res; // 引用资源管理器
 
 namespace GoveKits.Config
 {
-    public class ConfigManager : MonoSingleton<ConfigManager>
+    /// <summary>
+    /// 静态配置管理器
+    /// <para>自动扫描所有 IConfigData 并通过 ResManager 加载对应 JSON</para>
+    /// </summary>
+    public static class ConfigManager
     {
-        private readonly Dictionary<Type, object> _configCache = new Dictionary<Type, object>();
-        private string _configPath = "Assets/Config/Json";
-        private string _namespaceName = "Game.Config"; 
+        // 缓存字典：Type -> Dictionary<ID, ConfigObj>
+        private static readonly Dictionary<Type, object> _configCache = new Dictionary<Type, object>();
+        
+        // 默认加载路径 (相对于 Resources 或 Addressables 的地址根目录)
+        private static string _configRoot = "Config/Json"; 
+        
+        private static bool _isInitialized = false;
 
-        public void Awake()
+        /// <summary>
+        /// 初始化配置表 (游戏启动时调用)
+        /// </summary>
+        /// <param name="rootPath">资源加载根路径，默认为 "Config/Json"</param>
+        public static void Initialize(string rootPath = "Config/Json")
         {
-            Initialize();
-        }
+            if (_isInitialized) return;
 
-        public void Initialize()
-        {
+            _configRoot = rootPath;
             _configCache.Clear();
-            LoadAllConfigsAutomatically();
+            
+            LoadAllConfigs();
+            
+            _isInitialized = true;
+            DebugLogger.LogGreen("ConfigManager", $"初始化完成，加载表数量: {_configCache.Count}");
         }
 
-        private void LoadAllConfigsAutomatically()
+        private static void LoadAllConfigs()
         {
-            if (!Directory.Exists(_configPath)) return;
+            // 策略改变：
+            // 在移动端无法遍历文件夹，因此反向操作：
+            // 1. 反射查找所有实现了 IConfigData 的 Config 类
+            // 2. 根据类名推断 JSON 文件名 (约定：类名去掉 "Config" 后缀即为文件名)
+            // 3. 调用 ResManager 加载
+            
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            Type[] types = assembly.GetTypes();
+            
+            // 获取内部加载方法的反射信息
+            MethodInfo loadMethod = typeof(ConfigManager).GetMethod("LoadConfigInternal", BindingFlags.Static | BindingFlags.NonPublic);
 
-            string[] files = Directory.GetFiles(_configPath, "*.json");
-            MethodInfo loadMethod = GetType().GetMethod("LoadConfigInternal", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            foreach (string filePath in files)
+            foreach (Type type in types)
             {
-                try
+                // 筛选条件：是类、非抽象、实现了 IConfigData 接口
+                if (type.IsClass && !type.IsAbstract && typeof(IConfigData).IsAssignableFrom(type))
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(filePath);
-                    // 推导类名 (需与Editor生成规则一致)
-                    string className = $"{_namespaceName}.{fileName}Config";
-                    Type configType = Assembly.GetExecutingAssembly().GetType(className);
+                    // 推断文件名
+                    // 例如类名 "Item_WeaponConfig" -> 文件名 "Item_Weapon"
+                    string typeName = type.Name;
+                    if (typeName.EndsWith("Config"))
+                    {
+                        string fileName = typeName.Substring(0, typeName.Length - 6);
+                        string fullPath = $"{_configRoot}/{fileName}";
 
-                    if (configType == null) continue;
-
-                    // 动态调用泛型加载方法
-                    MethodInfo genericMethod = loadMethod.MakeGenericMethod(configType);
-                    genericMethod.Invoke(this, new object[] { fileName });
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError($"自动加载失败: {filePath} - {e.Message}");
+                        // 泛型调用 LoadConfigInternal<T>(path)
+                        MethodInfo genericMethod = loadMethod.MakeGenericMethod(type);
+                        genericMethod.Invoke(null, new object[] { fullPath });
+                    }
                 }
             }
-            Debug.Log($"[ConfigManager] 初始化完成，缓存表数量: {_configCache.Count}");
         }
 
-        private void LoadConfigInternal<T>(string fileName) where T : class
+        // 内部泛型加载
+        private static void LoadConfigInternal<T>(string path) where T : class
         {
-            Type type = typeof(T);
-            string path = Path.Combine(_configPath, fileName + ".json");
-            if (!File.Exists(path)) return;
+            // 使用 ResManager 加载 TextAsset (Unity 中 Json 被识别为 TextAsset)
+            TextAsset jsonAsset = ResManager.Load<TextAsset>(path);
+            
+            if (jsonAsset == null)
+            {
+                // 某些 Config 类可能没有对应的 json 文件 (比如基类或未生成的表)，跳过
+                DebugLogger.LogWarning("ConfigManager", $"未找到文件: {path}"); 
+                return;
+            }
 
-            string json = File.ReadAllText(path);
+            string json = jsonAsset.text;
+            
+            // 如果使用引用计数模式，加载完 TextAsset 内容后可以立即释放资源句柄
+            // 因为我们已经把内容反序列化到 _configCache 内存里了
+            ResManager.Release(path);
+
             try
             {
                 object data = null;
-                try
+                
+                // 1. 尝试反序列化为 int Key 字典
+                try 
                 {
                     data = JsonConvert.DeserializeObject<Dictionary<int, T>>(json);
-                }
-                catch
+                } 
+                catch {}
+
+                // 2. 如果失败，尝试反序列化为 string Key 字典
+                if (data == null)
                 {
-                    data = JsonConvert.DeserializeObject<Dictionary<string, T>>(json);
+                    try 
+                    {
+                        data = JsonConvert.DeserializeObject<Dictionary<string, T>>(json);
+                    } 
+                    catch {}
                 }
 
-                if (data != null) _configCache[type] = data;
+                if (data != null)
+                {
+                    _configCache[typeof(T)] = data;
+                }
+                else
+                {
+                    DebugLogger.LogError("ConfigManager", $"反序列化失败或数据为空: {path}");
+                }
             }
             catch (Exception e)
             {
-                Debug.LogError($"Json解析错误 {fileName}: {e.Message}");
+                DebugLogger.LogError("ConfigManager", $"解析异常 {path}: {e.Message}");
             }
         }
 
-        public T GetConfig<T>(int id) where T : class
+        #region 公开 API
+
+        /// <summary>
+        /// 获取单条配置 (Int ID)
+        /// </summary>
+        public static T Get<T>(int id) where T : class
         {
-            if (_configCache.TryGetValue(typeof(T), out object dictObj) && dictObj is Dictionary<int, T> dict)
+            if (!_isInitialized) 
             {
-                if (dict.TryGetValue(id, out T result)) return result;
+                DebugLogger.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
+                return null;
             }
+
+            Type type = typeof(T);
+            if (_configCache.TryGetValue(type, out object dictObj))
+            {
+                if (dictObj is Dictionary<int, T> dictInt && dictInt.TryGetValue(id, out T res)) return res;
+            }
+            
+            DebugLogger.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
             return null;
         }
 
-        public T GetConfig<T>(string id) where T : class
+        /// <summary>
+        /// 获取单条配置 (String ID)
+        /// </summary>
+        public static T Get<T>(string id) where T : class
         {
-            if (_configCache.TryGetValue(typeof(T), out object dictObj) && dictObj is Dictionary<string, T> dict)
+            if (!_isInitialized) 
             {
-                if (dict.TryGetValue(id, out T result)) return result;
+                DebugLogger.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
+                return null;
             }
+
+            Type type = typeof(T);
+            if (_configCache.TryGetValue(type, out object dictObj))
+            {
+                if (dictObj is Dictionary<string, T> dictStr && dictStr.TryGetValue(id, out T res)) return res;
+            }
+
+            DebugLogger.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
+            return null;
+        }
+
+        /// <summary>
+        /// 获取整张表 (Int Key)
+        /// </summary>
+        public static Dictionary<int, T> GetDictInt<T>() where T : class
+        {
+            if (_configCache.TryGetValue(typeof(T), out object dictObj))
+                return dictObj as Dictionary<int, T>;
             return null;
         }
         
-        public Dictionary<int, T> GetDict<T>() where T : class
+        /// <summary>
+        /// 获取整张表 (String Key)
+        /// </summary>
+        public static Dictionary<string, T> GetDictStr<T>() where T : class
         {
-            if (_configCache.TryGetValue(typeof(T), out object dictObj)) return dictObj as Dictionary<int, T>;
+            if (_configCache.TryGetValue(typeof(T), out object dictObj))
+                return dictObj as Dictionary<string, T>;
             return null;
         }
+
+        /// <summary>
+        /// 清理所有配置缓存
+        /// </summary>
+        public static void Clear()
+        {
+            _configCache.Clear();
+            _isInitialized = false;
+        }
+
+        #endregion
     }
 }

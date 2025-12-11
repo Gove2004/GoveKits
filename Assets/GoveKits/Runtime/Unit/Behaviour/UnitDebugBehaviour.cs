@@ -147,7 +147,7 @@ namespace GoveKits.Unit.Editor
                     if (mark.Duration != GameMark.Infinite)
                     {
                         Rect rect = EditorGUILayout.GetControlRect(false, 16);
-                        float progress = mark.MaxDuration > 0 ? Mathf.Clamp01(mark.Duration / mark.MaxDuration) : 0;
+                        float progress = mark.Progress;
                         string label = $"{mark.Duration:F1}s";
                         
                         // 根据剩余时间变色 (快结束变红)

@@ -32,7 +32,7 @@ namespace GoveKits.Utility
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError($"[CMD] 执行命令失败: {cmd} {args}, 错误: {e.Message}");
+                DebugLogger.LogError("CMD", $"执行命令失败: {cmd} {args}, 错误: {e.Message}");
                 return string.Empty;
             }
         }
@@ -50,29 +50,29 @@ namespace GoveKits.Utility
             {
                 using (var process = CreateProcess(cmd, args, workingDir))
                 {
-                    UnityEngine.Debug.Log($"[CMD] 启动进程: {cmd} {args}");
+                    DebugLogger.Log("CMD", $"启动进程: {cmd} {args}");
                     process.Start();
                     
                     // 异步读取输出和错误流，避免死锁
                     var outputTask = Task.Run(() => process.StandardOutput.ReadToEnd());
                     var errorTask = Task.Run(() => process.StandardError.ReadToEnd());
                     
-                    UnityEngine.Debug.Log($"[CMD] 等待进程结束...");
+                    DebugLogger.Log("CMD", "等待进程结束...");
                     process.WaitForExit();
                     
                     // 等待读取任务完成
                     string output = outputTask.Result;
                     string error = errorTask.Result;
                     
-                    UnityEngine.Debug.Log($"[CMD] 进程已结束，退出码: {process.ExitCode}");
+                    DebugLogger.Log("CMD", $"进程已结束，退出码: {process.ExitCode}");
                     
                     return new string[] { output, error, process.ExitCode.ToString() };
                 }
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError($"[CMD] 执行命令失败: {cmd} {args}, 错误: {e.Message}");
-                UnityEngine.Debug.LogError($"[CMD] 异常堆栈: {e.StackTrace}");
+                DebugLogger.LogError("CMD", $"执行命令失败: {cmd} {args}, 错误: {e.Message}");
+                DebugLogger.LogError("CMD", $"异常堆栈: {e.StackTrace}");
                 return new string[] { "", e.Message, "-1" };
             }
         }
@@ -110,7 +110,7 @@ namespace GoveKits.Utility
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError($"[CMD] 执行命令失败: {cmd} {args}, 错误: {e.Message}");
+                DebugLogger.LogError("CMD", $"执行命令失败: {cmd} {args}, 错误: {e.Message}");
                 return string.Empty;
             }
         }
@@ -129,7 +129,7 @@ namespace GoveKits.Utility
                     path = path.Replace('/', '\\');
                 }
                 
-                UnityEngine.Debug.Log($"[CMD] 打开文件夹: {path}");
+                DebugLogger.Log("CMD", $"打开文件夹: {path}");
 
                 switch (Application.platform)
                 {
@@ -149,13 +149,13 @@ namespace GoveKits.Utility
                         break;
 
                     default:
-                        UnityEngine.Debug.LogWarning($"[CMD] 当前平台不支持打开文件夹: {Application.platform}");
+                        DebugLogger.LogWarning("CMD", $"当前平台不支持打开文件夹: {Application.platform}");
                         break;
                 }
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError($"[CMD] 打开文件夹失败: {path}, 错误: {e.Message}");
+                DebugLogger.LogError("CMD", $"打开文件夹失败: {path}, 错误: {e.Message}");
             }
         }
 
