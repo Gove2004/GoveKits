@@ -5,7 +5,7 @@ using GoveKits.Binary;
 
 namespace GoveKits.Localization
 {
-    [GenBinaryData("Assets/GoveKits/Runtime/Storage/Localization")]
+    [GenBinaryData("Assets/GoveKits/Runtime/Localization")]
     public partial class LocalizationSetting
     {
         [BinaryMember(1)] public int CurrentLanguage = (int)LanguageCode.ChineseCN;

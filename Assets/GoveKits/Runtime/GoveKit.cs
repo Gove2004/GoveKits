@@ -2,9 +2,10 @@
 using GoveKits.Audio;
 using GoveKits.Config;
 using GoveKits.Localization;
+using GoveKits.Network;
 using GoveKits.Singleton;
 using GoveKits.Time;
-using UnityEngine;
+
 
 namespace GoveKits
 {
@@ -17,7 +18,7 @@ namespace GoveKits
 
             // 执行初始化逻辑
             Initialize();
-            DebugLogger.LogGreen("GoveKit", "initialized");
+            LogManager.LogGreen("GoveKit", "initialized");
         }
 
 
@@ -31,19 +32,13 @@ namespace GoveKits
 
 
 
-
-
-
-
-
-
-
         private static void Initialize()
         {
             AudioManager.Initialize();
             ConfigManager.Initialize();
-            LanguageManager.Initialize();
+            // LanguageManager.Initialize();
             TimerManager.Initialize();
+
             // 在这里添加其他全局初始化逻辑...
         }
     }

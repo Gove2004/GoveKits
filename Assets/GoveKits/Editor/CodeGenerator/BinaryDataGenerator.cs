@@ -29,7 +29,7 @@ namespace GoveKits.Editor
 
             if (types.Count == 0)
             {
-                DebugLogger.Log("BinaryDataGenerator", "No types found with [GenBinaryData].");
+                LogManager.Log("BinaryDataGenerator", "No types found with [GenBinaryData].");
                 return;
             }
 
@@ -47,7 +47,7 @@ namespace GoveKits.Editor
                         $"Processing {type.Name}...", 
                         (float)i / types.Count))
                     {
-                        DebugLogger.LogWarning("BinaryDataGenerator", "Operation cancelled.");
+                        LogManager.LogWarning("BinaryDataGenerator", "Operation cancelled.");
                         break;
                     }
 
@@ -59,7 +59,7 @@ namespace GoveKits.Editor
             }
             catch (Exception e)
             {
-                DebugLogger.LogError("BinaryDataGenerator", $"Fatal Error: {e}");
+                LogManager.LogError("BinaryDataGenerator", $"Fatal Error: {e}");
             }
             finally
             {
@@ -69,11 +69,11 @@ namespace GoveKits.Editor
             if (updateCount > 0)
             {
                 AssetDatabase.Refresh();
-                DebugLogger.Log("BinaryDataGenerator", $"<color=green>Updated {updateCount} files.</color> ({types.Count - updateCount} skipped)");
+                LogManager.Log("BinaryDataGenerator", $"<color=green>Updated {updateCount} files.</color> ({types.Count - updateCount} skipped)");
             }
             else
             {
-                DebugLogger.Log("BinaryDataGenerator", "All files are up to date.");
+                LogManager.Log("BinaryDataGenerator", "All files are up to date.");
             }
         }
 

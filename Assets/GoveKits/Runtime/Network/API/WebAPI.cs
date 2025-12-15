@@ -1,472 +1,133 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Collections.Concurrent;
 using System.Threading;
-using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.Networking;
 
 namespace GoveKits.Network
 {
-    /// <summary>
-    /// Static HTTP manager with queueing, caching and retry logic.
-    /// Single exposed API: Request(RequestData) -> UniTask<ResponseData>
-    /// </summary>
     public static class WebAPI
     {
-        // configurable base URL and default timeout
-        public static string BaseApiUrl = "https://api.example.com/";
-        public static float DefaultTimeout = 10f;
+        // --- 静态常量配置 ---
+        public const string CONST_BASE_URL = "https://api.example.com";  // 默认基地址
+        public const float CONST_TIMEOUT = 15f;                          // 默认超时 (秒)
+        public const int CONST_RETRY = 3;                                // 默认重试次数
+        public const int CONST_MAX_CONCURRENT = 5;                       // 最大并发请求数
 
-        // concurrency / retry / cache settings (changeable by caller)
-        public static int MaxConcurrentRequests { get; set; } = 5;
-        public static int MaxRetryCount { get; set; } = 3;
-        public static float RetryInterval { get; set; } = 1f;
-        public static bool EnableCaching { get; set; } = true;
-        public static float CacheDuration { get; set; } = 300f;
-
-        // internal queue & cache
-        private class QueueEntry
-        {
-            public RequestData Request;
-            public UniTaskCompletionSource<ResponseData> Tcs;
-            public CancellationToken Cancellation;
-        }
-
-        private static readonly Queue<QueueEntry> requestQueue = new Queue<QueueEntry>();
-        private static int activeRequests = 0;
-        private static readonly Dictionary<string, (string response, DateTime expiration)> responseCache = new Dictionary<string, (string, DateTime)>();
-        private static readonly System.Diagnostics.Stopwatch cacheTimer = System.Diagnostics.Stopwatch.StartNew();
-
-        // lock for queue operations
-        private static readonly object queueLock = new object();
-        private static readonly object cacheLock = new object();
+        // --- 并发与缓存 ---
+        private static readonly SemaphoreSlim _gate = new SemaphoreSlim(CONST_MAX_CONCURRENT);
+        private static readonly ConcurrentDictionary<string, (string data, long expire)> _cache 
+            = new ConcurrentDictionary<string, (string, long)>();
 
         /// <summary>
-        /// 发起HTTP请求，返回响应数据的异步任务。
-        /// 支持请求排队、重试和响应缓存。
+        /// 发送请求 (通用入口)
         /// </summary>
-        /// <param name="config">请求配置</param>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>响应数据的异步任务</returns>
-        public static UniTask<ResponseData> Request(RequestData config, CancellationToken cancellationToken = default)
+        public static async UniTask<ResponseData> Send(RequestData req, CancellationToken ct = default)
         {
-            var tcs = new UniTaskCompletionSource<ResponseData>();
+            // 1. URL 自动补全
+            string finalUrl = req.Url.StartsWith("http") ? req.Url : $"{CONST_BASE_URL.TrimEnd('/')}/{req.Url.TrimStart('/')}";
+            string cacheKey = null;
 
-            // 检查取消令牌
-            if (cancellationToken.IsCancellationRequested)
+            // 2. 读缓存 (仅GET)
+            if (req.UseCache && req.Method == HttpMethod.GET)
             {
-                tcs.TrySetCanceled(cancellationToken);
-                return tcs.Task;
-            }
-
-            // 检查缓存
-            if (config.useCache && EnableCaching && config.method == HttpMethod.GET)
-            {
-                var cacheKey = GenerateCacheKey(config);
-                lock (cacheLock)
+                cacheKey = finalUrl;
+                if (_cache.TryGetValue(cacheKey, out var item) && DateTime.UtcNow.Ticks < item.expire)
                 {
-                    if (responseCache.TryGetValue(cacheKey, out var entry))
-                    {
-                        if (DateTime.Now < entry.expiration)
-                        {
-                            tcs.TrySetResult(new ResponseData { success = true, statusCode = 200, text = entry.response });
-                            return tcs.Task;
-                        }
-                        else
-                        {
-                            responseCache.Remove(cacheKey);
-                        }
-                    }
+                    return new ResponseData(true, 200, null, item.data, null);
                 }
             }
 
-            var qe = new QueueEntry { Request = config, Tcs = tcs, Cancellation = cancellationToken };
-            lock (queueLock)
-            {
-                requestQueue.Enqueue(qe);
-            }
+            // 3. 并发控制
+            await _gate.WaitAsync(ct);
 
-            // 不等待，直接触发队列处理
-            ProcessQueueAsync();
-
-            return tcs.Task;
-        }
-
-        private static void ProcessQueueAsync()
-        {
-            // 定期清理过期缓存（每60秒一次）
-            if (cacheTimer.Elapsed.TotalSeconds > 60)
-            {
-                ClearExpiredCache();
-                cacheTimer.Restart();
-            }
-
-            while (true)
-            {
-                QueueEntry entry = null;
-                lock (queueLock)
-                {
-                    if (activeRequests >= MaxConcurrentRequests || requestQueue.Count == 0)
-                        break;
-
-                    entry = requestQueue.Dequeue();
-                    activeRequests++;
-                }
-
-                if (entry == null) break;
-
-                // 处理请求而不阻塞循环
-                _ = ExecuteRequestAsync(entry); // 使用丢弃操作符，不等待
-            }
-        }
-
-        private static async UniTask ExecuteRequestAsync(QueueEntry entry)
-        {
-            UnityWebRequest webRequest = null;
             try
             {
-                var config = entry.Request;
-                var cancellation = entry.Cancellation;
-
-                // 再次检查取消
-                if (cancellation.IsCancellationRequested)
-                {
-                    entry.Tcs.TrySetCanceled(cancellation);
-                    return;
-                }
-
-                int timeoutMs = config.timeout > 0 ? (int)(config.timeout * 1000) : (int)(DefaultTimeout * 1000);
-                int retryCount = config.retryCount >= 0 ? config.retryCount : MaxRetryCount;
-
-                string url = CombineUrl(BaseApiUrl, config.endpoint);
-
-                int attempts = 0;
-                Exception lastException = null;
-                bool success = false;
-                ResponseData response = null;
-
-                while (attempts <= retryCount && !success)
-                {
-                    if (attempts > 0)
-                    {
-                        await UniTask.Delay(TimeSpan.FromSeconds(RetryInterval), cancellationToken: cancellation);
-                    }
-
-                    try
-                    {
-                        webRequest = CreateWebRequest(url, config.method, config.body, config.headers);
-                        webRequest.timeout = timeoutMs / 1000; // Unity使用秒为单位
-
-                        using (var timeoutCts = new CancellationTokenSource(timeoutMs))
-                        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeoutCts.Token))
-                        {
-                            var op = webRequest.SendWebRequest();
-                            await op.WithCancellation(linkedCts.Token);
-                        }
-
-                        response = CreateResponse(webRequest);
-                        
-                        // 只对服务器错误(5xx)和网络错误重试，不对客户端错误(4xx)重试
-                        if (response.success || (webRequest.responseCode >= 400 && webRequest.responseCode < 500))
-                        {
-                            success = true;
-                        }
-                        else
-                        {
-                            attempts++;
-                            lastException = new Exception($"HTTP错误: {webRequest.responseCode}");
-                            if (attempts <= retryCount)
-                            {
-                                webRequest.Dispose();
-                                webRequest = null;
-                                continue;
-                            }
-                        }
-                    }
-                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-                    {
-                        entry.Tcs.TrySetCanceled(cancellation);
-                        return;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        lastException = new TimeoutException("请求超时");
-                        attempts++;
-                        webRequest?.Dispose();
-                        webRequest = null;
-                        if (attempts > retryCount) break;
-                        continue;
-                    }
-                    catch (Exception ex)
-                    {
-                        lastException = ex;
-                        attempts++;
-                        webRequest?.Dispose();
-                        webRequest = null;
-                        if (attempts > retryCount) break;
-                        continue;
-                    }
-                }
-
-                if (success && response != null)
-                {
-                    // 缓存成功的GET请求
-                    if (config.useCache && EnableCaching && config.method == HttpMethod.GET)
-                    {
-                        var cacheKey = GenerateCacheKey(config);
-                        lock (cacheLock)
-                        {
-                            responseCache[cacheKey] = (response.text ?? "", DateTime.Now.AddSeconds(CacheDuration));
-                        }
-                    }
-                    entry.Tcs.TrySetResult(response);
-                }
-                else
-                {
-                    entry.Tcs.TrySetResult(new ResponseData 
-                    { 
-                        success = false, 
-                        error = lastException?.Message ?? "请求失败",
-                        statusCode = webRequest?.responseCode ?? 0
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                entry.Tcs.TrySetResult(new ResponseData 
-                { 
-                    success = false, 
-                    error = $"未处理的异常: {ex.Message}" 
-                });
+                // 4. 执行请求
+                return await ExecInternal(finalUrl, req, cacheKey, ct);
             }
             finally
             {
-                webRequest?.Dispose();
-                
-                lock (queueLock)
-                {
-                    activeRequests = Math.Max(0, activeRequests - 1);
-                }
-                
-                // 继续处理队列中的项目
-                ProcessQueueAsync();
+                _gate.Release();
             }
         }
 
-        #region helpers
-        private static UnityWebRequest CreateWebRequest(string url, HttpMethod method, object body, Dictionary<string, string> headers)
+        private static async UniTask<ResponseData> ExecInternal(string url, RequestData req, string cacheKey, CancellationToken ct)
         {
-            UnityWebRequest webRequest;
-            string contentType = "application/json";
-            bool hasCustomContentType = headers?.ContainsKey("Content-Type") == true;
+            int retryLeft = req.Retry;
 
-            switch (method)
+            while (true)
             {
-                case HttpMethod.POST:
-                    if (body is WWWForm form)
+                using (var uwr = CreateUWR(url, req))
+                {
+                    try
                     {
-                        webRequest = UnityWebRequest.Post(url, form);
-                    }
-                    else
-                    {
-                        webRequest = new UnityWebRequest(url, "POST");
-                        if (body != null)
+                        // 异步发送
+                        await uwr.SendWebRequest().WithCancellation(ct);
+
+                        // 成功
+                        if (uwr.result == UnityWebRequest.Result.Success)
                         {
-                            if (body is string s)
+                            string text = uwr.downloadHandler?.text;
+                            
+                            // 写缓存 (5分钟)
+                            if (cacheKey != null && !string.IsNullOrEmpty(text))
                             {
-                                var bytes = Encoding.UTF8.GetBytes(s);
-                                webRequest.uploadHandler = new UploadHandlerRaw(bytes);
-                                if (!hasCustomContentType)
-                                    webRequest.SetRequestHeader("Content-Type", contentType);
+                                long exp = DateTime.UtcNow.AddSeconds(300).Ticks;
+                                _cache[cacheKey] = (text, exp);
                             }
-                            else if (body is byte[] b)
-                            {
-                                webRequest.uploadHandler = new UploadHandlerRaw(b);
-                            }
+
+                            return new ResponseData(true, uwr.responseCode, null, text, uwr.downloadHandler?.data);
                         }
-                        webRequest.downloadHandler = new DownloadHandlerBuffer();
-                    }
-                    break;
 
-                case HttpMethod.PUT:
-                    if (body is string putStr)
-                    {
-                        webRequest = UnityWebRequest.Put(url, putStr);
-                        if (!hasCustomContentType)
-                            webRequest.SetRequestHeader("Content-Type", contentType);
-                    }
-                    else if (body is byte[] putBytes)
-                    {
-                        webRequest = UnityWebRequest.Put(url, putBytes);
-                    }
-                    else
-                    {
-                        webRequest = UnityWebRequest.Put(url, "");
-                    }
-                    break;
-
-                case HttpMethod.DELETE:
-                    webRequest = UnityWebRequest.Delete(url);
-                    break;
-
-                case HttpMethod.PATCH:
-                    webRequest = new UnityWebRequest(url, "PATCH");
-                    if (body != null)
-                    {
-                        if (body is string pstr)
+                        // 失败检查
+                        // 仅重试: 5xx(服务器错误) 或 ConnectionError(断网)
+                        bool shouldRetry = uwr.responseCode >= 500 || uwr.result == UnityWebRequest.Result.ConnectionError;
+                        
+                        if (!shouldRetry || retryLeft <= 0)
                         {
-                            var bytes = Encoding.UTF8.GetBytes(pstr);
-                            webRequest.uploadHandler = new UploadHandlerRaw(bytes);
-                            if (!hasCustomContentType)
-                                webRequest.SetRequestHeader("Content-Type", contentType);
-                        }
-                        else if (body is byte[] pb)
-                        {
-                            webRequest.uploadHandler = new UploadHandlerRaw(pb);
+                            return new ResponseData(false, uwr.responseCode, uwr.error, uwr.downloadHandler?.text, null);
                         }
                     }
-                    webRequest.downloadHandler = new DownloadHandlerBuffer();
-                    break;
-
-                default:
-                    // GET
-                    if (body is Dictionary<string, string> query)
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
                     {
-                        url = BuildUrlWithParams(url, query);
+                        if (retryLeft <= 0) return ResponseData.Fail(ex.Message);
                     }
-                    webRequest = UnityWebRequest.Get(url);
-                    break;
+                }
+
+                retryLeft--;
+                await UniTask.Delay(TimeSpan.FromSeconds(1f), cancellationToken: ct);
             }
+        }
 
-            // 确保有下载处理器
-            if (webRequest.downloadHandler == null)
-                webRequest.downloadHandler = new DownloadHandlerBuffer();
-
-            // 设置请求头（尊重用户自定义的Content-Type）
-            if (headers != null)
+        private static UnityWebRequest CreateUWR(string url, RequestData req)
+        {
+            UnityWebRequest uwr = new UnityWebRequest(url, req.Method.ToString());
+            
+            // 设置 UploadHandler (如果有数据)
+            if (req._bodyBytes != null && req._bodyBytes.Length > 0)
             {
-                foreach (var h in headers)
+                uwr.uploadHandler = new UploadHandlerRaw(req._bodyBytes);
+                if (!string.IsNullOrEmpty(req._contentType))
                 {
-                    webRequest.SetRequestHeader(h.Key, h.Value);
+                    uwr.SetRequestHeader("Content-Type", req._contentType);
                 }
             }
 
-            return webRequest;
-        }
+            // 设置 DownloadHandler
+            uwr.downloadHandler = new DownloadHandlerBuffer();
+            uwr.timeout = (int)req.Timeout;
 
-        private static string BuildUrlWithParams(string url, Dictionary<string, string> parameters)
-        {
-            if (parameters == null || parameters.Count == 0) return url;
-            var list = new List<string>();
-            foreach (var p in parameters)
+            // 设置 Headers
+            if (req.Headers != null)
             {
-                list.Add($"{UnityWebRequest.EscapeURL(p.Key)}={UnityWebRequest.EscapeURL(p.Value)}");
-            }
-            return url + (url.Contains("?") ? "&" : "?") + string.Join("&", list);
-        }
-
-        private static ResponseData CreateResponse(UnityWebRequest webRequest)
-        {
-            var response = new ResponseData
-            {
-                statusCode = (long)webRequest.responseCode,
-                headers = ParseResponseHeaders(webRequest),
-                bytes = webRequest.downloadHandler?.data,
-                text = webRequest.downloadHandler?.text
-            };
-
-            if (webRequest.result == UnityWebRequest.Result.Success)
-            {
-                response.success = true;
-            }
-            else
-            {
-                response.success = false;
-                response.error = webRequest.error;
-                if (string.IsNullOrEmpty(response.error))
-                {
-                    response.error = webRequest.responseCode >= 400 ? 
-                        $"HTTP错误: {webRequest.responseCode}" : "网络错误";
-                }
+                foreach (var kv in req.Headers) uwr.SetRequestHeader(kv.Key, kv.Value);
             }
 
-            return response;
+            return uwr;
         }
-
-        private static Dictionary<string, string> ParseResponseHeaders(UnityWebRequest webRequest)
-        {
-            var headers = new Dictionary<string, string>();
-            var rh = webRequest.GetResponseHeaders();
-            if (rh == null) return headers;
-            foreach (var kv in rh) headers[kv.Key] = kv.Value;
-            return headers;
-        }
-
-        private static string CombineUrl(string baseUrl, string endpoint)
-        {
-            if (string.IsNullOrEmpty(endpoint)) return baseUrl.TrimEnd('/');
-            if (string.IsNullOrEmpty(baseUrl)) return endpoint;
-            
-            baseUrl = baseUrl.TrimEnd('/');
-            endpoint = endpoint.TrimStart('/');
-            return $"{baseUrl}/{endpoint}";
-        }
-
-        private static string GenerateCacheKey(RequestData config)
-        {
-            var key = $"{config.method}:{CombineUrl(BaseApiUrl, config.endpoint)}";
-            
-            // 包含查询参数
-            if (config.body is Dictionary<string, string> queryParams && queryParams.Count > 0)
-            {
-                var sortedParams = string.Join("&", queryParams.OrderBy(x => x.Key)
-                    .Select(x => $"{x.Key}={x.Value}"));
-                key += $"?{sortedParams}";
-            }
-            
-            return key;
-        }
-
-        private static void ClearExpiredCache()
-        {
-            lock (cacheLock)
-            {
-                var expiredKeys = responseCache
-                    .Where(x => DateTime.Now >= x.Value.expiration)
-                    .Select(x => x.Key)
-                    .ToList();
-                    
-                foreach (var key in expiredKeys)
-                {
-                    responseCache.Remove(key);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 清空所有缓存
-        /// </summary>
-        public static void ClearAllCache()
-        {
-            lock (cacheLock)
-            {
-                responseCache.Clear();
-            }
-        }
-
-        /// <summary>
-        /// 获取当前队列状态
-        /// </summary>
-        public static (int queued, int active) GetQueueStatus()
-        {
-            lock (queueLock)
-            {
-                return (requestQueue.Count, activeRequests);
-            }
-        }
-        #endregion
+        
+        public static void ClearCache() => _cache.Clear();
     }
 }

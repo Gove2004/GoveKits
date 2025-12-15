@@ -104,7 +104,7 @@ namespace GoveKits.Unit
             }
             catch (Exception ex)
             {
-                DebugLogger.LogError("Reaction", $"Error in '{Name}': {ex}");
+                LogManager.LogError("Reaction", $"Error in '{Name}': {ex}");
             }
         }
 

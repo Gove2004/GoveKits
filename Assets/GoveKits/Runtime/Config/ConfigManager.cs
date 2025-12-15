@@ -35,7 +35,7 @@ namespace GoveKits.Config
             LoadAllConfigs();
             
             _isInitialized = true;
-            DebugLogger.LogGreen("ConfigManager", $"初始化完成，加载表数量: {_configCache.Count}");
+            LogManager.LogGreen("ConfigManager", $"初始化完成，加载表数量: {_configCache.Count}");
         }
 
         private static void LoadAllConfigs()
@@ -46,7 +46,7 @@ namespace GoveKits.Config
             // 2. 根据类名推断 JSON 文件名 (约定：类名去掉 "Config" 后缀即为文件名)
             // 3. 调用 ResManager 加载
             
-            Assembly assembly = Assembly.GetExecutingAssembly();
+            Assembly assembly = typeof(IConfigData).Assembly;
             Type[] types = assembly.GetTypes();
             
             // 获取内部加载方法的反射信息
@@ -82,7 +82,7 @@ namespace GoveKits.Config
             if (jsonAsset == null)
             {
                 // 某些 Config 类可能没有对应的 json 文件 (比如基类或未生成的表)，跳过
-                DebugLogger.LogWarning("ConfigManager", $"未找到文件: {path}"); 
+                LogManager.LogWarning("ConfigManager", $"未找到文件: {path}"); 
                 return;
             }
 
@@ -119,12 +119,12 @@ namespace GoveKits.Config
                 }
                 else
                 {
-                    DebugLogger.LogError("ConfigManager", $"反序列化失败或数据为空: {path}");
+                    LogManager.LogError("ConfigManager", $"反序列化失败或数据为空: {path}");
                 }
             }
             catch (Exception e)
             {
-                DebugLogger.LogError("ConfigManager", $"解析异常 {path}: {e.Message}");
+                LogManager.LogError("ConfigManager", $"解析异常 {path}: {e.Message}");
             }
         }
 
@@ -137,7 +137,7 @@ namespace GoveKits.Config
         {
             if (!_isInitialized) 
             {
-                DebugLogger.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
+                LogManager.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
                 return null;
             }
 
@@ -147,7 +147,7 @@ namespace GoveKits.Config
                 if (dictObj is Dictionary<int, T> dictInt && dictInt.TryGetValue(id, out T res)) return res;
             }
             
-            DebugLogger.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
+            LogManager.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
             return null;
         }
 
@@ -158,7 +158,7 @@ namespace GoveKits.Config
         {
             if (!_isInitialized) 
             {
-                DebugLogger.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
+                LogManager.LogError("ConfigManager", "未初始化！请先调用 Initialize()");
                 return null;
             }
 
@@ -168,7 +168,7 @@ namespace GoveKits.Config
                 if (dictObj is Dictionary<string, T> dictStr && dictStr.TryGetValue(id, out T res)) return res;
             }
 
-            DebugLogger.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
+            LogManager.LogError("Config", $"未找到配置 {type.Name} ID:{id}");
             return null;
         }
 

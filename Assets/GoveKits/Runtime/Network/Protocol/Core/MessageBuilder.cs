@@ -1,50 +1,13 @@
+
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using GoveKits.Binary;
-using UnityEngine;
-using GoveKits;
+
 
 namespace GoveKits.Network
 {
-    // ===================================================================================
-    // 1. 基础数据结构
-    // ===================================================================================
-    
-    // ===================================================================================
-    // 1. 消息头 (全自动生成)
-    // ===================================================================================
-    [Message(-1, "GoveKits/Runtime/Network/Protocol/Message/Generated")]
-    public partial class MessageHeader
-    {
-        [BinaryMember(1)] public int SenderID = 0;
-        [BinaryMember(2)] public int TargetID = 0;
-    }
-
-    // ===================================================================================
-    // 2. 消息基类 (半自动)
-    // ===================================================================================
-    
-    // 我们不给 Message 加 [GenBinaryData]，因为它从不单独实例化传输。
-    // 但是它必须继承 IBinaryData，以便多态使用。
-    // 子类的生成器会扫描到这里的 [BinaryMember]，并生成包含 MsgID 和 Header 的完整代码。
-    [Message(-1, "GoveKits/Runtime/Network/Protocol/Message/Generated")]
-    public partial class Message
-    {
-        // === 协议固定结构 (Tag 1-9 预留给基类) ===
-        
-        [BinaryMember(1)] public int MsgID;
-        [BinaryMember(2)] public MessageHeader Header = new MessageHeader();
-        
-        public Message()
-        {
-            // 自动获取 ID
-            MsgID = MessageBuilder.GetMsgID(this.GetType());
-        }
-
-    }
-
     /// <summary>
     /// 标记一个 Message 子类的消息ID
     /// </summary>
@@ -54,6 +17,7 @@ namespace GoveKits.Network
         public int Id { get; }
         public MessageAttribute(int id, string savePath) : base(savePath) => Id = id;
     }
+
 
     // ===================================================================================
     // 2. 消息构建器 (核心修改)
@@ -117,7 +81,7 @@ namespace GoveKits.Network
                 return attr.Id;
             }
 
-            DebugLogger.LogError("MessageBuilder", $"Type {type.Name} has no [Message(id)] attribute!");
+            LogManager.LogError("MessageBuilder", $"Type {type.Name} has no [Message(id)] attribute!");
             return -1;
         }
 
@@ -147,7 +111,7 @@ namespace GoveKits.Network
                     }
                 }
             }
-            DebugLogger.Log("MessageBuilder", $"Registered {_factories.Count} messages.");
+            LogManager.Log("MessageBuilder", $"Registered {_factories.Count} messages.");
         }
     }
 
@@ -178,29 +142,5 @@ namespace GoveKits.Network
 
 
 
-
-
-    /// <summary>
-    /// 标记一个纯数据类，用于生成继承自 Message 的网络消息类
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Class)]
-    public class AutoMessageAttribute : Attribute
-    {
-        public int Id { get; }
-        // 是否生成到独立文件中，默认 true
-        public bool GenerateFile { get; set; } = true;
-
-        public AutoMessageAttribute(int id)
-        {
-            Id = id;
-        }
-    }
-
-
-    /// <summary>
-    /// 标记字段不参与网络序列化
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Field)]
-    public class AutoMessageIgnoreFieldAttribute : Attribute { }
 
 }

@@ -70,7 +70,7 @@ namespace GoveKits.Audio
             RefreshAllVolumes();
 
             _isInitialized = true;
-            DebugLogger.LogGreen("AudioManager", "Initialized.");
+            LogManager.LogGreen("AudioManager", "Initialized.");
         }
 
         #region BGM 控制
@@ -104,7 +104,7 @@ namespace GoveKits.Audio
             }
             else
             {
-                DebugLogger.LogError("AudioManager", $"BGM Load Failed: {path}");
+                LogManager.LogError("AudioManager", $"BGM Load Failed: {path}");
             }
         }
 
@@ -253,7 +253,7 @@ namespace GoveKits.Audio
             }
             _loadedAudioPaths.Clear();
 
-            DebugLogger.LogGreen("AudioManager", "Level Audio Cache Cleared.");
+            LogManager.LogGreen("AudioManager", "Level Audio Cache Cleared.");
         }
 
         /// <summary>
@@ -367,7 +367,7 @@ namespace GoveKits.Audio
         {
             if (!_isInitialized)
             {
-                DebugLogger.LogError("AudioManager", "Not Initialized! Call AudioManager.Initialize() first.");
+                LogManager.LogError("AudioManager", "Not Initialized! Call AudioManager.Initialize() first.");
                 Initialize(); // 自动补救
             }
         }

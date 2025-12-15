@@ -40,7 +40,7 @@ namespace GoveKits.Localization
             _config = ResManager.Load<LocalizationConfig>(CONFIG_PATH);
             if (_config == null)
             {
-                DebugLogger.LogError("LanguageManager", $"找不到配置: {CONFIG_PATH}");
+                LogManager.LogError("LanguageManager", $"找不到配置: {CONFIG_PATH}");
                 return;
             }
 
@@ -54,7 +54,7 @@ namespace GoveKits.Localization
             RefreshCache();
 
             _isInitialized = true;
-            DebugLogger.Log("LanguageManager", $"初始化完成. 当前语言: {_setting.CurrentLanguage}");
+            LogManager.Log("LanguageManager", $"初始化完成. 当前语言: {_setting.CurrentLanguage}");
         }
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace GoveKits.Localization
             }
             catch (Exception e)
             {
-                DebugLogger.LogError("LanguageManager", $"JSON 解析失败: {e.Message}");
+                LogManager.LogError("LanguageManager", $"JSON 解析失败: {e.Message}");
             }
         }
 

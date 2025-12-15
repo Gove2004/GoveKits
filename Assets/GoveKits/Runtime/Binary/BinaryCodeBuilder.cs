@@ -62,6 +62,12 @@ namespace GoveKits.Binary
             // === 3. 代码构建 ===
             StringBuilder sb = new StringBuilder();
 
+            sb.AppendLine($"using System;");
+            sb.AppendLine($"using System.Collections.Generic;");
+            sb.AppendLine($"using GoveKits.Binary;");
+            sb.AppendLine($"using UnityEngine;");
+            sb.AppendLine($"");
+
             // Namespace
             if (!string.IsNullOrEmpty(type.Namespace))
             {
@@ -69,11 +75,6 @@ namespace GoveKits.Binary
                 sb.AppendLine("{");
             }
             
-            sb.AppendLine($"    using System;");
-            sb.AppendLine($"    using System.Collections.Generic;");
-            sb.AppendLine($"    using GoveKits.Binary;");
-            sb.AppendLine($"    using UnityEngine;");
-            sb.AppendLine($"");
             sb.AppendLine($"    // Generated Code. Do not modify.");
             sb.AppendLine($"    public partial class {type.Name}{interfaceDecl}");
             sb.AppendLine($"    {{");

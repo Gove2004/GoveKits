@@ -11,11 +11,24 @@ namespace GoveKits.UI
         // --- 同步生命周期 ---
         void OnCreate();
         void OnStart(object payload = null);
-        void OnFinish();
+        void OnResume();
 
-        // --- 异步生命周期 (用于动画) ---
-        UniTask OnResumeAsync();
-        UniTask OnPauseAsync();
-        UniTask OnStopAsync();
+        void OnPause();
+        void OnStop();
+
+        void OnFinish();
     }
+
+    public enum PanelLifeType
+    {
+        None,
+        OnCreate,
+        OnStart,
+        OnResume,
+        OnPause,
+        OnStop,
+        OnFinish
+    }
+
+
 }

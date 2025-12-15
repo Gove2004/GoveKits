@@ -4,15 +4,33 @@ using Debug = UnityEngine.Debug; // 简化引用
 
 namespace GoveKits
 {
-    public static class DebugLogger
+    public static class LogManager
     {
-#if UNITY_EDITOR
+
+
+        public static void ShowGUI()
+        {
+            
+        }
+
+
+
+
+
+
+
+
+
+
+
+
 
         #region 基础日志方法
 
         /// <summary>
         /// 带上下文的日志 (点击日志可定位到物体)
         /// </summary>
+        [Conditional("UNITY_EDITOR")] 
         public static void Log(string tag, object message, Object context = null, string color = "#FFFFFF")
         {
             if (context != null) Debug.Log($"<color={color}><b>[{tag}]</b> {message}</color>", context);
@@ -24,12 +42,12 @@ namespace GoveKits
         #region 常用颜色重载 (方便调用)
 
         // 示例：Logger.LogGreen("Audio", "BGM played");
-        public static void LogGreen(string tag, object message, Object context = null) => Log(tag, message, context, "#00FF00");
-        public static void LogRed(string tag, object message, Object context = null) => Log(tag, message, context, "#FF0000");
-        public static void LogYellow(string tag, object message, Object context = null) => Log(tag, message, context, "#FFFF00");
-        public static void LogCyan(string tag, object message, Object context = null) => Log(tag, message, context, "#00FFFF");
-        public static void LogMagenta(string tag, object message, Object context = null) => Log(tag, message, context, "#FF00FF");
-        public static void LogBlue(string tag, object message, Object context = null) => Log(tag, message, context, "#0000FF");
+        [Conditional("UNITY_EDITOR")] public static void LogGreen(string tag, object message, Object context = null) => Log(tag, message, context, "#00FF00");
+        [Conditional("UNITY_EDITOR")] public static void LogRed(string tag, object message, Object context = null) => Log(tag, message, context, "#FF0000");
+        [Conditional("UNITY_EDITOR")] public static void LogYellow(string tag, object message, Object context = null) => Log(tag, message, context, "#FFFF00");
+        [Conditional("UNITY_EDITOR")] public static void LogCyan(string tag, object message, Object context = null) => Log(tag, message, context, "#00FFFF");
+        [Conditional("UNITY_EDITOR")] public static void LogMagenta(string tag, object message, Object context = null) => Log(tag, message, context, "#FF00FF");
+        [Conditional("UNITY_EDITOR")] public static void LogBlue(string tag, object message, Object context = null) => Log(tag, message, context, "#0000FF");
 
         #endregion
 
@@ -55,5 +73,4 @@ namespace GoveKits
 
         #endregion
     }
-#endif
 }

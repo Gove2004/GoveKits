@@ -20,6 +20,7 @@ namespace GoveKits.UI
         // 核心的UI导航栈
         private Stack<BasePanel> panelStack = new Stack<BasePanel>();
 
+
         private void Awake() => InitPanels();
 
         /// <summary>
@@ -43,7 +44,7 @@ namespace GoveKits.UI
                 if (panel.isEntry)
                 {
                     // 使用 .Forget() 来“发射后不管”，因为启动时我们不需要等待动画完成
-                    ShowAsync(panel, null).Forget();
+                    Show(panel, null);
                     break;
                 }
             }
@@ -55,7 +56,7 @@ namespace GoveKits.UI
         public T GetPanel<T>() where T : BasePanel
         {
             if (uiPanels.TryGetValue(typeof(T), out BasePanel panel)) return panel as T;
-            DebugLogger.LogWarning("UIController", $"未找到类型为 {typeof(T).Name} 的面板，请检查是否已在 Inspector 中配置。");
+            LogManager.LogWarning("UIController", $"未找到类型为 {typeof(T).Name} 的面板，请检查是否已在 Inspector 中配置。");
             return null;
         }
 
@@ -66,13 +67,14 @@ namespace GoveKits.UI
         /// </summary>
         /// <typeparam name="T">要打开的面板类型</typeparam>
         /// <param name="payload">要传递给面板的数据</param>
-        public async UniTask ShowAsync<T>(object payload = null) where T : BasePanel
+        public void Show<T>(object payload = null) where T : BasePanel
         {
             var nextPanel = GetPanel<T>();
-            if (nextPanel != null) await ShowAsync(nextPanel, payload);
+            if (nextPanel != null)
+                Show(nextPanel, payload);
         }
 
-        private async UniTask ShowAsync(BasePanel nextPanel, object payload)
+        private void Show(BasePanel nextPanel, object payload)
         {
             // 防止重复打开同一个面板
             if (panelStack.Count > 0 && panelStack.Peek() == nextPanel) return;
@@ -84,18 +86,12 @@ namespace GoveKits.UI
                 IPanelLifeCycle currentLifeCycle = currentPanel;
 
                 // 总是先暂停当前面板
-                var pauseTask = currentLifeCycle.OnPauseAsync();
+                currentLifeCycle.OnPause();
 
                 // 如果新面板不是弹窗，则需要彻底隐藏当前面板
                 if (!nextPanel.isPopup)
                 {
-                    var stopTask = currentLifeCycle.OnStopAsync();
-                    // 使用 WhenAll 等待两个动画都完成，体验更流畅
-                    await UniTask.WhenAll(pauseTask, stopTask);
-                }
-                else
-                {
-                    await pauseTask; // 如果是弹窗，只等待暂停动画
+                    currentLifeCycle.OnStop();
                 }
             }
 
@@ -106,13 +102,13 @@ namespace GoveKits.UI
             // 按正确的生命周期顺序调用
             if (!nextPanel.IsCreated) nextLifeCycle.OnCreate();
             nextLifeCycle.OnStart(payload); // OnStart 负责 SetActive(true) 和数据初始化
-            await nextLifeCycle.OnResumeAsync(); // 等待新面板的进入动画播放完毕
+            nextLifeCycle.OnResume(); // 等待新面板的进入动画播放完毕
         }
 
         /// <summary>
         /// 异步关闭当前最上层的面板，并等待过渡动画完成。
         /// </summary>
-        public async UniTask HideAsync()
+        public void Hide()
         {
             if (panelStack.Count == 0) return;
 
@@ -120,13 +116,10 @@ namespace GoveKits.UI
             IPanelLifeCycle closingLifeCycle = closingPanel;
 
             // 同时播放“即将关闭”面板的退场动画
-            var closingTask = UniTask.WhenAll(
-                closingLifeCycle.OnPauseAsync(),
-                closingLifeCycle.OnStopAsync()
-            );
+            closingLifeCycle.OnPause();
+            closingLifeCycle.OnStop();
 
             // 如果栈中还有其他面板，则需要恢复下一层的面板
-            UniTask resumingTask = UniTask.CompletedTask;
             if (panelStack.Count > 0)
             {
                 BasePanel resumingPanel = panelStack.Peek();
@@ -138,27 +131,24 @@ namespace GoveKits.UI
                     resumingLifeCycle.OnStart(null); // 恢复时通常不带参数
                 }
                 // 播放“即将恢复”面板的入场动画
-                resumingTask = resumingLifeCycle.OnResumeAsync();
+                resumingLifeCycle.OnResume();
             }
-
-            // 等待关闭动画和恢复动画全部完成
-            await UniTask.WhenAll(closingTask, resumingTask);
         }
 
-        #endregion
-        
-        #region 同步 Show / Hide (快捷方式)
 
-        /// <summary>
-        /// 以“发射后不管”的方式打开一个面板，不等待动画完成。
-        /// </summary>
-        public void Show<T>(object payload = null) where T : BasePanel 
-            => ShowAsync<T>(payload).Forget();
-        
-        /// <summary>
-        /// 以“发射后不管”的方式关闭当前面板，不等待动画完成。
-        /// </summary>
-        public void Hide() => HideAsync().Forget();
+
+        public void FinishAll()
+        {
+            while (panelStack.Count > 0)
+            {
+                BasePanel closingPanel = panelStack.Pop();
+                IPanelLifeCycle closingLifeCycle = closingPanel;
+
+                // 播放关闭动画
+                closingLifeCycle.OnPause();
+                closingLifeCycle.OnStop();
+            }
+        }
 
         #endregion
     }

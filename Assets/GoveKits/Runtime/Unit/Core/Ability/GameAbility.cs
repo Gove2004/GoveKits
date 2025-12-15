@@ -131,7 +131,7 @@ namespace GoveKits.Unit
                 // 捕获能力执行过程中的异常并记录为 Warning，而不是 Error。
                 // Unity 的测试框架会将 Error 日志视为测试失败（Unhandled log message），
                 // 这里使用 Warning 保持异常被记录同时不使单元测试因日志失败。
-                DebugLogger.LogWarning("Ability", $"Error in {Name}: {ex}");
+                LogManager.LogWarning("Ability", $"Error in {Name}: {ex}");
             }
         }
 

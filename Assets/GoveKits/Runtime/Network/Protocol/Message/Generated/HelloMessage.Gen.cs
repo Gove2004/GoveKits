@@ -1,10 +1,10 @@
+using System;
+using System.Collections.Generic;
+using GoveKits.Binary;
+using UnityEngine;
+
 namespace GoveKits.Network
 {
-    using System;
-    using System.Collections.Generic;
-    using GoveKits.Binary;
-    using UnityEngine;
-
     // Generated Code. Do not modify.
     public partial class HelloMessage
     {
@@ -12,6 +12,7 @@ namespace GoveKits.Network
         {
             int total = base.Length();
             total += BinaryLengthHelper.Get(PlayerID);
+            total += BinaryLengthHelper.Get(Token);
             return total;
         }
 
@@ -19,6 +20,7 @@ namespace GoveKits.Network
         {
             base.Writing(buffer, ref index);
             BinaryWriteHelper.Write(buffer, ref index, 10, PlayerID);
+            BinaryWriteHelper.Write(buffer, ref index, 11, Token);
         }
 
         public override void Reading(byte[] buffer, ref int index, int endPos)
@@ -29,8 +31,8 @@ namespace GoveKits.Network
                 switch (tag)
                 {
                     case 1: BinaryReadHelper.Read(buffer, ref index, out MsgID); break;
-                    case 2: BinaryReadHelper.Read(buffer, ref index, out Header); break;
                     case 10: BinaryReadHelper.Read(buffer, ref index, out PlayerID); break;
+                    case 11: BinaryReadHelper.Read(buffer, ref index, out Token); break;
                     default: BinaryReadHelper.Skip(buffer, ref index, type); break;
                 }
             }

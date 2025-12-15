@@ -39,7 +39,7 @@ namespace GoveKits.Editor
             {
                 PlayerPrefs.DeleteAll();
                 ShowNotification(new GUIContent("已清除 PlayerPrefs"));
-                DebugLogger.Log("ProjectEditor", "已清除 PlayerPrefs");
+                LogManager.Log("ProjectEditor", "已清除 PlayerPrefs");
             }
         }
         
@@ -140,7 +140,7 @@ namespace GoveKits.Editor
             {
                 if (!Directory.Exists(path))
                 {
-                    DebugLogger.LogGreen("ProjectEditor", $"创建目录: {path}");
+                    LogManager.LogGreen("ProjectEditor", $"创建目录: {path}");
                     Directory.CreateDirectory(path);
                     created++;
                 }
@@ -148,7 +148,7 @@ namespace GoveKits.Editor
             
             AssetDatabase.Refresh();
             ShowNotification(new GUIContent($"创建了 {created} 个目录"));
-            DebugLogger.LogGreen("ProjectEditor", $"创建了 {created} 个目录");
+            LogManager.LogGreen("ProjectEditor", $"创建了 {created} 个目录");
         }
         
         private void CreateGitIgnore()
@@ -158,7 +158,7 @@ namespace GoveKits.Editor
             File.WriteAllText(fullPath, gitignoreContent, Encoding.UTF8);
             
             ShowNotification(new GUIContent("已创建 .gitignore 文件"));
-            DebugLogger.LogGreen("ProjectEditor", "已创建 .gitignore 文件");
+            LogManager.LogGreen("ProjectEditor", "已创建 .gitignore 文件");
         }
         
         private void OnEnable()

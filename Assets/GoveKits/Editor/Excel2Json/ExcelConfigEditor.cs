@@ -107,7 +107,7 @@ namespace GoveKits.Editor
             CleanDir(_codeOutputFolder, "*.cs");
             CleanDir(_jsonOutputFolder, "*.json");
             AssetDatabase.Refresh();
-            DebugLogger.Log("ExcelConfigEditor", "[Clean] 清理完成");
+            LogManager.Log("ExcelConfigEditor", "[Clean] 清理完成");
         }
 
         private void CleanDir(string path, string pattern)
@@ -120,7 +120,7 @@ namespace GoveKits.Editor
         {
             if (!Directory.Exists(_excelFolderPath))
             {
-                DebugLogger.LogError("ExcelConfigEditor", $"Excel目录不存在: {_excelFolderPath}");
+                LogManager.LogError("ExcelConfigEditor", $"Excel目录不存在: {_excelFolderPath}");
                 return;
             }
 
@@ -159,7 +159,7 @@ namespace GoveKits.Editor
             }
             catch (System.Exception ex)
             {
-                DebugLogger.LogError("ExcelConfigEditor", $"生成失败: {ex}");
+                LogManager.LogError("ExcelConfigEditor", $"生成失败: {ex}");
                 EditorUtility.ClearProgressBar();
                 return;
             }

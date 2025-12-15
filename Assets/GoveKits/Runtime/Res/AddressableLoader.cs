@@ -25,7 +25,7 @@ namespace GoveKits.Res
             }
             return result;
 #else
-            DebugLogger.LogError("AddressableLoader", "Please define 'USE_ADDRESSABLES' symbols.");
+            LogManager.LogError("AddressableLoader", "Please define 'USE_ADDRESSABLES' symbols.");
             return null;
 #endif
         }
@@ -45,7 +45,7 @@ namespace GoveKits.Res
                 return null;
             }
 #else
-            DebugLogger.LogError("AddressableLoader", "Please define 'USE_ADDRESSABLES' symbols.");
+            LogManager.LogError("AddressableLoader", "Please define 'USE_ADDRESSABLES' symbols.");
             await UniTask.CompletedTask;
             return null;
 #endif

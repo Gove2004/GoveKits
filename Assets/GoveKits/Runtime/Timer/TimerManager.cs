@@ -26,7 +26,7 @@ namespace GoveKits.Time
             _unscaledWheel = new TimeWheel(tickPrecision, 512);
             
             _isInitialized = true;
-            DebugLogger.LogGreen("TimerManager", "Initialized");
+            LogManager.LogGreen("TimerManager", "Initialized");
         }
 
         /// <summary>

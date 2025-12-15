@@ -109,7 +109,7 @@ namespace GoveKits.Binary
             // 安全校验：如果 Reading 没读完（或者读多了），强制修正到 endPos
             if (index != endObjPos)
             {
-                DebugLogger.LogWarning("BinaryReadHelper", $"Data mismatch for {typeof(T)}. Expected end: {endObjPos}, Actual: {index}");
+                LogManager.LogWarning("BinaryReadHelper", $"Data mismatch for {typeof(T)}. Expected end: {endObjPos}, Actual: {index}");
                 index = endObjPos;
             }
         }

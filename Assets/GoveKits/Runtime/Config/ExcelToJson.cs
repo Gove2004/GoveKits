@@ -49,7 +49,7 @@ namespace GoveKits.Config
                     
                     if (resultDict.ContainsKey(idValue))
                     {
-                        DebugLogger.LogWarning("Json", $"重复的ID: {idValue} 在表 {sheetName} 中，已跳过。");
+                        LogManager.LogWarning("Json", $"重复的ID: {idValue} 在表 {sheetName} 中，已跳过。");
                         continue;
                     }
 
@@ -74,7 +74,7 @@ namespace GoveKits.Config
                 string filePath = Path.Combine(outputFolder, $"{jsonFileName}.json");
                 
                 File.WriteAllText(filePath, jsonContent, Encoding.UTF8);
-                DebugLogger.LogGreen("Json", $"Generated: {jsonFileName}.json");
+                LogManager.LogGreen("Json", $"Generated: {jsonFileName}.json");
             }
         }
 
@@ -109,7 +109,7 @@ namespace GoveKits.Config
             }
             catch
             {
-                DebugLogger.LogError("Json", $"解析失败: 值[{value}] 类型[{type}]");
+                LogManager.LogError("Json", $"解析失败: 值[{value}] 类型[{type}]");
                 return value; // 容错返回原字符串
             }
         }

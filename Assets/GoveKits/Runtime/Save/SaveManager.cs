@@ -44,13 +44,13 @@ namespace GoveKits.Save
                 File.Move(tempPath, fullPath);
 
 #if UNITY_EDITOR
-                DebugLogger.Log("SaveManager", $"Saved: {relativePath} ({len} bytes)");
+                LogManager.Log("SaveManager", $"Saved: {relativePath} ({len} bytes)");
 #endif
                 return true;
             }
             catch (Exception e)
             {
-                DebugLogger.LogError("SaveManager", $"Save Failed: {e.Message}");
+                LogManager.LogError("SaveManager", $"Save Failed: {e.Message}");
                 return false;
             }
         }
@@ -79,7 +79,7 @@ namespace GoveKits.Save
             }
             catch (Exception e)
             {
-                DebugLogger.LogError("SaveManager", $"Load Failed: {e.Message}");
+                LogManager.LogError("SaveManager", $"Load Failed: {e.Message}");
                 return false;
             }
         }

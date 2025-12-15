@@ -44,7 +44,7 @@ namespace GoveKits.Pools
         {
             if (prefab == null)
             {
-                DebugLogger.LogError("Pool", "传入的 Prefab 为空！无法创建对象。");
+                LogManager.LogError("Pool", "传入的 Prefab 为空！无法创建对象。");
                 return null;
             }
             // 内部调用 UnityPool，并从返回的 GameObject 上获取所需的组件。
@@ -61,7 +61,7 @@ namespace GoveKits.Pools
         {
              if (prefab == null)
             {
-                DebugLogger.LogError("Pool", "传入的 Prefab 为空！无法创建对象。");
+                LogManager.LogError("Pool", "传入的 Prefab 为空！无法创建对象。");
                 return null;
             }
             return UnityPool.Get(prefab);
@@ -74,7 +74,7 @@ namespace GoveKits.Pools
         {
             if (instance == null) return;
             if (!(instance is IPoolable poolable)) 
-                DebugLogger.LogWarning("Pool", $"组件 '{instance.GetType().Name}' 未实现 IPoolable 接口，无法正确回收。");
+                LogManager.LogWarning("Pool", $"组件 '{instance.GetType().Name}' 未实现 IPoolable 接口，无法正确回收。");
             UnityPool.Recycle(instance.gameObject);
         }
 

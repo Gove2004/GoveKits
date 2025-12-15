@@ -1,10 +1,10 @@
+using System;
+using System.Collections.Generic;
+using GoveKits.Binary;
+using UnityEngine;
+
 namespace GoveKits.Audio
 {
-    using System;
-    using System.Collections.Generic;
-    using GoveKits.Binary;
-    using UnityEngine;
-
     // Generated Code. Do not modify.
     public partial class AudioSetting : IBinaryData
     {

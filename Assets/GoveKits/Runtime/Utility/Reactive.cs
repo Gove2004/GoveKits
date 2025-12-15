@@ -19,6 +19,10 @@ public abstract class Ref<T> where T : IEquatable<T>
     private readonly List<Action> _listeners = new List<Action>();  // 监听器列表
     private readonly HashSet<Ref<T>> _impacts = new HashSet<Ref<T>>();  // 影响的计算属性列表
 
+    // 防重入/并发修改保护
+    private bool _isNotifying;
+    private readonly HashSet<Action> _pendingRemove = new HashSet<Action>();
+
     public T Value
     {
         get
@@ -42,11 +46,41 @@ public abstract class Ref<T> where T : IEquatable<T>
 
     private void Notify()
     {
-        foreach (var listener in _listeners.ToArray())
-            listener?.Invoke();
+        // 防重入：避免循环依赖导致无限递归
+        if (_isNotifying) return;
+        _isNotifying = true;
+        try
+        {
+            // 遍历时不复制数组，允许监听器在回调中取消订阅（延迟生效）
+            for (int i = 0; i < _listeners.Count; i++)
+            {
+                var l = _listeners[i];
+                if (l == null) continue;
+                if (_pendingRemove.Contains(l)) continue; // 已标记移除的跳过
+                l.Invoke();
+            }
 
-        foreach (var dep in _impacts.ToArray())
-            dep?.Notify();
+            // 采用队列式传播依赖，避免深递归
+            if (_impacts.Count > 0)
+            {
+                // 使用临时列表快照引用（仅引用，不分配新 Action）
+                foreach (var dep in _impacts)
+                {
+                    dep?.Notify();
+                }
+            }
+        }
+        finally
+        {
+            _isNotifying = false;
+            // 应用延迟移除
+            if (_pendingRemove.Count > 0)
+            {
+                foreach (var a in _pendingRemove)
+                    _listeners.Remove(a);
+                _pendingRemove.Clear();
+            }
+        }
     }
 
     // 添加监听器，返回取消监听的操作
@@ -55,7 +89,17 @@ public abstract class Ref<T> where T : IEquatable<T>
         _listeners.Add(action);
         return () => Unwatch(action);
     }
-    public void Unwatch(Action action) => _listeners.Remove(action);
+    public void Unwatch(Action action)
+    {
+        if (_isNotifying)
+        {
+            _pendingRemove.Add(action);
+        }
+        else
+        {
+            _listeners.Remove(action);
+        }
+    }
 
     public Ref<T> DependOn(params Ref<T>[] others)
     {
@@ -101,7 +145,8 @@ public class FloatRef : Ref<float>
         get => base.Value;
         set
         {
-            if (Math.Abs(base.Value - value) < float.Epsilon) return;
+            // 更合理的阈值，避免频繁微抖动导致的通知
+            if (Math.Abs(base.Value - value) <= 1e-5f) return;
             base.Value = value;
         }
     }

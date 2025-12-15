@@ -1,10 +1,10 @@
+using System;
+using System.Collections.Generic;
+using GoveKits.Binary;
+using UnityEngine;
+
 namespace GoveKits.Network
 {
-    using System;
-    using System.Collections.Generic;
-    using GoveKits.Binary;
-    using UnityEngine;
-
     // Generated Code. Do not modify.
     public partial class DiscoveryMessage
     {
@@ -29,7 +29,6 @@ namespace GoveKits.Network
                 switch (tag)
                 {
                     case 1: BinaryReadHelper.Read(buffer, ref index, out MsgID); break;
-                    case 2: BinaryReadHelper.Read(buffer, ref index, out Header); break;
                     case 10: BinaryReadHelper.Read(buffer, ref index, out Info); break;
                     default: BinaryReadHelper.Skip(buffer, ref index, type); break;
                 }

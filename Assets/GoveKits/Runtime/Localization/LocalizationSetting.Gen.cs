@@ -1,10 +1,10 @@
+using System;
+using System.Collections.Generic;
+using GoveKits.Binary;
+using UnityEngine;
+
 namespace GoveKits.Localization
 {
-    using System;
-    using System.Collections.Generic;
-    using GoveKits.Binary;
-    using UnityEngine;
-
     // Generated Code. Do not modify.
     public partial class LocalizationSetting : IBinaryData
     {

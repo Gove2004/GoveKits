@@ -1,5 +1,6 @@
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
+using GoveKits.Events;
 using UnityEngine;
 
 namespace GoveKits.UI
@@ -15,6 +16,7 @@ namespace GoveKits.UI
         public bool isEntry = false;
         [Tooltip("是否为弹窗（弹窗打开时，不会隐藏其下方的面板）")]
         public bool isPopup = false;
+        
         
         /// <summary>
         /// 面板是否已被创建（OnCreate 已被调用）。
@@ -51,9 +53,9 @@ namespace GoveKits.UI
         void IPanelLifeCycle.OnStart(object payload) => OnStart(payload);
         
         // 将异步方法连接到接口
-        UniTask IPanelLifeCycle.OnResumeAsync() => OnResumeAsync();
-        UniTask IPanelLifeCycle.OnPauseAsync() => OnPauseAsync();
-        UniTask IPanelLifeCycle.OnStopAsync() => OnStopAsync();
+        void IPanelLifeCycle.OnResume() => OnResume();
+        void IPanelLifeCycle.OnPause() => OnPause();
+        void IPanelLifeCycle.OnStop() => OnStop();
         
         void IPanelLifeCycle.OnFinish() => OnFinish();
 
@@ -67,6 +69,9 @@ namespace GoveKits.UI
         /// </summary>
         protected virtual void OnCreate()
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnCreate, this)
+            );
             IsCreated = true;
         }
 
@@ -75,8 +80,11 @@ namespace GoveKits.UI
         /// 适合接收参数、设置初始UI状态。
         /// </summary>
         /// <param name="payload">由 UIController.Show() 传入的参数。</param>
-        protected virtual void OnStart(object payload)
+        protected virtual void OnStart(object payload = null)
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnStart, this)
+            );
             this.gameObject.SetActive(true);
             this.transform.SetAsLastSibling(); // 确保新打开的面板在最上层
         }
@@ -85,33 +93,45 @@ namespace GoveKits.UI
         /// 【异步生命周期】面板进入前台，变为完全可交互状态时调用。
         /// 默认实现了一个淡入动画。
         /// </summary>
-        public virtual async UniTask OnResumeAsync()
+        public virtual void OnResume()
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnResume, this)
+            );
             CanvasGroup.interactable = true;
             CanvasGroup.blocksRaycasts = true;
-            await CanvasGroup.DOFade(1, 0.3f).AsyncWaitForCompletion();
+            CanvasGroup.DOFade(1, 0.3f);
         }
 
         /// <summary>
         /// 【异步生命周期】面板被部分遮挡（如被弹窗覆盖），变为不可交互状态时调用。
         /// 默认实现了一个轻微淡出的动画。
         /// </summary>
-        public virtual async UniTask OnPauseAsync()
+        public virtual void OnPause()
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnPause, this)
+            );
             CanvasGroup.interactable = false;
             // 可以选择在这里播放一个轻微变暗的动画
-            await CanvasGroup.DOFade(0.8f, 0.2f).AsyncWaitForCompletion();
+            CanvasGroup.DOFade(0.8f, 0.2f);
         }
 
         /// <summary>
         /// 【异步生命周期】面板完全从视野中消失时调用。
         /// 默认实现了一个完全淡出的动画，并在动画结束后禁用 GameObject。
         /// </summary>
-        public virtual async UniTask OnStopAsync()
+        public virtual void OnStop()
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnStop, this)
+            );
             CanvasGroup.blocksRaycasts = false; // 在动画期间就禁止交互
-            await CanvasGroup.DOFade(0, 0.3f).AsyncWaitForCompletion();
-            this.gameObject.SetActive(false); // 动画播放完毕后才禁用
+            CanvasGroup.DOFade(0, 0.3f).onComplete += () =>
+            {
+                this.gameObject.SetActive(false);
+            };
+           
         }
 
         /// <summary>
@@ -120,6 +140,9 @@ namespace GoveKits.UI
         /// </summary>
         protected virtual void OnFinish()
         {
+            EventManager.Publish<PanelEvent>(
+                (pe) => pe.SetData(PanelLifeType.OnFinish, this)
+            );
             IsCreated = false;
             // 如果与对象池结合，可以在这里调用 Pool.Recycle(this)
             Destroy(this.gameObject);

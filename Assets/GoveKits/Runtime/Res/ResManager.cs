@@ -27,7 +27,7 @@ namespace GoveKits.Res
         public static void Initialize(ResType defaultType)
         {
             DefaultType = defaultType;
-            DebugLogger.Log("ResManager", $"Initialized. Default Mode: {DefaultType}");
+            LogManager.Log("ResManager", $"Initialized. Default Mode: {DefaultType}");
         }
 
         // 获取对应的加载器
@@ -170,7 +170,7 @@ namespace GoveKits.Res
             }
             else
             {
-                DebugLogger.LogError("ResManager", $"Sync Load Failed: {path} via {type}");
+                LogManager.LogError("ResManager", $"Sync Load Failed: {path} via {type}");
             }
 
             return asset;
@@ -216,7 +216,7 @@ namespace GoveKits.Res
             }
             else
             {
-                DebugLogger.LogError("ResManager", $"Async Load Failed: {path} via {type}");
+                LogManager.LogError("ResManager", $"Async Load Failed: {path} via {type}");
             }
 
             return asset;

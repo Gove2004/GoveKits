@@ -55,7 +55,7 @@ namespace GoveKits.Config
 
                 string filePath = Path.Combine(outputFolder, $"{className}.Gen.cs");
                 File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
-                DebugLogger.LogGreen("Code", $"Generated: {className}.Gen.cs");
+                LogManager.LogGreen("Code", $"Generated: {className}.Gen.cs");
             }
         }
 
