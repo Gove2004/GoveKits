@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
+using Google.Protobuf;
 
 namespace GoveKits.Network
 {
@@ -11,15 +11,15 @@ namespace GoveKits.Network
 
     public interface IMessageHandler 
     { 
-        UniTask Handle(Message message); 
+        UniTask Handle(IMessage message); 
     }
 
-    public class MessageHandler<TMsg> : IMessageHandler where TMsg : Message
+    public class MessageHandler<TMsg> : IMessageHandler where TMsg : IMessage<TMsg>
     {
         private readonly Action<TMsg> _action;
         public MessageHandler(Action<TMsg> action) => _action = action;
         
-        public UniTask Handle(Message message) 
+        public UniTask Handle(IMessage message) 
         { 
             if (message is TMsg t) _action(t); 
             return UniTask.CompletedTask; 
@@ -31,12 +31,13 @@ namespace GoveKits.Network
         private readonly Dictionary<int, List<IMessageHandler>> _msgMap = new();
         private readonly Dictionary<object, List<(int, IMessageHandler)>> _targetMap = new();
 
-        public async UniTask DispatchAsync(Message msg)
+        public async UniTask DispatchAsync(IMessage msg)
         {
-            // 确保切回主线程
             await UniTask.SwitchToMainThread();
             
-            if (_msgMap.TryGetValue(msg.MsgID, out var list))
+            int msgId = MessageRegistry.GetId(msg.GetType());
+            
+            if (msgId != -1 && _msgMap.TryGetValue(msgId, out var list))
             {
                 for (int i = list.Count - 1; i >= 0; i--) 
                     await list[i].Handle(msg);
@@ -53,17 +54,20 @@ namespace GoveKits.Network
                 if (method.GetCustomAttribute<MessageHandlerAttribute>() == null) continue;
 
                 var param = method.GetParameters();
-                
-                // 签名检查：只接受 (MessageType)
-                if (param.Length != 1 || !typeof(Message).IsAssignableFrom(param[0].ParameterType)) 
+                // 校验：只接收 (IMessage)
+                if (param.Length != 1 || !typeof(IMessage).IsAssignableFrom(param[0].ParameterType)) 
                 {
-                    Debug.LogWarning($"[Dispatcher] Invalid Signature: {method.Name}. Expected (Message).");
+                    LogManager.LogWarning("Dispatcher", $"Method '{method.Name}' has invalid signature for MessageHandler.");
                     continue;
                 }
 
                 Type msgType = param[0].ParameterType;
-                int msgId = MessageBuilder.GetMsgID(msgType);
-                if (msgId == -1) continue;
+                int msgId = MessageRegistry.GetId(msgType); // 从 Registry 获取
+                if (msgId == -1) 
+                {
+                    LogManager.LogWarning("Dispatcher", $"Msg {msgType.Name} not registered!");
+                    continue;
+                }
 
                 Type actionType = typeof(Action<>).MakeGenericType(msgType);
                 Delegate d = Delegate.CreateDelegate(actionType, target, method);

@@ -1,5 +1,5 @@
-using GoveKits.Singleton; // 假设你有 MonoSingleton
-using UnityEngine;
+using GoveKits.Singleton; 
+
 
 namespace GoveKits.Network
 {
@@ -10,29 +10,22 @@ namespace GoveKits.Network
 
         protected void Awake()
         {
-            DontDestroyOnLoad(gameObject);
-
-            // 1. 注册协议
-            MessageBuilder.AutoRegisterAll();
-            
-            // 2. 初始化核心
+            // 1. 初始化核心
             Dispatcher = new MessageDispatcher();
             Client = new NetworkClient(Dispatcher);
             
-            // 3. 绑定自身消息处理
+            // 2. 绑定自身
             Dispatcher.Bind(this);
+            
+            // 3. 注册协议 (这部分通常由工具生成或手动写)
+            MessageRegistry.ScanAndRegister<BuiltinMsgId>();
         }
 
         public void Connect(string ip, int port) => Client.Connect(ip, port);
         public void Disconnect() => Client.Disconnect();
-        public void Send(Message msg) => Client.Send(msg);
+        public void Send(Google.Protobuf.IMessage msg) => Client.Send(msg);
 
-        // 生命周期管理
-        public override void OnDestroy()
-        {
-            base.OnDestroy();
-            Client?.Disconnect();
-        }
+        public override void OnDestroy() => Client?.Disconnect();
         private void OnApplicationQuit() => Client?.Disconnect();
     }
 }

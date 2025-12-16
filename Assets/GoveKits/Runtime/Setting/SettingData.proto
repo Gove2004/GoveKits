@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package Setting; 
+
+option csharp_namespace = "";
+
+message AudioSetting {
+    float master_volume = 1;
+    float bgm_volume = 2;
+    float sfx_volume = 3;
+    float ui_volume = 4;
+    float voice_volume = 5;
+}
+
+message LocalizationSetting {
+    int32 language_id = 1;
+}

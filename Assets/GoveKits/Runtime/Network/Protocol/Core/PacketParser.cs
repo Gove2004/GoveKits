@@ -1,47 +1,66 @@
 using System;
-using Cysharp.Threading.Tasks;
-using UnityEngine;
+using Google.Protobuf; // 必须引入
+
 
 namespace GoveKits.Network
 {
     public class PacketParser
     {
-        private const int HEADER_SIZE = 4;
+        private const int HEADER_SIZE = 4; // Length(4)
+        private const int MSG_ID_SIZE = 4; // MsgID(4)
+        
         private byte[] _buffer;
         private int _capacity;
         private int _writeIndex;
         private int _readIndex;
 
-        private readonly Action<Message> _onMessageDecoded;
+        // 回调传递的是 IMessage (Protobuf 基类)
+        private readonly Action<IMessage> _onMessageDecoded;
 
-        public PacketParser(Action<Message> onMessageDecoded, int initialCapacity = 64 * 1024)
+        public PacketParser(Action<IMessage> onMessageDecoded, int initialCapacity = 64 * 1024)
         {
             _onMessageDecoded = onMessageDecoded;
             _capacity = initialCapacity;
             _buffer = new byte[_capacity];
         }
 
-        // 打包：Length(4) + Body(MsgID + Content)
-        public static byte[] Pack(Message msg, out int length)
+        // 打包: [Length(4) + MsgID(4) + ProtobufData(N)]
+        public static byte[] Pack(IMessage msg, out int packetLength)
         {
-            int bodyLen = msg.Length();
-            length = HEADER_SIZE + bodyLen;
+            int msgId = MessageRegistry.GetId(msg.GetType());
+            if (msgId == -1) 
+            {
+                LogManager.LogError("Parser", $"Msg {msg.GetType().Name} not registered!");
+                packetLength = 0;
+                return null;
+            }
+
+            int bodySize = msg.CalculateSize();
+            packetLength = HEADER_SIZE + MSG_ID_SIZE + bodySize;
             
-            // 发送频率低时 new byte[] 可接受，若极高频可用 BufferPool 优化
-            byte[] packet = new byte[length];
+            // 使用 BufferPool 申请内存
+            byte[] packet = BufferPool.Rent(packetLength);
 
-            // 写入长度 (Little Endian)
-            packet[0] = (byte)(bodyLen & 0xFF);
-            packet[1] = (byte)((bodyLen >> 8) & 0xFF);
-            packet[2] = (byte)((bodyLen >> 16) & 0xFF);
-            packet[3] = (byte)((bodyLen >> 24) & 0xFF);
+            // 1. 写入长度 (BodyLength = MsgID + ProtoData)
+            int contentLen = MSG_ID_SIZE + bodySize;
+            packet[0] = (byte)(contentLen & 0xFF);
+            packet[1] = (byte)((contentLen >> 8) & 0xFF);
+            packet[2] = (byte)((contentLen >> 16) & 0xFF);
+            packet[3] = (byte)((contentLen >> 24) & 0xFF);
 
-            int index = 4;
-            msg.Writing(packet, ref index);
+            // 2. 写入 MsgID
+            packet[4] = (byte)(msgId & 0xFF);
+            packet[5] = (byte)((msgId >> 8) & 0xFF);
+            packet[6] = (byte)((msgId >> 16) & 0xFF);
+            packet[7] = (byte)((msgId >> 24) & 0xFF);
+
+            // 3. 写入 Protobuf 数据 (Zero Copy)
+            var span = new Span<byte>(packet, 8, bodySize);
+            msg.WriteTo(span);
+
             return packet;
         }
 
-        // 接收切片数据
         public void Input(ArraySegment<byte> data)
         {
             EnsureCapacity(data.Count);
@@ -54,30 +73,39 @@ namespace GoveKits.Network
         {
             while (_writeIndex - _readIndex >= HEADER_SIZE)
             {
-                int bodyLen = _buffer[_readIndex] | (_buffer[_readIndex + 1] << 8) |
-                              (_buffer[_readIndex + 2] << 16) | (_buffer[_readIndex + 3] << 24);
+                // 读长度
+                int contentLen = _buffer[_readIndex] | (_buffer[_readIndex + 1] << 8) |
+                                 (_buffer[_readIndex + 2] << 16) | (_buffer[_readIndex + 3] << 24);
 
-                if (bodyLen < 0 || bodyLen > 10 * 1024 * 1024) { Reset(); return; }
+                if (contentLen < 0 || contentLen > 10 * 1024 * 1024) { Reset(); return; }
 
-                int totalLen = HEADER_SIZE + bodyLen;
+                int totalLen = HEADER_SIZE + contentLen;
                 if (_writeIndex - _readIndex < totalLen) break;
 
-                // 解析 MsgID
+                // 读 MsgID
                 int msgIdOffset = _readIndex + HEADER_SIZE;
                 int msgId = _buffer[msgIdOffset] | (_buffer[msgIdOffset + 1] << 8) |
                             (_buffer[msgIdOffset + 2] << 16) | (_buffer[msgIdOffset + 3] << 24);
 
-                try
+                // 解析 Body
+                var parser = MessageRegistry.GetParser(msgId);
+                if (parser != null)
                 {
-                    Message msg = MessageBuilder.Create<Message>(msgId);
-                    if (msg != null)
+                    int bodyOffset = msgIdOffset + MSG_ID_SIZE;
+                    int bodyLen = contentLen - MSG_ID_SIZE;
+                    
+                    try
                     {
-                        int payloadStart = _readIndex + HEADER_SIZE;
-                        msg.Reading(_buffer, ref payloadStart, bodyLen);
+                        // ParseFrom 直接支持 byte[] + offset + len
+                        IMessage msg = parser.ParseFrom(_buffer, bodyOffset, bodyLen);
                         _onMessageDecoded(msg);
                     }
+                    catch (Exception e) { LogManager.LogError("Parser", $"Error: {e}"); }
                 }
-                catch (Exception e) { Debug.LogError($"[Parser] Error: {e}"); }
+                else
+                {
+                    LogManager.LogWarning("Parser", $"Unknown MsgID: {msgId}");
+                }
 
                 _readIndex += totalLen;
             }

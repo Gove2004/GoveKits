@@ -34,7 +34,7 @@ namespace GoveKits
 
         private static void Initialize()
         {
-            AudioManager.Initialize();
+            // AudioManager.Initialize();
             ConfigManager.Initialize();
             // LanguageManager.Initialize();
             TimerManager.Initialize();
