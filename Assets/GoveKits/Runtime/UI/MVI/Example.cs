@@ -339,7 +339,7 @@
 //         protected override void OnStateChanged(UserState state)
 //         {
 //             // 更新UI显示
-//             Debug.Log($"UserView: {state.UserName}, Level: {state.Level}, LoggedIn: {state.IsLoggedIn}");
+//             LogManager.Log($"UserView: {state.UserName}, Level: {state.Level}, LoggedIn: {state.IsLoggedIn}");
             
 //             // 这里可以更新Unity的UI组件
 //             // UpdateUIElements(state);
@@ -425,6 +425,6 @@
         
 //         // 获取用户模型数据
 //         var userModel = userSystem.GetModel<UserModel>();
-//         Debug.Log($"Current user: {userModel.CurrentState.UserName}");
+//         LogManager.Log($"Current user: {userModel.CurrentState.UserName}");
 //     }
 // }

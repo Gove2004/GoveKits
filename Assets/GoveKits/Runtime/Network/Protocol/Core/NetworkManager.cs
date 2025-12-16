@@ -1,8 +1,11 @@
+using Generated;
 using GoveKits.Singleton; 
-
+using UnityEngine;
 
 namespace GoveKits.Network
 {
+    // 确保最先初始化，防止 PingPong Start 时报错
+    [DefaultExecutionOrder(-1000)]
     public class NetworkManager : MonoSingleton<NetworkManager>
     {
         public MessageDispatcher Dispatcher { get; private set; }
@@ -10,22 +13,24 @@ namespace GoveKits.Network
 
         protected void Awake()
         {
-            // 1. 初始化核心
+            DontDestroyOnLoad(gameObject);
+
+            // 1. 优先注册协议
+            MessageRegistry.ScanAndRegister<BuiltinMsgId>();
+
+            // 2. 初始化核心
             Dispatcher = new MessageDispatcher();
             Client = new NetworkClient(Dispatcher);
             
-            // 2. 绑定自身
+            // 3. 绑定
             Dispatcher.Bind(this);
-            
-            // 3. 注册协议 (这部分通常由工具生成或手动写)
-            MessageRegistry.ScanAndRegister<BuiltinMsgId>();
         }
 
         public void Connect(string ip, int port) => Client.Connect(ip, port);
         public void Disconnect() => Client.Disconnect();
         public void Send(Google.Protobuf.IMessage msg) => Client.Send(msg);
 
-        public override void OnDestroy() => Client?.Disconnect();
+        protected override void OnDestroy() { base.OnDestroy(); Client?.Disconnect(); }
         private void OnApplicationQuit() => Client?.Disconnect();
     }
 }

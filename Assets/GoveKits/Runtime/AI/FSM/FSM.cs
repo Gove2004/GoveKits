@@ -329,7 +329,7 @@
 //             }
 //             catch (Exception ex)
 //             {
-//                 Debug.LogError($"[StateMachine] 状态执行错误: {ex}");
+//                 LogManager.LogError($"[StateMachine] 状态执行错误: {ex}");
 //                 OnStateError?.Invoke(CurrentStateId, ex);
 //             }
 //         }
@@ -593,7 +593,7 @@
 
 // //     private void OnStateChanged(StateChangeEventArgs<PlayerState> e)
 // //     {
-// //         Debug.Log($"状态切换: {e.FromState} -> {e.ToState}");
+// //         LogManager.Log($"状态切换: {e.FromState} -> {e.ToState}");
 // //     }
 // // }
 
@@ -619,7 +619,7 @@
 // //         // 状态逻辑
 // //         if (StateTime > 5f)
 // //         {
-// //             Debug.Log("站得太久了...");
+// //             LogManager.Log("站得太久了...");
 // //         }
 // //     }
 // // }

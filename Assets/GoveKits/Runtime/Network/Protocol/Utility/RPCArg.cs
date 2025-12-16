@@ -54,7 +54,7 @@
 //             }
 //             // ... 可自行扩展 Long, Double 等
 //             else {
-//                 Debug.LogError($"[RPC] Unsupported type: {data.GetType()}");
+//                 LogManager.LogError($"[RPC] Unsupported type: {data.GetType()}");
 //             }
 //         }
 

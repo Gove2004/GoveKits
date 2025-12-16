@@ -95,7 +95,7 @@ public class ExampleBehaviour : MonoBehaviour
     {
         // 创建延迟3秒执行的定时器
         TimerManager.Instance.DelayedCall(3f, () => {
-            Debug.Log("3秒后执行!");
+            LogManager.Log("3秒后执行!");
         });
     }
 }

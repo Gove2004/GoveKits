@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
+using ExcelDataReader.Log;
 
-namespace GoveKits.Time
+
+namespace GoveKits.Times
 {
     public class TimeWheel
     {
@@ -140,7 +141,7 @@ namespace GoveKits.Time
                         {
                             timer.Callback?.Invoke();
                         }
-                        catch (Exception e) { Debug.LogError(e); }
+                        catch (Exception e) { LogManager.LogError("TimeWheel", $"Timer Callback Error: {e}"); }
 
                         // 处理循环
                         if (timer.LoopCount != 0 && !timer.IsCancelled)

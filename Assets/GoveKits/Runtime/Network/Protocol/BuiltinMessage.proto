@@ -2,27 +2,20 @@ syntax = "proto3";
 
 package BuildinMessage;
 
-option csharp_namespace = "";
+option csharp_namespace = "Generated";
 
 // 【核心约定】
 // 1. 枚举名随意(比如 PacketId)
-// 2. 枚举成员的名字，必须和下面的 message 名字一模一样
+// 2. 枚举成员的名字，必须和下面的 message 名字一模一样, 加后缀 "_ID"
 enum BuiltinMsgId {
   UNKNOWN = 0;
-  
-  // 名字 "LoginReq" 对应下面的 message LoginReq
-  LoginReq = 1001; 
-  
-  // 名字 "LoginResp" 对应下面的 message LoginResp
-  LoginResp = 1002;
+  PingPongHeartbeatMsg_Id = 1;
 }
 
 
-message PingMsg {
-    int64 client_time = 1;
+message PingPongHeartbeatMsg {
+  float time = 1;
 }
 
 
-message PongMsg {
-    int64 server_time = 1;
-}
+

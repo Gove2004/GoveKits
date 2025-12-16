@@ -1,6 +1,6 @@
 using System;
 using UnityEngine;
-using GoveKits.Time;
+using GoveKits.Times;
 
 namespace GoveKits.Unit
 {

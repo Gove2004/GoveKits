@@ -48,13 +48,13 @@ namespace GoveKits.Network
                     }
                     else
                     {
-                        Debug.LogError($"Download Failed: {uwr.error}");
+                        LogManager.LogError("NetFile", $"Download Failed: {uwr.error}");
                         return false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"Download Error: {ex.Message}");
+                    LogManager.LogError("NetFile", $"Download Error: {ex.Message}");
                     return false;
                 }
             }

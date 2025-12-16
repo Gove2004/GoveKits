@@ -66,11 +66,6 @@ namespace GoveKits
             else Debug.LogError($"[{tag}] {message}");
         }
 
-        internal static void LogWarning(string v)
-        {
-            throw new System.NotImplementedException();
-        }
-
         #endregion
     }
 }

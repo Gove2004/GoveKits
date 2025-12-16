@@ -3,22 +3,19 @@ using System.Collections.Generic;
 using System.Reflection;
 using Cysharp.Threading.Tasks;
 using Google.Protobuf;
+using UnityEngine;
 
 namespace GoveKits.Network
 {
     [AttributeUsage(AttributeTargets.Method)]
     public class MessageHandlerAttribute : Attribute { }
 
-    public interface IMessageHandler 
-    { 
-        UniTask Handle(IMessage message); 
-    }
+    public interface IMessageHandler { UniTask Handle(IMessage message); }
 
     public class MessageHandler<TMsg> : IMessageHandler where TMsg : IMessage<TMsg>
     {
         private readonly Action<TMsg> _action;
         public MessageHandler(Action<TMsg> action) => _action = action;
-        
         public UniTask Handle(IMessage message) 
         { 
             if (message is TMsg t) _action(t); 
@@ -36,7 +33,6 @@ namespace GoveKits.Network
             await UniTask.SwitchToMainThread();
             
             int msgId = MessageRegistry.GetId(msg.GetType());
-            
             if (msgId != -1 && _msgMap.TryGetValue(msgId, out var list))
             {
                 for (int i = list.Count - 1; i >= 0; i--) 
@@ -54,15 +50,14 @@ namespace GoveKits.Network
                 if (method.GetCustomAttribute<MessageHandlerAttribute>() == null) continue;
 
                 var param = method.GetParameters();
-                // 校验：只接收 (IMessage)
                 if (param.Length != 1 || !typeof(IMessage).IsAssignableFrom(param[0].ParameterType)) 
                 {
-                    LogManager.LogWarning("Dispatcher", $"Method '{method.Name}' has invalid signature for MessageHandler.");
+                    LogManager.LogWarning("Dispatcher", $"Invalid Signature: {method.Name}");
                     continue;
                 }
 
                 Type msgType = param[0].ParameterType;
-                int msgId = MessageRegistry.GetId(msgType); // 从 Registry 获取
+                int msgId = MessageRegistry.GetId(msgType);
                 if (msgId == -1) 
                 {
                     LogManager.LogWarning("Dispatcher", $"Msg {msgType.Name} not registered!");

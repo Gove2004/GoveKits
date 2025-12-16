@@ -388,7 +388,7 @@ Mark 是单位身上的“贴纸”。它可以是一个 Buff（燃烧），一�
 *   **实现**：通过 `DelegateReaction<T>` 适配器类实现。
 *   **示例**：
     ```csharp
-    Reactions.Add("Log", new DelegateReaction<CombatEvent>("Log", this, e => Debug.Log(e)));
+    Reactions.Add("Log", new DelegateReaction<CombatEvent>("Log", this, e => LogManager.Log(e)));
     ```
 
 ### 13. 生命周期与过滤机制
@@ -436,7 +436,7 @@ Reaction 的生命周期严格绑定于 Unit。
 *   **实现**：通过 `DelegateReaction<T>` 适配器类实现。
 *   **示例**：
     ```csharp
-    Reactions.Add("Log", new DelegateReaction<CombatEvent>("Log", this, e => Debug.Log(e)));
+    Reactions.Add("Log", new DelegateReaction<CombatEvent>("Log", this, e => LogManager.Log(e)));
     ```
 
 ### 13. 生命周期与过滤机制

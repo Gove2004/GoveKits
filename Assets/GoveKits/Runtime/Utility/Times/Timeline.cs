@@ -137,7 +137,7 @@
 //                     }
 //                     catch (Exception ex)
 //                     {
-//                         UnityEngine.Debug.LogException(ex);
+//                         UnityEngine.LogManager.LogException(ex);
 //                     }
 
 //                     // 如果需要重复，则重新调度
@@ -187,8 +187,8 @@
 
 //         /* 示例用法（注释）：
 //          * var timeline = new Timeline(0.1f, 128);
-//          * timeline.Schedule(() => Debug.Log("hello after 1s"), 1f);
-//          * timeline.Schedule(() => Debug.Log("repeat every 2s"), 2f, 2f);
+//          * timeline.Schedule(() => LogManager.Log("hello after 1s"), 1f);
+//          * timeline.Schedule(() => LogManager.Log("repeat every 2s"), 2f, 2f);
 //          * 在 Update 中调用 timeline.Update(Time.deltaTime);
 //          */
 //     }

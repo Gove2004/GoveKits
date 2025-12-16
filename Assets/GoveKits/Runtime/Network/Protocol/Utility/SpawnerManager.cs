@@ -49,7 +49,7 @@
 //             }
 //             else
 //             {
-//                 Debug.LogWarning($"[Spawner] NetID {identity.NetID} already registered!");
+//                 LogManager.LogWarning($"[Spawner] NetID {identity.NetID} already registered!");
 //             }
 //         }
 
@@ -96,7 +96,7 @@
 //             if (newPlayerID == NetworkManager.Instance.MyPlayerID) return;
 //             if (_activeObjects.Count == 0) return;
 
-//             Debug.Log($"[Spawner] Syncing {_activeObjects.Count} objects to Player {newPlayerID}...");
+//             LogManager.Log($"[Spawner] Syncing {_activeObjects.Count} objects to Player {newPlayerID}...");
 
 //             foreach (var kvp in _activeObjects.ToList()) 
 //             {

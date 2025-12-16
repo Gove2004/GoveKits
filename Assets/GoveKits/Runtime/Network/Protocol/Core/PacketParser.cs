@@ -1,6 +1,6 @@
 using System;
-using Google.Protobuf; // 必须引入
-
+using Google.Protobuf;
+using UnityEngine;
 
 namespace GoveKits.Network
 {
@@ -14,7 +14,6 @@ namespace GoveKits.Network
         private int _writeIndex;
         private int _readIndex;
 
-        // 回调传递的是 IMessage (Protobuf 基类)
         private readonly Action<IMessage> _onMessageDecoded;
 
         public PacketParser(Action<IMessage> onMessageDecoded, int initialCapacity = 64 * 1024)
@@ -38,10 +37,9 @@ namespace GoveKits.Network
             int bodySize = msg.CalculateSize();
             packetLength = HEADER_SIZE + MSG_ID_SIZE + bodySize;
             
-            // 使用 BufferPool 申请内存
             byte[] packet = BufferPool.Rent(packetLength);
 
-            // 1. 写入长度 (BodyLength = MsgID + ProtoData)
+            // 1. 写入长度
             int contentLen = MSG_ID_SIZE + bodySize;
             packet[0] = (byte)(contentLen & 0xFF);
             packet[1] = (byte)((contentLen >> 8) & 0xFF);
@@ -54,7 +52,7 @@ namespace GoveKits.Network
             packet[6] = (byte)((msgId >> 16) & 0xFF);
             packet[7] = (byte)((msgId >> 24) & 0xFF);
 
-            // 3. 写入 Protobuf 数据 (Zero Copy)
+            // 3. 写入 Protobuf Body
             var span = new Span<byte>(packet, 8, bodySize);
             msg.WriteTo(span);
 
@@ -73,7 +71,6 @@ namespace GoveKits.Network
         {
             while (_writeIndex - _readIndex >= HEADER_SIZE)
             {
-                // 读长度
                 int contentLen = _buffer[_readIndex] | (_buffer[_readIndex + 1] << 8) |
                                  (_buffer[_readIndex + 2] << 16) | (_buffer[_readIndex + 3] << 24);
 
@@ -82,21 +79,17 @@ namespace GoveKits.Network
                 int totalLen = HEADER_SIZE + contentLen;
                 if (_writeIndex - _readIndex < totalLen) break;
 
-                // 读 MsgID
                 int msgIdOffset = _readIndex + HEADER_SIZE;
                 int msgId = _buffer[msgIdOffset] | (_buffer[msgIdOffset + 1] << 8) |
                             (_buffer[msgIdOffset + 2] << 16) | (_buffer[msgIdOffset + 3] << 24);
 
-                // 解析 Body
                 var parser = MessageRegistry.GetParser(msgId);
                 if (parser != null)
                 {
                     int bodyOffset = msgIdOffset + MSG_ID_SIZE;
                     int bodyLen = contentLen - MSG_ID_SIZE;
-                    
                     try
                     {
-                        // ParseFrom 直接支持 byte[] + offset + len
                         IMessage msg = parser.ParseFrom(_buffer, bodyOffset, bodyLen);
                         _onMessageDecoded(msg);
                     }

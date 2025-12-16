@@ -184,8 +184,8 @@ namespace GoveKits.Editor
             if (exitCodeStr == "0" && string.IsNullOrEmpty(error))
             {
                 // 成功
-                Debug.Log($"<color=green>[Protobuf] 生成成功!</color>\n输出路径: {_outputDir}");
-                if(!string.IsNullOrEmpty(output)) Debug.Log($"Protoc Output: {output}");
+                LogManager.Log("Protoc", $"<color=green>[Protobuf] 生成成功!</color>\n输出路径: {_outputDir}");
+                if(!string.IsNullOrEmpty(output)) LogManager.Log("Protoc", $"Protoc Output: {output}");
                 
                 // 刷新 Assets 目录，让 Unity 编译新生成的脚本
                 AssetDatabase.Refresh();
@@ -194,7 +194,7 @@ namespace GoveKits.Editor
             {
                 // 失败
                 string errorMsg = $"[Protobuf] 生成失败 (ExitCode: {exitCodeStr})\n错误信息:\n{error}";
-                Debug.LogError(errorMsg);
+                LogManager.LogError("Protoc", errorMsg);
                 EditorUtility.DisplayDialog("生成失败", errorMsg, "确定");
             }
         }

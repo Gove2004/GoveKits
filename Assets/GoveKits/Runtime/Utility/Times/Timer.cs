@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using GoveKits.Pools;
 
-namespace GoveKits.Time
+namespace GoveKits.Times
 {
     public class Timer : IPoolable
     {

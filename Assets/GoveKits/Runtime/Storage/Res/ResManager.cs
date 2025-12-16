@@ -101,14 +101,14 @@ namespace GoveKits.Res
             if (_assetCache.TryGetValue(path, out AssetInfo info))
             {
                 info.RefCount--;
-                // Debug.Log($"[Res] Release: {path}, Ref: {info.RefCount}");
+                // LogManager.Log($"[Res] Release: {path}, Ref: {info.RefCount}");
 
                 if (info.RefCount <= 0)
                 {
                     // 引用归零，卸载
                     GetLoader(info.LoadType).Unload(info.Asset);
                     _assetCache.Remove(path);
-                    // Debug.Log($"[Res] Unloaded: {path}");
+                    // LogManager.Log($"[Res] Unloaded: {path}");
                 }
             }
         }

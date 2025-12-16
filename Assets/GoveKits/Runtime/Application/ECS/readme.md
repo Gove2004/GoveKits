@@ -29,7 +29,7 @@ public class MovementSystem : GoveKits.ECS.System
             pos.Value += vel.Value * dt;
             
             // 在 Unity 中可以通过这种方式简单的Debug
-            // Debug.Log($"Entity {entity.ID} moved to {pos.Value}");
+            // LogManager.Log($"Entity {entity.ID} moved to {pos.Value}");
         }
     }
 }

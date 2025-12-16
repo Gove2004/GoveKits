@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace GoveKits.Network
 {
-    // 简易内存池工具
     public static class BufferPool
     {
         public static byte[] Rent(int size) => ArrayPool<byte>.Shared.Rent(size);
@@ -16,15 +15,15 @@ namespace GoveKits.Network
     public interface ITransport : IDisposable
     {
         bool IsConnected { get; }
-        void Connect(string ip, int port);
+        // 改为异步 Task，支持 await
+        UniTask ConnectAsync(string ip, int port);
         void Send(byte[] data, int length);
         Action<ArraySegment<byte>> OnReceive { get; set; } 
         Action OnDisconnected { get; set; }
         void Close();
     }
 
-
-
+    
     public class TcpTransport : ITransport
     {
         public bool IsConnected => _socket != null && _socket.Connected;
@@ -35,39 +34,41 @@ namespace GoveKits.Network
         private byte[] _recvBuffer;
         private const int BUFFER_SIZE = 64 * 1024;
         private System.Threading.CancellationTokenSource _cts;
+        private readonly object _lockObj = new object(); // 线程锁
 
         public TcpTransport() { }
 
-        public void Connect(string ip, int port)
+        public async UniTask ConnectAsync(string ip, int port)
         {
             Close(); 
-            _cts = new System.Threading.CancellationTokenSource();
-            _recvBuffer = BufferPool.Rent(BUFFER_SIZE); 
 
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            lock (_lockObj)
             {
-                NoDelay = true,
-                ReceiveBufferSize = BUFFER_SIZE,
-                SendBufferSize = BUFFER_SIZE
-            };
+                _cts = new System.Threading.CancellationTokenSource();
+                _recvBuffer = BufferPool.Rent(BUFFER_SIZE);
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+                {
+                    NoDelay = true,
+                    ReceiveBufferSize = BUFFER_SIZE,
+                    SendBufferSize = BUFFER_SIZE
+                };
+            }
 
-            ConnectAsync(ip, port).Forget();
-        }
-
-        private async UniTaskVoid ConnectAsync(string ip, int port)
-        {
             try
             {
+                // 原生异步连接 (5秒超时)
                 await _socket.ConnectAsync(ip, port)
                              .AsUniTask()
-                             .AttachExternalCancellation(_cts.Token)
                              .Timeout(TimeSpan.FromSeconds(5));
+
+                // 连接成功，启动接收循环
                 ReceiveLoop().Forget();
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[Transport] Connect Failed: {ex.Message}");
+                LogManager.LogError("Transport", $"Connect Failed: {ex.Message}");
                 Close();
+                throw; // 抛出异常给上层处理
             }
         }
 
@@ -85,6 +86,7 @@ namespace GoveKits.Network
                     if (len == 0) { Close(); break; }
                     OnReceive?.Invoke(new ArraySegment<byte>(_recvBuffer, 0, len));
                 }
+                catch (OperationCanceledException) { break; }
                 catch { Close(); break; }
             }
         }
@@ -102,19 +104,26 @@ namespace GoveKits.Network
 
         public void Close()
         {
-            if (_cts != null) { _cts.Cancel(); _cts.Dispose(); _cts = null; }
-            
-            if (_socket != null)
+            lock (_lockObj)
             {
-                try { if (_socket.Connected) _socket.Shutdown(SocketShutdown.Both); _socket.Close(); } catch { }
-                _socket = null;
-                OnDisconnected?.Invoke();
-            }
+                if (_cts != null) { try { _cts.Cancel(); _cts.Dispose(); } catch {} _cts = null; }
+                
+                if (_socket != null)
+                {
+                    try { if (_socket.Connected) _socket.Shutdown(SocketShutdown.Both); } catch {}
+                    try { _socket.Close(); } catch {}
+                    _socket = null;
+                    
+                    // 安全触发回调
+                    try { OnDisconnected?.Invoke(); } 
+                    catch (Exception e) { LogManager.LogError("Transport", e.ToString()); }
+                }
 
-            if (_recvBuffer != null)
-            {
-                BufferPool.Return(_recvBuffer);
-                _recvBuffer = null;
+                if (_recvBuffer != null)
+                {
+                    BufferPool.Return(_recvBuffer);
+                    _recvBuffer = null;
+                }
             }
         }
 

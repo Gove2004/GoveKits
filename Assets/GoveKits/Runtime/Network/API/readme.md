@@ -17,7 +17,7 @@ public async void Test()
     if (res.Success) {
         // 反序列化结果
         var serverResp = res.As<UserInfo>();
-        Debug.Log("Updated: " + serverResp.name);
+        LogManager.Log("Updated: " + serverResp.name);
     }
 
     // --- GET: 带参数 ---

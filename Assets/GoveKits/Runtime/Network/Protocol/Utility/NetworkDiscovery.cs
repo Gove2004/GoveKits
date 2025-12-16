@@ -52,7 +52,7 @@
 //                 // 这样本机 Loopback 也能收到
 //                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-//                 Debug.Log($"[Discovery Host] Broadcasting to {targetIp}:{DiscoveryPort}...");
+//                 LogManager.Log($"[Discovery Host] Broadcasting to {targetIp}:{DiscoveryPort}...");
 
 //                 // 3. 序列化
 //                 var msg = new DiscoveryMessage(roomInfo);
@@ -67,7 +67,7 @@
 //             }
 //             catch (Exception e)
 //             {
-//                 Debug.LogError($"[Discovery] Host Error: {e}");
+//                 LogManager.LogError($"[Discovery] Host Error: {e}");
 //                 StopDiscovery();
 //             }
 //         }
@@ -81,7 +81,7 @@
 //                     // UDP 发送
 //                     await _udpClient.SendAsync(data, data.Length, target);
 //                 }
-//                 catch (Exception ex) { Debug.LogWarning($"[Discovery] Send warning: {ex.Message}"); }
+//                 catch (Exception ex) { LogManager.LogWarning($"[Discovery] Send warning: {ex.Message}"); }
                 
 //                 await UniTask.Delay(TimeSpan.FromSeconds(BroadcastInterval));
 //             }
@@ -106,13 +106,13 @@
 //                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, DiscoveryPort));
                 
 //                 _isRunning = true;
-//                 Debug.Log($"[Discovery Client] Listening on port {DiscoveryPort}...");
+//                 LogManager.Log($"[Discovery Client] Listening on port {DiscoveryPort}...");
                 
 //                 ListenLoop().Forget();
 //             }
 //             catch (Exception e)
 //             {
-//                 Debug.LogError($"[Discovery] Client Error: {e}");
+//                 LogManager.LogError($"[Discovery] Client Error: {e}");
 //             }
 //         }
 
@@ -145,7 +145,7 @@
 //                     }
 //                 }
 //                 catch (ObjectDisposedException) { break; }
-//                 catch (Exception ex) { Debug.LogWarning($"[Discovery] Recv error: {ex.Message}"); }
+//                 catch (Exception ex) { LogManager.LogWarning($"[Discovery] Recv error: {ex.Message}"); }
 //             }
 //         }
 

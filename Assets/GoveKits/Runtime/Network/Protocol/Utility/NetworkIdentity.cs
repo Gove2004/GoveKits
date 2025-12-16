@@ -55,7 +55,7 @@
 //                     return; 
 //                 }
 //             }
-//             Debug.LogWarning($"[RPC] Method '{methodName}' not found on NetID {NetID}");
+//             LogManager.LogWarning($"[RPC] Method '{methodName}' not found on NetID {NetID}");
 //         }
 //     }
 // }

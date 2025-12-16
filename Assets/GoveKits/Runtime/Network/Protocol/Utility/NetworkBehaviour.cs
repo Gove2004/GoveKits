@@ -81,7 +81,7 @@
 //                 }
 //                 catch (System.Exception ex)
 //                 {
-//                     Debug.LogError($"[RPC Fail] {methodName}: {ex.InnerException?.Message ?? ex.Message}");
+//                     LogManager.LogError($"[RPC Fail] {methodName}: {ex.InnerException?.Message ?? ex.Message}");
 //                 }
 //             }
 //             return false;

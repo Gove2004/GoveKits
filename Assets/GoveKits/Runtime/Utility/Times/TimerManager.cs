@@ -1,7 +1,7 @@
 using GoveKits.Pools;
-using UnityEngine;
 
-namespace GoveKits.Time
+
+namespace GoveKits.Times
 {
     public static class TimerManager
     {

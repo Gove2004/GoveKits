@@ -54,6 +54,6 @@ namespace GoveKits.Singleton
         /// <summary>
         /// 应用退出时调用
         /// </summary>
-        public virtual void OnDestroy() => _applicationIsQuitting = true;
+        protected virtual void OnDestroy() => _applicationIsQuitting = true;
     }
 }

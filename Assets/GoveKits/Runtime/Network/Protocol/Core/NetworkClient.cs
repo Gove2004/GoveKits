@@ -1,7 +1,7 @@
 using System;
 using Cysharp.Threading.Tasks;
 using Google.Protobuf;
-
+using UnityEngine;
 
 namespace GoveKits.Network
 {
@@ -23,8 +23,8 @@ namespace GoveKits.Network
         {
             _dispatcher = dispatcher;
             _parser = new PacketParser(OnMessageDecoded);
-            
             _transport = new TcpTransport();
+            
             _transport.OnReceive = _parser.Input;
             _transport.OnDisconnected = HandleDisconnect;
         }
@@ -35,44 +35,47 @@ namespace GoveKits.Network
             LogManager.Log("Client", $"Connecting to {ip}:{port}...");
             State = ClientState.Connecting;
 
-            _transport.Connect(ip, port);
-            // 简单的状态检查 (实际项目可加 Timer)
-            CheckStatus().Forget();
+            ConnectAsync(ip, port).Forget();
         }
 
-        private async UniTaskVoid CheckStatus()
+        private async UniTaskVoid ConnectAsync(string ip, int port)
         {
-            await UniTask.Delay(5000);
-            if (!IsConnected && State == ClientState.Connecting) 
+            try
             {
-                LogManager.LogWarning("Client", "Connection timed out.");
-                Disconnect();
+                // 等待底层 Transport 连接成功 (或抛出异常)
+                await _transport.ConnectAsync(ip, port);
+                
+                // 成功
+                State = ClientState.Connected;
+                LogManager.Log("Client", "Connected!");
+                OnConnected?.Invoke();
+            }
+            catch (Exception)
+            {
+                LogManager.LogError("Client", "Connection Failed/Timeout");
+                // 确保重置状态
+                HandleDisconnect();
             }
         }
 
         public void Send(IMessage msg)
         {
             if (!IsConnected) return;
-            
-            // 使用 BufferPool 的 byte[]
             byte[] data = PacketParser.Pack(msg, out int len);
             if (data != null)
             {
                 _transport.Send(data, len);
-                
-                // 记得归还给 Pool
-                BufferPool.Return(data); 
+                BufferPool.Return(data);
             }
         }
 
-        public void Disconnect()
-        {
-            _transport.Close();
-        }
+        public void Disconnect() => _transport.Close();
 
         private void HandleDisconnect()
         {
+            if (State == ClientState.Disconnected) return;
             State = ClientState.Disconnected;
+            LogManager.Log("Client", "Disconnected");
             OnDisconnected?.Invoke();
         }
 

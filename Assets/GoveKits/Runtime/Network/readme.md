@@ -58,17 +58,17 @@ public class HttpExample : MonoBehaviour
         };
 
         // 2. 发起请求
-        Debug.Log("Requesting...");
+        LogManager.Log("Requesting...");
         ResponseData response = await NetAPI.Request(request, this.GetCancellationTokenOnDestroy());
 
         // 3. 处理结果
         if (response.success)
         {
-            Debug.Log($"Success: {response.text}");
+            LogManager.Log($"Success: {response.text}");
         }
         else
         {
-            Debug.LogError($"Failed: {response.error} (Code: {response.statusCode})");
+            LogManager.LogError($"Failed: {response.error} (Code: {response.statusCode})");
         }
     }
 }
@@ -160,7 +160,7 @@ public class ChatSystem : MonoBehaviour
     [MessageHandler(MSG_CHAT)]
     private void OnReceiveChat(ChatMessage msg)
     {
-        Debug.Log($"收到玩家 {msg.Header.SenderID} 的消息: {msg.Content}");
+        LogManager.Log($"收到玩家 {msg.Header.SenderID} 的消息: {msg.Content}");
     }
 }
 ```

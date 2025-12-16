@@ -4,7 +4,7 @@ using GoveKits.Config;
 using GoveKits.Localization;
 using GoveKits.Network;
 using GoveKits.Singleton;
-using GoveKits.Time;
+using GoveKits.Times;
 
 
 namespace GoveKits
