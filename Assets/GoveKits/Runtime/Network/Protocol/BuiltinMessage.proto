@@ -10,12 +10,61 @@ option csharp_namespace = "Generated";
 enum BuiltinMsgId {
   UNKNOWN = 0;
   PingPongHeartbeatMsg_Id = 1;
+  DiscoveryMsg_Id = 2;
+  RpcRequest_Id = 3;
+  RpcResponse_Id = 4;
+
+
+  LoginReq_Id = 101;
+  LoginResp_Id = 102;
 }
 
 
+// 1. 心跳消息
 message PingPongHeartbeatMsg {
-  float time = 1;
+  float time = 1; // 发送心跳的时间戳
+}
+
+// 2. 局域网发现消息
+message DiscoveryMsg {
+  int32 port = 1; // 主机游戏的 TCP 端口
+  string room_name = 2; // 房间名
+  string host_guid = 3; // 主机唯一标识 (用于过滤自己)
+  int32 current_players = 4; // 当前玩家数
+  int32 max_players = 5; // 最大玩家数
+  string more_info = 6; // 额外信息 (备用)
+}
+
+// 3. RPC 请求信封
+message RpcRequest {
+  int32 rpc_id = 1; // 唯一序列号 (用于匹配回包)
+  int32 target_msg_id = 2; // 内部业务消息的 ID (例如 LoginReq 的 ID)
+  bytes payload = 3; // 内部业务消息的序列化数据
+}
+
+// 4. RPC 响应信封
+message RpcResponse {
+  int32 rpc_id = 1; // 必须与请求的 ID 一致
+  int32 target_msg_id = 2; // 内部回包的 ID (例如 LoginResp 的 ID)
+  bytes payload = 3; // 内部回包数据
+  int32 error_code = 4; // 0=成功，非0=系统级错误
 }
 
 
 
+
+
+
+
+
+// 101. 示例业务消息：登录请求
+message LoginReq {
+  string username = 1;
+  string password = 2;
+}
+
+// 102. 示例业务消息：登录响应
+message LoginResp {
+  bool success = 1;
+  string message = 2;
+}

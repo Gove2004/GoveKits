@@ -5,6 +5,7 @@ using UnityEngine;
 namespace GoveKits.Network
 {
     // 确保最先初始化，防止 PingPong Start 时报错
+    [RequireComponent(typeof(NetworkManager))]
     [DefaultExecutionOrder(-1000)]
     public class NetworkManager : MonoSingleton<NetworkManager>
     {
