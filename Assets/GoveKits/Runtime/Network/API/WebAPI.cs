@@ -6,12 +6,20 @@ using UnityEngine.Networking;
 
 namespace GoveKits.Network
 {
+    /// <summary>
+    /// 轻量 HTTP 管理器：提供并发限制、可选 GET 缓存与重试策略。
+    /// 使用 <see cref="RequestData"/> 构建请求并通过 <see cref="Send(RequestData, System.Threading.CancellationToken)"/> 发送。
+    /// </summary>
     public static class WebAPI
     {
         // --- 静态常量配置 ---
+        /// <summary>默认基础地址（相对 URL 将与其拼接）。</summary>
         public const string CONST_BASE_URL = "https://api.example.com";  // 默认基地址
+        /// <summary>默认超时时间（秒）。</summary>
         public const float CONST_TIMEOUT = 15f;                          // 默认超时 (秒)
+        /// <summary>默认最大重试次数（网络错误或 5xx）。</summary>
         public const int CONST_RETRY = 3;                                // 默认重试次数
+        /// <summary>最大并发请求数。</summary>
         public const int CONST_MAX_CONCURRENT = 5;                       // 最大并发请求数
 
         // --- 并发与缓存 ---
@@ -20,8 +28,13 @@ namespace GoveKits.Network
             = new ConcurrentDictionary<string, (string, long)>();
 
         /// <summary>
-        /// 发送请求 (通用入口)
+        /// 发送请求（通用入口）。
+        /// - 若 <see cref="RequestData.Url"/> 为相对路径，将自动与 <see cref="CONST_BASE_URL"/> 合并。
+        /// - GET 且启用缓存时，优先命中缓存；命中缓存则直接返回。
         /// </summary>
+        /// <param name="req">请求配置。</param>
+        /// <param name="ct">取消令牌。</param>
+        /// <returns>响应数据。</returns>
         public static async UniTask<ResponseData> Send(RequestData req, CancellationToken ct = default)
         {
             // 1. URL 自动补全
@@ -128,6 +141,9 @@ namespace GoveKits.Network
             return uwr;
         }
         
+        /// <summary>
+        /// 清空所有 GET 响应缓存。
+        /// </summary>
         public static void ClearCache() => _cache.Clear();
     }
 }

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Reflection;
 using Newtonsoft.Json;
 using UnityEngine;
-using GoveKits.Res; // 引用资源管理器
+using GoveKits.Res;
 
 namespace GoveKits.Config
 {
     /// <summary>
-    /// 静态配置管理器
-    /// <para>自动扫描所有 IConfigData 并通过 ResManager 加载对应 JSON</para>
+    /// 静态配置管理器：自动扫描并加载所有实现 IConfigData 的配置类。
+    /// <para>通过反射发现配置类，按约定从 JSON 文件加载数据（ResManager 支持多种资源加载模式）。</para>
+    /// <para>支持 ID 式查询与批量加载，适用于游戏配置、表格数据等静态内容。</para>
     /// </summary>
     public static class ConfigManager
     {

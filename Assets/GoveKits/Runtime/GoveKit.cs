@@ -9,8 +9,14 @@ using GoveKits.Times;
 
 namespace GoveKits
 {
+    /// <summary>
+    /// 框架入口单例：负责全局模块初始化与帧更新驱动（如计时器）。
+    /// </summary>
     public class GoveKit : MonoSingleton<GoveKit>
     {
+        /// <summary>
+        /// Unity 生命周期：初始化框架并确保单例就绪。
+        /// </summary>
         public void Awake()
         {
             // 确保单例实例化
@@ -22,6 +28,9 @@ namespace GoveKits
         }
 
 
+        /// <summary>
+        /// Unity 生命周期：逐帧更新（驱动 TimerManager 等）。
+        /// </summary>
         public void Update()
         {
             TimerManager.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
@@ -32,6 +41,9 @@ namespace GoveKits
 
 
 
+        /// <summary>
+        /// 初始化各核心子系统（按需启用）。
+        /// </summary>
         private static void Initialize()
         {
             // AudioManager.Initialize();

@@ -2,12 +2,16 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Cysharp.Threading.Tasks;
-using GoveKits; // 引入 UniTask
+using GoveKits;
 using Object = UnityEngine.Object;
 
 namespace GoveKits.Res
 {
-
+    /// <summary>
+    /// 资源管理器：统一管理多种资源加载模式（Resources、Addressables、AssetBundle）。
+    /// <para>提供同步/异步加载 API、缓存机制、加载器策略切换。</para>
+    /// <para>支持异步预加载、资源卸载、缓存清理等高级功能。</para>
+    /// </summary>
     public static class ResManager
     {
         // 配置：默认加载模式 (用于 Load<T> 通用接口)

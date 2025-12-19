@@ -6,6 +6,9 @@ using UnityEngine;
 
 namespace GoveKits.Editor
 {
+    /// <summary>
+    /// Excel 转配置工具：将 Excel 生成 DTO 代码与 JSON 数据，支持分步或一键生成。
+    /// </summary>
     public class ExcelConfigEditor : EditorWindow
     {
         // 配置键名
@@ -19,6 +22,9 @@ namespace GoveKits.Editor
         private string _jsonOutputFolder;
         private string _namespaceName;
 
+        /// <summary>
+        /// 打开 Excel2Json 面板。
+        /// </summary>
         [MenuItem("GoveKits/Excel2Json")]
         public static void ShowWindow()
         {
@@ -27,6 +33,7 @@ namespace GoveKits.Editor
             win.LoadPrefs();
         }
 
+        /// <summary>启用时载入上次偏好设置。</summary>
         private void OnEnable() => LoadPrefs();
 
         private void OnGUI()
@@ -72,6 +79,12 @@ namespace GoveKits.Editor
             GUI.backgroundColor = Color.white;
         }
 
+        /// <summary>
+        /// 绘制路径设置字段和选择按钮。
+        /// </summary>
+        /// <param name="label">显示名称。</param>
+        /// <param name="path">绑定的路径变量。</param>
+        /// <param name="key">EditorPrefs 的键名。</param>
         private void DrawPathSetting(string label, ref string path, string key)
         {
             GUILayout.BeginHorizontal();
@@ -94,6 +107,7 @@ namespace GoveKits.Editor
             if (GUI.changed) EditorPrefs.SetString(key, path);
         }
 
+        /// <summary>从 EditorPrefs 载入路径与命名空间设置。</summary>
         private void LoadPrefs()
         {
             _excelFolderPath = EditorPrefs.GetString(KEY_EXCEL_PATH, "Assets/Config/Excel");
@@ -102,6 +116,7 @@ namespace GoveKits.Editor
             _namespaceName = EditorPrefs.GetString(KEY_NAMESPACE, "GoveKits.Config");
         }
 
+        /// <summary>清空生成目录下的旧代码与旧 JSON 文件。</summary>
         private void ClearFolders()
         {
             CleanDir(_codeOutputFolder, "*.cs");
@@ -110,12 +125,22 @@ namespace GoveKits.Editor
             LogManager.Log("ExcelConfigEditor", "[Clean] 清理完成");
         }
 
+        /// <summary>
+        /// 按通配符清理指定目录中的文件。
+        /// </summary>
+        /// <param name="path">目录。</param>
+        /// <param name="pattern">通配符（如 *.cs）。</param>
         private void CleanDir(string path, string pattern)
         {
             if (!Directory.Exists(path)) return;
             foreach (var file in Directory.GetFiles(path, pattern)) File.Delete(file);
         }
 
+        /// <summary>
+        /// 运行导出流程：可选仅生成代码、仅生成 JSON 或两者都生成。
+        /// </summary>
+        /// <param name="genCode">是否生成 C# DTO 代码。</param>
+        /// <param name="genJson">是否生成 JSON 数据。</param>
         private void RunProcess(bool genCode, bool genJson)
         {
             if (!Directory.Exists(_excelFolderPath))

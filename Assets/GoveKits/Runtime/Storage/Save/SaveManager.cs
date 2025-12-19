@@ -1,10 +1,15 @@
 using System;
 using System.IO;
-using Google.Protobuf; // 关键引用
+using Google.Protobuf;
 using UnityEngine;
 
 namespace GoveKits.Save
 {
+    /// <summary>
+    /// 游戏存档管理器：提供 Protobuf 序列化/反序列化、原子操作、跨平台存储。
+    /// <para>支持自动目录创建、临时文件保护、编辑器日志记录。</para>
+    /// <para>数据存储于 Application.persistentDataPath/Saves/ 文件夹。</para>
+    /// </summary>
     public static class SaveManager
     {
         // 存档文件夹名称

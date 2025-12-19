@@ -35,6 +35,7 @@ namespace GoveKits.Events
         /// <summary>
         /// 处理具体类型的事件。
         /// </summary>
+        /// <param name="evt">事件对象。</param>
         protected abstract void OnHandle(T evt);
     }
 
@@ -48,12 +49,18 @@ namespace GoveKits.Events
 
         public override int Priority => _priority;
 
+        /// <summary>
+        /// 创建一个基于委托的监听器。
+        /// </summary>
+        /// <param name="action">回调委托。</param>
+        /// <param name="priority">优先级（越小越先执行）。</param>
         public DelegateListener(Action<T> action, int priority = EventPriority.Normal)
         {
             _action = action;
             _priority = priority;
         }
 
+        /// <inheritdoc />
         protected override void OnHandle(T evt)
         {
             _action?.Invoke(evt);

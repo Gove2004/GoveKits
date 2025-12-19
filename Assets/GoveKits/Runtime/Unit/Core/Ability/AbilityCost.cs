@@ -3,8 +3,9 @@ using System.Collections.Generic;
 namespace GoveKits.Unit
 {
     /// <summary>
-    /// 技能消耗描述
-    /// <para>负责管理技能所需的资源，并提供检查和支付方法。</para>
+    /// 能力消耗描述：管理能力所需的各类资源（MP、HP、Stamina 等）。
+    /// <para>支持检查资源充足性（<see cref="Check"/>）和消耗支付（<see cref="Pay"/>）。</para>
+    /// <para>适用于复杂消耗体系（多种资源、动态调整等）。</para>
     /// </summary>
     public class AbilityCost
     {

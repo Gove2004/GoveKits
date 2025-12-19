@@ -1,13 +1,12 @@
 using System;
 
-
-
 namespace GoveKits.Unit
 {
     /// <summary>
-    /// GameTag：字符串的高性能封装。
-    /// <para>特点：对象是不可变的 struct，创建时缓存字符串的 HashCode（Id），
-    /// 作为字典键时性能等同于使用 int，并减少运行时分配与字符串比较开销。</para>
+    /// 游戏标签：字符串的高性能封装，用于标识状态、伤害类型、能力等。
+    /// <para>特点：不可变值类型（struct），创建时缓存字符串的 HashCode（Id），
+    /// 作为字典键时性能等同于使用 int，大幅减少运行时分配与字符串比较开销。</para>
+    /// <para>支持与字符串的隐式转换，允许便捷的 API 调用（如 "Fire" 自动转 GameTag）。</para>
     /// </summary>
     public readonly struct GameTag : IEquatable<GameTag>
     {

@@ -2,16 +2,37 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-
+/// <summary>
+/// 反应式变量工厂：快速创建 Int/Float/String/Bool 反应式引用。
+/// </summary>
 public static class Reactive
 {
+    /// <summary>创建一个整数反应式引用。</summary>
+    /// <param name="value">初始值。</param>
+    /// <returns>新的 IntRef 实例。</returns>
     public static IntRef Int(int value) => new IntRef(value);
+    
+    /// <summary>创建一个浮点数反应式引用。</summary>
+    /// <param name="value">初始值。</param>
+    /// <returns>新的 FloatRef 实例。</returns>
     public static FloatRef Float(float value) => new FloatRef(value);
+    
+    /// <summary>创建一个字符串反应式引用。</summary>
+    /// <param name="value">初始值。</param>
+    /// <returns>新的 StringRef 实例。</returns>
     public static StringRef String(string value) => new StringRef(value);
+    
+    /// <summary>创建一个布尔反应式引用。</summary>
+    /// <param name="value">初始值。</param>
+    /// <returns>新的 BoolRef 实例。</returns>
     public static BoolRef Bool(bool value) => new BoolRef(value);
 }
 
-
+/// <summary>
+/// 反应式变量基类：值改变时自动通知监听器，支持计算属性、依赖管理、防重入保护。
+/// 反应式变量可监视（Watch）其值变化，也可组合成依赖关系形成计算属性。
+/// </summary>
+/// <typeparam name="T">变量值的数据类型。</typeparam>
 public abstract class Ref<T> where T : IEquatable<T>
 {
     private T _value;  // 存储实际值
@@ -23,6 +44,11 @@ public abstract class Ref<T> where T : IEquatable<T>
     private bool _isNotifying;
     private readonly HashSet<Action> _pendingRemove = new HashSet<Action>();
 
+    /// <summary>
+    /// 属性值（单值或计算得其）。
+    /// 获取时返回 _value 或计算函数结果；设置时更新 _value 并通知所有监听器。
+    /// 计算属性（由 _computer 函数驱动）无法直接设置。
+    /// </summary>
     public T Value
     {
         get
@@ -43,7 +69,11 @@ public abstract class Ref<T> where T : IEquatable<T>
     protected Ref(T value) => _value = value;
     protected Ref(Func<T> computer) => _computer = computer;
 
-
+    /// <summary>
+    /// 通知所有监听器，并级联通知依赖的计算属性。
+    /// 防重入：若已在通知过程中，则返回以避免无限递归。
+    /// 监听器在回调中的 Unwatch 调用延迟生效。
+    /// </summary>
     private void Notify()
     {
         // 防重入：避免循环依赖导致无限递归
@@ -83,12 +113,21 @@ public abstract class Ref<T> where T : IEquatable<T>
         }
     }
 
-    // 添加监听器，返回取消监听的操作
+    /// <summary>
+    /// 于值改变时监听回调（执行一个监听器）。
+    /// </summary>
+    /// <param name="action">变化回调。</param>
+    /// <returns>返回取消监听的作用。</returns>
     public Action Watch(Action action)
     {
         _listeners.Add(action);
         return () => Unwatch(action);
     }
+    
+    /// <summary>
+    /// 取消监听。
+    /// </summary>
+    /// <param name="action">变化回调。</param>
     public void Unwatch(Action action)
     {
         if (_isNotifying)

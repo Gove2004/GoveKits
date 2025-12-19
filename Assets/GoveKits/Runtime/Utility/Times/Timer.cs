@@ -4,12 +4,19 @@ using GoveKits.Pools;
 
 namespace GoveKits.Times
 {
+    /// <summary>
+    /// 轻量定时器对象：由 <see cref="TimeWheel"/> 调度，支持暂停/恢复/取消、循环与实时/受缩放模式。
+    /// </summary>
     public class Timer : IPoolable
     {
         // --- 基础属性 ---
+        /// <summary>唯一标识。</summary>
         public long Id { get; private set; }
+        /// <summary>是否已暂停。</summary>
         public bool IsPaused { get; private set; }
+        /// <summary>是否已完成（循环结束）。</summary>
         public bool IsDone { get; private set; }
+        /// <summary>是否已取消。</summary>
         public bool IsCancelled { get; private set; }
 
         // --- 内部数据 (供 TimeWheel 使用) ---
@@ -28,8 +35,10 @@ namespace GoveKits.Times
         // --- 暂停计算用 ---
         private float _remainingTimeOnPause; // 暂停那一刻，距离触发还剩多少秒
 
+        /// <summary>设置唯一标识（由管理器分配）。</summary>
         public void SetID(long id) => Id = id;
 
+        /// <inheritdoc />
         public void OnRecycle()
         {
             IsPaused = false;
@@ -65,7 +74,7 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 恢复
+        /// 恢复（按照暂停时的剩余时间重新调度）。
         /// </summary>
         public void Resume()
         {
@@ -78,7 +87,7 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 取消
+        /// 取消（从时间轮移除，不再回调）。
         /// </summary>
         public void Cancel()
         {

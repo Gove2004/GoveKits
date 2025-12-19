@@ -2,7 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-
+/// <summary>
+/// 泛型建造者模式实现：用流式 API 构建复杂对象，支持默认值、属性验证、反射赋值。
+/// 适用于对象初始化参数复杂、需要验证、有默认值的场景。
+/// </summary>
+/// <typeparam name="T">要构建的对象类型（需无参构造函数）。</typeparam>
 public class Builder<T> where T : new()
 {
     protected Dictionary<string, object> attributes = new();
@@ -10,24 +14,47 @@ public class Builder<T> where T : new()
     private Dictionary<string, object> defaults = new();
     protected T target = new();
 
+    /// <summary>
+    /// 设置一个属性值。
+    /// </summary>
+    /// <param name="name">属性名称。</param>
+    /// <param name="value">属性值。</param>
+    /// <returns>返回此实例以实现流式 API。</returns>
     public Builder<T> WithAttr(string name, object value)
     {
         attributes[name] = value;
         return this;
     }
 
+    /// <summary>
+    /// 设置一个属性的验证器。
+    /// </summary>
+    /// <param name="name">属性名称。</param>
+    /// <param name="validator">验证函数（返回 true 表示有效）。</param>
+    /// <returns>返回此实例以实现流式 API。</returns>
     public Builder<T> WithValidator(string name, Func<object, bool> validator)
     {
         validators[name] = validator;
         return this;
     }
 
+    /// <summary>
+    /// 设置一个属性的默认值。
+    /// </summary>
+    /// <param name="name">属性名称。</param>
+    /// <param name="defaultValue">默认值。</param>
+    /// <returns>返回此实例以实现流式 API。</returns>
     public Builder<T> WithDefault(string name, object defaultValue)
     {
         defaults[name] = defaultValue;
         return this;
     }
 
+    /// <summary>
+    /// 构建并返回对象。应用默认值、执行验证、通过反射设置属性。
+    /// </summary>
+    /// <returns>完成构建的 T 实例。</returns>
+    /// <exception cref="ArgumentException">验证失败时抛出。</exception>
     public T Build()
     {
         // Apply defaults

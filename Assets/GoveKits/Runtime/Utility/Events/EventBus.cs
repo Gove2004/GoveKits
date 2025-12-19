@@ -20,7 +20,9 @@ namespace GoveKits.Events
         /// <summary>
         /// 订阅事件。
         /// </summary>
-        /// <param name="listener">监听器实例</param>
+        /// <param name="listener">监听器实例。</param>
+        /// <typeparam name="T">事件类型。</typeparam>
+        /// <returns>返回一个取消订阅的操作。</returns>
         public Action Subscribe<T>(EventListener<T> listener) where T : EventInfo
         {
             var type = typeof(T);
@@ -36,6 +38,9 @@ namespace GoveKits.Events
         /// <summary>
         /// 使用 Action 订阅事件。
         /// </summary>
+        /// <param name="action">回调处理。</param>
+        /// <param name="priority">优先级（越小越先执行）。</param>
+        /// <typeparam name="T">事件类型。</typeparam>
         /// <returns>返回一个取消订阅的操作。</returns>
         public Action Subscribe<T>(Action<T> action, int priority = EventPriority.Normal) where T : EventInfo
         {
@@ -50,6 +55,11 @@ namespace GoveKits.Events
 
         #region 取消订阅 (Unsubscribe)
 
+        /// <summary>
+        /// 取消订阅某类型事件。
+        /// </summary>
+        /// <typeparam name="T">事件类型。</typeparam>
+        /// <param name="listener">监听器实例。</param>
         public void Unsubscribe<T>(EventListener<T> listener) where T : EventInfo
         {
             var type = typeof(T);
@@ -75,7 +85,8 @@ namespace GoveKits.Events
         /// <summary>
         /// 发布事件（对象池模式）。
         /// </summary>
-        /// <param name="initializer">初始化回调，用于设置事件参数</param>
+        /// <param name="initializer">初始化回调，用于设置事件参数。</param>
+        /// <typeparam name="T">事件类型（需无参构造）。</typeparam>
         public void Publish<T>(Action<T> initializer = null) where T : EventInfo, new()
         {
             var evt = Pools.Pool.Get<T>();

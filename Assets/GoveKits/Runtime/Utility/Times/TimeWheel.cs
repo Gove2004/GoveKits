@@ -5,6 +5,9 @@ using ExcelDataReader.Log;
 
 namespace GoveKits.Times
 {
+    /// <summary>
+    /// 时间轮（Timing Wheel）：以固定 tick 精度调度大量定时器，具备高性能与低 GC 的定时调度结构。
+    /// </summary>
     public class TimeWheel
     {
         private readonly float _tickDuration;   // 一格多少秒 (精度)
@@ -14,7 +17,9 @@ namespace GoveKits.Times
         private long _currentTick;              // 当前走到了第几个 Tick
         private float _accumulatedTime;         // 累积时间
 
+        /// <summary>当前累计的 Tick 计数。</summary>
         public long CurrentTick => _currentTick;
+        /// <summary>每个 Tick 的秒数。</summary>
         public float TickDuration => _tickDuration;
 
         public TimeWheel(float tickDuration = 0.05f, int wheelSize = 512)
@@ -29,8 +34,10 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 放入定时器
+        /// 放入定时器，按指定延迟触发。
         /// </summary>
+        /// <param name="timer">定时器对象。</param>
+        /// <param name="delay">触发延迟秒数。</param>
         public void AddTimer(Timer timer, float delay)
         {
             if (delay < 0) delay = 0;
@@ -58,8 +65,10 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 重新调度 (用于 Resume 或 Loop)
+        /// 重新调度（用于恢复或循环）。
         /// </summary>
+        /// <param name="timer">定时器对象。</param>
+        /// <param name="delay">新延迟。</param>
         public void Reschedule(Timer timer, float delay)
         {
             timer.LinkNode = null; // 清除旧引用
@@ -67,8 +76,10 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 移除并返回剩余时间 (用于 Pause)
+        /// 移除并返回剩余时间（用于暂停）。
         /// </summary>
+        /// <param name="timer">定时器对象。</param>
+        /// <returns>剩余秒数。</returns>
         public float RemoveAndGetRemainingTime(Timer timer)
         {
             RemoveTimer(timer);
@@ -80,8 +91,9 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 仅移除
+        /// 从时间轮中移除定时器（不计算剩余时间）。
         /// </summary>
+        /// <param name="timer">定时器对象。</param>
         public void RemoveTimer(Timer timer)
         {
             if (timer.LinkNode != null && timer.LinkNode.List != null)
@@ -92,8 +104,9 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 驱动 (Update)
+        /// 推进时间轮（通常在每帧 Update 中调用）。
         /// </summary>
+        /// <param name="deltaTime">增量时间（秒）。</param>
         public void Tick(float deltaTime)
         {
             _accumulatedTime += deltaTime;
@@ -161,6 +174,9 @@ namespace GoveKits.Times
             }
         }
 
+        /// <summary>
+        /// 清空所有槽位与计时。
+        /// </summary>
         public void Clear()
         {
             for (int i = 0; i < _wheelSize; i++) _slots[i].Clear();

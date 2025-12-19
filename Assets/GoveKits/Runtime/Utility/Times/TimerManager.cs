@@ -3,6 +3,9 @@ using GoveKits.Pools;
 
 namespace GoveKits.Times
 {
+    /// <summary>
+    /// 定时器管理器：维护缩放与非缩放两个时间轮，提供 Once/Loop API，并在 Update 中驱动。
+    /// </summary>
     public static class TimerManager
     {
         // 两个时间轮：一个受 TimeScale 影响，一个不受
@@ -13,9 +16,9 @@ namespace GoveKits.Times
         private static bool _isInitialized;
 
         /// <summary>
-        /// 初始化 (在 GoveKit 入口调用)
+        /// 初始化时间轮（在 GoveKit 入口调用）。
         /// </summary>
-        /// <param name="tickPrecision">精度，建议 0.05f (24fps) 或 0.05f (20fps)</param>
+        /// <param name="tickPrecision">Tick 精度，建议 0.05f。</param>
         public static void Initialize(float tickPrecision = 0.05f)
         {
             if (_isInitialized) return;
@@ -30,8 +33,10 @@ namespace GoveKits.Times
         }
 
         /// <summary>
-        /// 驱动更新 (必须在 MonoBehaviour Update 中调用)
+        /// 驱动更新（必须在 MonoBehaviour.Update 中调用）。
         /// </summary>
+        /// <param name="deltaTime">受 Time.timeScale 影响的增量时间。</param>
+        /// <param name="unscaledDeltaTime">真实时间增量。</param>
         public static void Update(float deltaTime, float unscaledDeltaTime)
         {
             if (!_isInitialized) return;
@@ -43,19 +48,25 @@ namespace GoveKits.Times
         #region API
 
         /// <summary>
-        /// 一次性定时器
+        /// 一次性定时器。
         /// </summary>
+        /// <param name="delay">延迟秒数。</param>
+        /// <param name="callback">触发回调。</param>
+        /// <param name="useRealTime">是否使用真实时间（忽略 TimeScale）。</param>
+        /// <returns>Timer 句柄。</returns>
         public static Timer Once(float delay, System.Action callback, bool useRealTime = false)
         {
             return CreateInternal(delay, -1, 1, callback, useRealTime);
         }
 
         /// <summary>
-        /// 循环定时器
+        /// 循环定时器。
         /// </summary>
-        /// <param name="interval">间隔</param>
-        /// <param name="callback">回调</param>
-        /// <param name="loopCount">次数 (-1 无限)</param>
+        /// <param name="interval">触发间隔（秒）。</param>
+        /// <param name="callback">回调。</param>
+        /// <param name="loopCount">循环次数（-1 为无限）。</param>
+        /// <param name="useRealTime">是否使用真实时间（忽略 TimeScale）。</param>
+        /// <returns>Timer 句柄。</returns>
         public static Timer Loop(float interval, System.Action callback, int loopCount = -1, bool useRealTime = false)
         {
             return CreateInternal(interval, interval, loopCount, callback, useRealTime);
@@ -78,11 +89,18 @@ namespace GoveKits.Times
             return timer;
         }
 
+        /// <summary>
+        /// 取消定时器。
+        /// </summary>
+        /// <param name="timer">定时器句柄。</param>
         public static void Cancel(Timer timer)
         {
             timer?.Cancel();
         }
 
+        /// <summary>
+        /// 清空所有时间轮中的任务。
+        /// </summary>
         public static void ClearAll()
         {
             _scaledWheel?.Clear();

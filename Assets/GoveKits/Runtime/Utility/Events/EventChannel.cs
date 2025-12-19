@@ -10,20 +10,29 @@ namespace GoveKits.Events
         private readonly List<EventListener> _listeners = new List<EventListener>();
         private bool _isDirty = false; // 标记列表是否需要重新排序
 
+        /// <summary>
+        /// 添加监听器到频道；下次发布时会根据优先级排序。
+        /// </summary>
+        /// <param name="listener">监听器实例。</param>
         public void Add(EventListener listener)
         {
             _listeners.Add(listener);
             _isDirty = true; // 标记为脏，下次发布时排序
         }
 
+        /// <summary>
+        /// 从频道移除监听器。
+        /// </summary>
+        /// <param name="listener">监听器实例。</param>
         public void Remove(EventListener listener)
         {
             _listeners.Remove(listener);
         }
 
         /// <summary>
-        /// 向所有监听器广播事件。
+        /// 向所有监听器广播事件（按优先级从小到大）。
         /// </summary>
+        /// <param name="evt">事件对象。</param>
         public void Publish(EventInfo evt)
         {
             if (_listeners.Count == 0) return;

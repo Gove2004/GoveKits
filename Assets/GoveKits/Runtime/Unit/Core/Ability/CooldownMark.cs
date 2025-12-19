@@ -1,12 +1,11 @@
-
-
 using System;
 
 namespace GoveKits.Unit
 {
     /// <summary>
-    /// 冷却标记
-    /// <para>特点：不可堆叠层数，重复添加时刷新持续时间。</para>
+    /// 冷却标记：特殊的 GameMark，表示能力冷却状态。
+    /// <para>特点：不可堆叠（MaxStack=1），重复添加时取最大持续时间（刷新冷却）。</para>
+    /// <para>提供静态工厂方法 GetTag() 生成标准冷却 Tag（e.g., "CD.Fireball"）。</para>
     /// </summary>
     public class CooldownMark : GameMark
     {

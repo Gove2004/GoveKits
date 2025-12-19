@@ -5,6 +5,9 @@ using GoveKits.Utility; // 引用你提供的CMD命名空间
 
 namespace GoveKits.Editor
 {
+    /// <summary>
+    /// Protobuf 代码生成器：调用 protoc 将 .proto 生成 C# 代码。
+    /// </summary>
     public class ProtobufGeneratorWindow : EditorWindow
     {
         // 用于保存配置的Key
@@ -17,12 +20,16 @@ namespace GoveKits.Editor
         private string _outputDir = "";
 
 
+        /// <summary>
+        /// 打开 Protobuf 生成器窗口。
+        /// </summary>
         [MenuItem("GoveKits/Protobuf Generator")]
         public static void ShowWindow()
         {
             GetWindow<ProtobufGeneratorWindow>("Protobuf Generator");
         }
 
+        /// <summary>启用时还原上次配置。</summary>
         private void OnEnable()
         {
             // 加载上次保存的配置
@@ -70,8 +77,13 @@ namespace GoveKits.Editor
         }
 
         /// <summary>
-        /// 绘制路径选择的通用UI
+        /// 绘制路径/文件选择器的通用 UI。
         /// </summary>
+        /// <param name="label">标签。</param>
+        /// <param name="pathVar">路径变量引用。</param>
+        /// <param name="extension">文件扩展名过滤（如 "proto"）。</param>
+        /// <param name="isFolder">是否选择目录。</param>
+        /// <param name="onPathChanged">路径变更回调。</param>
         private void DrawPathSelection(string label, ref string pathVar, string extension, bool isFolder, System.Action onPathChanged = null)
         {
             GUILayout.Label(label);
@@ -124,6 +136,7 @@ namespace GoveKits.Editor
             EditorGUILayout.EndHorizontal();
         }
 
+        /// <summary>保存当前面板配置到 EditorPrefs。</summary>
         private void SavePrefs()
         {
             EditorPrefs.SetString(PREF_PROTOC_PATH, _protocPath);
@@ -131,6 +144,9 @@ namespace GoveKits.Editor
             EditorPrefs.SetString(PREF_OUTPUT_DIR, _outputDir);
         }
 
+        /// <summary>
+        /// 执行 protoc 调用生成 C# 代码，并刷新工程。
+        /// </summary>
         private void GenerateCode()
         {
             // 1. 基础校验

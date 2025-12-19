@@ -3,8 +3,10 @@ using System;
 namespace GoveKits.Unit
 {
     /// <summary>
-    /// 资源型属性 (CurrentHP, CurrentMP)
-    /// <para>逻辑：Current 永远被钳制在 [0, Max] 之间</para>
+    /// 运行时属性：表示可变资源（当前 HP、当前 MP 等）。
+    /// <para>核心特性：Current 值始终被约束在 [0, Max] 范围内，当上限属性变化时自动响应式更新。</para>
+    /// <para>实现 <see cref="IDisposable"/> 以正确取消订阅上限属性的变化事件。</para>
+    /// <para>适用于依赖其他属性的动态资源（如血量依赖体质等）。</para>
     /// </summary>
     public class RuntimeAttribute : GameAttribute, IDisposable
     {

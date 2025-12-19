@@ -1,14 +1,19 @@
 namespace GoveKits.Singleton
 {
     /// <summary>
-    /// 纯C#单例基类 线程安全，带有双重检查锁定
+    /// 纯 C# 单例基类：线程安全，采用双重検查锁定优化初始化性能。
+    /// ⏾ 需要纳排 T 有无参构造函新。
     /// </summary>
+    /// <typeparam name="T">单例类型（必须是 Singleton&lt;T&gt; 的渐进类）。</typeparam>
     public abstract class Singleton<T> where T : Singleton<T>, new()
     {
         private static T _instance;
-        // 使用一个静态只读对象作为锁
+        /// <summary>锁定对象（线程安全）。</summary>
         private static readonly object _lock = new object();
 
+        /// <summary>
+        /// 较程式实例（线程安全的胶男实现）。
+        /// </summary>
         public static T Instance
         {
             get
@@ -29,7 +34,7 @@ namespace GoveKits.Singleton
         }
 
         /// <summary>
-        /// 初始化钩子，子类可重写
+        /// 初始化钟子，需要时或子类可以重写以实现自定义初始化逻辑。
         /// </summary>
         protected virtual void SingletonInit() { }
     }

@@ -37,9 +37,9 @@ namespace GoveKits.Pools
         /// 根据 Prefab 获取一个 Unity 组件实例。
         /// 这是推荐的获取 Unity 对象的方式，因为它兼具类型安全和便利性。
         /// </summary>
-        /// <typeparam name="T">你想要获取的组件类型，例如：Bullet, EnemyController</typeparam>
-        /// <param name="prefab">需要实例化的预制体 (其上必须挂载 T 组件)</param>
-        /// <returns>一个已激活并重置状态的 T 组件实例</returns>
+        /// <typeparam name="T">要获取的组件类型（需实现 <see cref="IPoolable"/>）。</typeparam>
+        /// <param name="prefab">预制体（必须挂载 T 组件）。</param>
+        /// <returns>一个已激活的 T 组件实例。</returns>
         public static T Get<T>(T prefab) where T : Component, IPoolable
         {
             if (prefab == null)
@@ -68,8 +68,9 @@ namespace GoveKits.Pools
         }
 
         /// <summary>
-        /// 回收一个 Unity 组件实例 (及其关联的 GameObject)。
+        /// 回收一个 Unity 组件实例（必须由 <see cref="Get{T}(T)"/> 获取）。
         /// </summary>
+        /// <param name="instance">要回收的组件实例。</param>
         public static void Recycle(Component instance)
         {
             if (instance == null) return;
@@ -79,8 +80,9 @@ namespace GoveKits.Pools
         }
 
         /// <summary>
-        /// 回收一个游戏对象实例。
+        /// 回收一个游戏对象实例（必须由 <see cref="Get(GameObject)"/> 获取）。
         /// </summary>
+        /// <param name="instance">要回收的游戏对象。</param>
         public static void Recycle(GameObject instance)
         {
             if (instance == null) return;

@@ -6,11 +6,17 @@ using System.Linq;
 
 namespace GoveKits.Editor
 {
+    /// <summary>
+    /// 项目辅助面板：根据模板创建目录结构、生成 .gitignore，并提供清空 PlayerPrefs 的快捷操作。
+    /// </summary>
     public class ProjectEditor : EditorWindow
     {
         private string _directoryPath = Application.dataPath + "Assets/GoveKits/Editor/Project/Template/directory.txt";
         private string _gitignorePath = Application.dataPath + "Assets/GoveKits/Editor/Project/Template/gitignore.txt";
         
+        /// <summary>
+        /// 打开 Project 面板。
+        /// </summary>
         [MenuItem("GoveKits/Project")]
         public static void ShowWindow()
         {
@@ -19,6 +25,9 @@ namespace GoveKits.Editor
             window.Show();
         }
 
+        /// <summary>
+        /// 面板 UI 绘制入口。
+        /// </summary>
         private void OnGUI()
         {
             EditorGUILayout.Space(10);
@@ -43,6 +52,9 @@ namespace GoveKits.Editor
             }
         }
         
+        /// <summary>
+        /// 绘制“目录结构初始化”区域。
+        /// </summary>
         private void DrawDirectorySection()
         {
             EditorGUILayout.LabelField("目录结构", EditorStyles.boldLabel);
@@ -82,6 +94,9 @@ namespace GoveKits.Editor
             GUI.enabled = true;
         }
         
+        /// <summary>
+        /// 绘制“.gitignore 创建”区域。
+        /// </summary>
         private void DrawGitIgnoreSection()
         {
             EditorGUILayout.LabelField(".gitignore", EditorStyles.boldLabel);
@@ -120,6 +135,11 @@ namespace GoveKits.Editor
             GUI.enabled = true;
         }
         
+        /// <summary>
+        /// 从模板文件中解析目录列表（忽略空行与以#开头的注释）。
+        /// </summary>
+        /// <param name="filePath">模板文件路径。</param>
+        /// <returns>目录相对路径数组。</returns>
         private string[] GetDirectoriesFromFile(string filePath)
         {
             if (!File.Exists(filePath)) return new string[0];
@@ -131,6 +151,9 @@ namespace GoveKits.Editor
                 .ToArray();
         }
         
+        /// <summary>
+        /// 根据模板创建缺失目录，并刷新资源。
+        /// </summary>
         private void InitializeProject()
         {
             string[] directories = GetDirectoriesFromFile(_directoryPath);
@@ -151,6 +174,9 @@ namespace GoveKits.Editor
             LogManager.LogGreen("ProjectEditor", $"创建了 {created} 个目录");
         }
         
+        /// <summary>
+        /// 根据模板生成 .gitignore 文件到项目根目录。
+        /// </summary>
         private void CreateGitIgnore()
         {
             string gitignoreContent = File.ReadAllText(_gitignorePath, Encoding.UTF8);
@@ -161,12 +187,18 @@ namespace GoveKits.Editor
             LogManager.LogGreen("ProjectEditor", "已创建 .gitignore 文件");
         }
         
+        /// <summary>
+        /// 载入面板配置。
+        /// </summary>
         private void OnEnable()
         {
             _directoryPath = EditorPrefs.GetString("ProjectEditor.DirectoryPath", _directoryPath);
             _gitignorePath = EditorPrefs.GetString("ProjectEditor.GitIgnorePath", _gitignorePath);
         }
         
+        /// <summary>
+        /// 保存面板配置。
+        /// </summary>
         private void OnDisable()
         {
             EditorPrefs.SetString("ProjectEditor.DirectoryPath", _directoryPath);

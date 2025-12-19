@@ -14,8 +14,8 @@ namespace GoveKits.Events
         public bool IsStopped { get; set; } 
 
         /// <summary>
-        /// [必须实现] 重置事件状态。
-        /// <para>当事件从对象池取出或归还时调用。务必在此清空所有引用类型字段（如 GameObject, List），防止内存泄漏。</para>
+        /// [必须实现] 重置事件状态（对象池回收时调用）。
+        /// <para>务必清空所有引用类型字段（如 GameObject, List），防止内存泄漏。</para>
         /// </summary>
         public abstract void OnRecycle();
     }

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 
-
 namespace GoveKits.Unit
 {
     /// <summary>
-    /// 计算型属性 (例如 MaxHP, Atk, Def)
-    /// <para>计算逻辑： (Base + Sum(Flat)) * (1 + Sum(PercentAdd)) * Prod(1 + PercentMult)</para>
-    /// <para>如果存在 Override 类型的 modifier，则使用最后一个 Override 的值替代计算结果。</para>
+    /// 状态属性：计算型属性（MaxHP、攻击力、防御力等），支持修改器系统。
+    /// <para>计算公式：(Base + Sum(Flat)) × (1 + Sum(PercentAdd)) × Prod(1 + PercentMult)，若存在 Override 修改器则覆盖结果。</para>
+    /// <para>支持修改器的动态添加/移除、按来源批量移除、缓存优化（延迟计算）。</para>
+    /// <para>适用于复杂的属性系统（Buff、装备、技能等多源修改）。</para>
     /// </summary>
     public class StateAttribute : GameAttribute
     {
