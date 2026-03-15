@@ -57,8 +57,7 @@ namespace GoveKits.Tests.Pool
             var again = PoolCore.Get<CSharpPoolProbe>();
 
             Assert.AreEqual(firstId, again.InstanceId);
-            Assert.AreEqual(2, again.GetCount);
-            Assert.AreEqual(1, again.ReturnCount);
+            Assert.AreEqual(1, again.RecycleCount);
         }
 
         [Test]
@@ -71,13 +70,13 @@ namespace GoveKits.Tests.Pool
 
             Assert.IsNotNull(probe);
             Assert.IsTrue(instance.activeSelf);
-            Assert.AreEqual(1, probe.GetCount);
+            Assert.AreEqual(0, probe.RecycleCount);
 
             // Use direct pool return to avoid relying on PoolRecord lookup behavior.
             pool.Return(instance);
 
             Assert.IsFalse(instance.activeSelf);
-            Assert.AreEqual(1, probe.ReturnCount);
+            Assert.AreEqual(1, probe.RecycleCount);
         }
 
         [Test]
@@ -104,8 +103,7 @@ namespace GoveKits.Tests.Pool
             public static int CreatedCount { get; private set; }
 
             public int InstanceId { get; }
-            public int GetCount { get; private set; }
-            public int ReturnCount { get; private set; }
+            public int RecycleCount { get; private set; }
 
             public CSharpPoolProbe()
             {
@@ -118,30 +116,19 @@ namespace GoveKits.Tests.Pool
                 CreatedCount = 0;
             }
 
-            public void OnGetFromPool()
+            public void OnRecycle()
             {
-                GetCount++;
-            }
-
-            public void OnReturnToPool()
-            {
-                ReturnCount++;
+                RecycleCount++;
             }
         }
 
         private sealed class GameObjectPoolProbe : MonoBehaviour, IPoolable
         {
-            public int GetCount { get; private set; }
-            public int ReturnCount { get; private set; }
+            public int RecycleCount { get; private set; }
 
-            public void OnGetFromPool()
+            public void OnRecycle()
             {
-                GetCount++;
-            }
-
-            public void OnReturnToPool()
-            {
-                ReturnCount++;
+                RecycleCount++;
             }
         }
     }

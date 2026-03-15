@@ -37,15 +37,7 @@ namespace GoveKits.Test.Pool.Scene
             }
         }
 
-        public void OnGetFromPool()
-        {
-            Level = 0;
-            MaxHp = 0f;
-            CurrentHp = 0f;
-            IsDead = false;
-        }
-
-        public void OnReturnToPool()
+        public void OnRecycle()
         {
             Level = 0;
             MaxHp = 0f;

@@ -33,14 +33,7 @@ namespace GoveKits.Test.Pool.Scene
             }
         }
 
-        public void OnGetFromPool()
-        {
-            _direction = Vector3.forward;
-            _lifeTimer = lifeTime;
-            _isFlying = false;
-        }
-
-        public void OnReturnToPool()
+        public void OnRecycle()
         {
             _direction = Vector3.zero;
             _lifeTimer = 0f;

@@ -14,11 +14,11 @@
 
 2. CSharpPool 复用
 - 用例: CSharpPool_GetReturn_ReusesSameInstance
-- 断言: Get -> Return -> Get 后，返回同一实例，且 OnGetFromPool/OnReturnToPool 调用次数符合预期。
+- 断言: Get -> Return -> Get 后，返回同一实例，且归还时会触发一次 OnRecycle。
 
 3. GameObjectPool 回调与激活状态
 - 用例: GameObjectPool_GetReturn_TogglesActiveAndInvokesCallbacks
-- 断言: Get 后对象激活并触发 OnGetFromPool；通过池实例 Return 后对象失活并触发 OnReturnToPool。
+- 断言: Get 后对象激活；通过池实例 Return 后对象失活并触发 OnRecycle。
 
 4. 非池对象归还容错
 - 用例: GameObjectPool_ReturnNonPooledObject_ThrowsArgumentException
