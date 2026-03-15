@@ -1,0 +1,16 @@
+{
+    "name": "GoveKits.Pool.Scene",
+    "rootNamespace": "GoveKits.Test.Pool.Scene",
+    "references": [
+        "GoveKits"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
