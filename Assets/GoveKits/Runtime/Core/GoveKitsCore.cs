@@ -1,7 +1,5 @@
 
 
-using System.Drawing;
-
 namespace GoveKits.Runtime.Core
 {
     /// <summary>

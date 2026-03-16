@@ -47,7 +47,7 @@ namespace GoveKits.Runtime.Core.Event
         {
             if (busName == DefaultBusName)
             {
-                GoveKitsCore.Log(nameof(EventCore), $"Cannot destroy the default bus '{DefaultBusName}'.", logType: GoveKitsCore.LogType.Error);
+                GoveKitsCore.Log(nameof(EventCore), $"禁止销毁默认事件总线", logType: GoveKitsCore.LogType.Error);
             }
             _eventBuses.Remove(busName);
         }

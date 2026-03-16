@@ -105,11 +105,11 @@ namespace GoveKits.Runtime.Core.Pool
         {
             if (prefab == null)
             {
-                GoveKitsCore.Log(nameof(PoolCore), "Prefab cannot be null.", logType: GoveKitsCore.LogType.Error);
+                GoveKitsCore.Log(nameof(PoolCore), "预制体不能为 null", logType: GoveKitsCore.LogType.Error);
             }
             if (prefab.GetComponent<IPoolable>() == null)
             {
-                GoveKitsCore.Log(nameof(PoolCore), $"Prefab {prefab.name} must have a IPoolable component.", logType: GoveKitsCore.LogType.Error);
+                GoveKitsCore.Log(nameof(PoolCore), $"预制体 {prefab.name} 必须包含一个 IPoolable 组件", logType: GoveKitsCore.LogType.Error);
             }
 
             
