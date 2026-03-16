@@ -181,24 +181,24 @@ namespace GoveKits.Runtime.Core.Pool
         /// 检查传入的 GameObject 是否满足池系统使用要求。
         /// </summary>
         /// <param name="prefab">要检查的 prefab 或实例对象。</param>
-        /// <exception cref="ArgumentNullException">传入对象为 null 时抛出。</exception>
-        /// <exception cref="ArgumentException">对象上没有任何 IPoolable 组件时抛出。</exception>
+        /// <returns>校验通过返回 true；prefab 为 null 或缺少 IPoolable 组件时记录错误日志并返回 false。</returns>
         /// <remarks>
         /// 当前实现要求 GameObject 池对象至少挂有一个实现了 IPoolable 的组件，
         /// 这样在归还时，池系统才能正确派发 OnRecycle 回调。
         /// </remarks>
-        private static void CheckPrefab(GameObject prefab)
+        private static bool CheckPrefab(GameObject prefab)
         {
             if (prefab == null)
             {
                 GoveKitsCore.Log(nameof(PoolCore), "预制体不能为 null", logType: GoveKitsCore.LogType.Error);
+                return false;
             }
             if (prefab.GetComponent<IPoolable>() == null)
             {
                 GoveKitsCore.Log(nameof(PoolCore), $"预制体 {prefab.name} 必须包含一个 IPoolable 组件", logType: GoveKitsCore.LogType.Error);
+                return false;
             }
-
-            
+            return true;
         }
 
         /// <summary>
@@ -214,7 +214,7 @@ namespace GoveKits.Runtime.Core.Pool
         /// </remarks>
         public static GameObjectPool Create(GameObject prefab, int count = DefaultGameObjectPoolCount, int maxSize = DefaultGameObjectPoolMaxSize)
         {
-            CheckPrefab(prefab);
+            if (!CheckPrefab(prefab)) return null;
             int id = prefab.GetInstanceID();
             if (!_gameObjectPools.TryGetValue(id, out var pool))
             {
@@ -234,7 +234,7 @@ namespace GoveKits.Runtime.Core.Pool
         /// <returns>已经激活的实例对象。</returns>
         public static GameObject Get(GameObject prefab)
         {
-            CheckPrefab(prefab);
+            if (!CheckPrefab(prefab)) return null;
             GameObjectPool pool = Create(prefab);
             GameObject item = pool.GetTyped();
 #if UNITY_EDITOR
@@ -253,15 +253,17 @@ namespace GoveKits.Runtime.Core.Pool
         /// </remarks>
         public static void Return(GameObject obj)
         {
-            CheckPrefab(obj);
+            if (!CheckPrefab(obj)) return;
             PoolRecord record = obj.GetComponent<PoolRecord>();
-            record?.SourcePool?.Return(obj);
-#if UNITY_EDITOR
-            if (record?.SourcePool != null)
+            if (record == null || record.SourcePool == null)
             {
-                var pool = record.SourcePool;
-                RecordHistory($"Return GO Item | Prefab: {pool.PrefabName} | Cached: {pool.CachedCount}/{pool.MaxSize} | Active: {pool.CountActive}");
+                GoveKitsCore.Log(nameof(PoolCore), $"对象 {obj.name} 没有 PoolRecord 或来源池已丢失，请确认该对象是由 PoolCore.Get 创建的", logType: GoveKitsCore.LogType.Warning);
+                return;
             }
+            record.SourcePool.Return(obj);
+#if UNITY_EDITOR
+            var pool = record.SourcePool;
+            RecordHistory($"Return GO Item | Prefab: {pool.PrefabName} | Cached: {pool.CachedCount}/{pool.MaxSize} | Active: {pool.CountActive}");
 #endif
         }
 
@@ -271,7 +273,7 @@ namespace GoveKits.Runtime.Core.Pool
         /// <param name="prefab">用于定位池的 prefab。</param>
         public static void Clear(GameObject prefab)
         {
-            CheckPrefab(prefab);
+            if (!CheckPrefab(prefab)) return;
             int id = prefab.GetInstanceID();
             if (_gameObjectPools.TryGetValue(id, out var pool))
             {

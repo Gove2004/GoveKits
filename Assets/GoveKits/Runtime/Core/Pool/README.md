@@ -242,9 +242,9 @@ PoolCore.Create(prefab, count: 32, maxSize: 128);
 
 ### 3. GameObject prefab 必须挂 IPoolable 组件
 
-当前实现里，`CheckPrefab` 会检查对象上是否存在 `IPoolable` 组件。
+当前实现里，`CheckPrefab` 会检查对象是否为 null 以及是否存在 `IPoolable` 组件。
 
-如果没有，会抛出异常。
+如果检测不通过，会记录错误日志并中断操作，不会抛出异常。
 
 ### 4. C# 池对象必须可 `new()`
 
