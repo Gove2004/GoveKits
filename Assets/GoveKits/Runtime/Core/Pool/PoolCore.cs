@@ -16,6 +16,13 @@ namespace GoveKits.Runtime.Core.Pool
     /// </remarks>
     public static class PoolCore
     {
+        // 默认预热数量和最大缓存数量，可以根据项目需求调整
+        private const int DefaultCSharpPoolCount = 0;
+        private const int DefaultCSharpPoolMaxSize = 64;
+        private const int DefaultGameObjectPoolCount = 0;
+        private const int DefaultGameObjectPoolMaxSize = 64;
+
+
         private static readonly Dictionary<Type, BasePool> _csharpPools = new();
         private static readonly Dictionary<int, GameObjectPool> _gameObjectPools = new();
 
@@ -31,14 +38,13 @@ namespace GoveKits.Runtime.Core.Pool
         /// <remarks>
         /// 如果该类型的池已经存在，则直接返回已有池，不会重复创建，也不会重新应用新的 count / maxSize 参数。
         /// </remarks>
-        public static CSharpPool<T> Create<T>(int count = 8, int maxSize = 64) where T : class, IPoolable, new()
+        public static CSharpPool<T> Create<T>(int count = DefaultCSharpPoolCount, int maxSize = DefaultCSharpPoolMaxSize) where T : class, IPoolable, new()
         {
             var type = typeof(T);
             if (!_csharpPools.TryGetValue(type, out var pool))
             {
-                pool = new CSharpPool<T>(maxSize);
+                pool = new CSharpPool<T>(count, maxSize);
                 _csharpPools[type] = pool;
-                ((CSharpPool<T>)pool).Warmup(count);
             }
             return (CSharpPool<T>)pool;
         }
@@ -118,7 +124,7 @@ namespace GoveKits.Runtime.Core.Pool
         /// 池按 prefab 的 InstanceID 做唯一索引。
         /// 已创建过的 prefab 再次调用 Create 时，不会重新创建池，也不会更新参数。
         /// </remarks>
-        public static GameObjectPool Create(GameObject prefab, int count = 0, int maxSize = 64)
+        public static GameObjectPool Create(GameObject prefab, int count = DefaultGameObjectPoolCount, int maxSize = DefaultGameObjectPoolMaxSize)
         {
             CheckPrefab(prefab);
             int id = prefab.GetInstanceID();

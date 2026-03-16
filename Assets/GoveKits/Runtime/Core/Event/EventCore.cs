@@ -13,9 +13,11 @@ namespace GoveKits.Runtime.Core.Event
     /// </remarks>
     public static class EventCore
     {
+        // 默认总线名称，提供一个主总线供大多数事件使用，避免过度分散。
+        private const string DefaultBusName = "main";
+
         #region Event Bus
 
-        private const string DefaultBusName = "main";
         private static readonly Dictionary<string, EventBus> _eventBuses = new()
         {
             { DefaultBusName, new EventBus() }

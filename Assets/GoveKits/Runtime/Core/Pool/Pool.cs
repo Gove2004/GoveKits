@@ -54,23 +54,11 @@ namespace GoveKits.Runtime.Core.Pool
         /// 创建一个纯 C# 对象池。
         /// </summary>
         /// <param name="maxSize">池最大缓存数量。</param>
-        public CSharpPool(int maxSize = 64)
+        public CSharpPool(int count, int maxSize)
         {
             _maxSize = maxSize;
             _stack = new Stack<T>();
-        }
 
-
-        /// <summary>
-        /// 预热对象池。
-        /// </summary>
-        /// <param name="count">预先创建并压入池中的对象数量。</param>
-        /// <remarks>
-        /// 预热的意义是把第一次使用时的 new 成本前置，减少运行中首次尖峰。
-        /// 这里只负责创建对象，不会触发生命周期回调，因为这些对象还没有真正进入使用流程。
-        /// </remarks>
-        public void Warmup(int count = 8)
-        {
             for (int i = 0; i < count; i++)
             {
                 if (_stack.Count >= _maxSize) break;
