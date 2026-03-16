@@ -27,6 +27,16 @@ namespace GoveKits.Runtime.Core.Pool
         /// 清空池内缓存对象。
         /// </summary>
         public abstract void Clear();
+
+        /// <summary>
+        /// 当前池内可复用对象数量。
+        /// </summary>
+        public abstract int CachedCount { get; }
+
+        /// <summary>
+        /// 池的最大缓存数量。
+        /// </summary>
+        public abstract int MaxSize { get; }
     }
 
 
@@ -48,7 +58,7 @@ namespace GoveKits.Runtime.Core.Pool
     public class CSharpPool<T> : BasePool where T : class, IPoolable, new()
     {
         private readonly Stack<T> _stack;
-        private int _maxSize;
+        private readonly int _maxSize;
 
         /// <summary>
         /// 创建一个纯 C# 对象池。
@@ -101,6 +111,10 @@ namespace GoveKits.Runtime.Core.Pool
         }
 
         public override void Clear() => _stack.Clear();
+
+        public override int CachedCount => _stack.Count;
+
+        public override int MaxSize => _maxSize;
     }
 
 #endregion
@@ -129,7 +143,9 @@ namespace GoveKits.Runtime.Core.Pool
     /// </remarks>
     public class GameObjectPool : BasePool
     {
-        private readonly IObjectPool<GameObject> _pool;
+        private readonly ObjectPool<GameObject> _pool;
+        private readonly string _prefabName;
+        private readonly int _maxSize;
 
         /// <summary>
         /// 创建一个 GameObject 池。
@@ -139,6 +155,8 @@ namespace GoveKits.Runtime.Core.Pool
         /// <param name="maxSize">池允许缓存的最大对象数。</param>
         public GameObjectPool(GameObject prefab, int count, int maxSize)
         {
+            _prefabName = prefab != null ? prefab.name : "<null>";
+            _maxSize = maxSize;
             _pool = new ObjectPool<GameObject>(
                 createFunc: () => {
                     // 每次池内没有可用对象时，按 prefab 克隆一个新实例。
@@ -186,6 +204,16 @@ namespace GoveKits.Runtime.Core.Pool
         /// 清空池中当前缓存的所有 GameObject。
         /// </summary>
         public override void Clear() => _pool.Clear();
+
+        public override int CachedCount => _pool.CountInactive;
+
+        public override int MaxSize => _maxSize;
+
+        public int CountAll => _pool.CountAll;
+
+        public int CountActive => _pool.CountActive;
+
+        public string PrefabName => _prefabName;
     }
 
 #endregion

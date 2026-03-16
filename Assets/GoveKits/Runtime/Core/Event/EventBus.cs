@@ -66,12 +66,28 @@ namespace GoveKits.Runtime.Core.Event
                 
         }
 
+#if UNITY_EDITOR
+        // 提供给编辑器查看内部频道
+        public Dictionary<Type, int> GetDebugChannels()
+        {
+            var result = new Dictionary<Type, int>();
+            foreach (var kvp in _channels)
+            {
+                result.Add(kvp.Key, kvp.Value.ListenerCount);
+            }
+            return result;
+        }
+#endif
+
     #endregion
 
     #region Event Channel
 
         // 内部频道接口
-        private interface IEventChannel { }
+        private interface IEventChannel
+        {
+            int ListenerCount { get; }
+        }
 
         /// <summary>
         /// 某一具体事件类型的监听器频道。
@@ -82,6 +98,7 @@ namespace GoveKits.Runtime.Core.Event
             private readonly List<IEventListener<T>> _listeners = new();
             private bool _isDirty;
             public bool IsEmpty => _listeners.Count == 0;
+            public int ListenerCount => _listeners.Count;
 
             public void Add(IEventListener<T> listener) { _listeners.Add(listener); _isDirty = true; }
             public void Remove(IEventListener<T> listener) => _listeners.Remove(listener);

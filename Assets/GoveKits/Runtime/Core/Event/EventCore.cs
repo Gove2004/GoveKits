@@ -16,6 +16,12 @@ namespace GoveKits.Runtime.Core.Event
         // 默认总线名称，提供一个主总线供大多数事件使用，避免过度分散。
         private const string DefaultBusName = "main";
 
+#if UNITY_EDITOR
+        // 编辑器专用：事件系统变更时触发，用于刷新调试窗口。
+        public static List<string> EventHistory = new List<string>();
+        public static Action OnEventSystemChanged; // 用于刷新 UI
+#endif
+
         #region Event Bus
 
         private static readonly Dictionary<string, EventBus> _eventBuses = new()
@@ -34,22 +40,42 @@ namespace GoveKits.Runtime.Core.Event
             {
                 bus = new EventBus();
                 _eventBuses[busName] = bus;
+#if UNITY_EDITOR
+                OnEventSystemChanged?.Invoke();
+#endif
             }
             return bus;
+        }
+
+        /// <summary>
+        /// 尝试获取指定总线，不存在时不创建。
+        /// </summary>
+        /// <param name="busName">总线名称。</param>
+        /// <param name="bus">找到时返回对应总线。</param>
+        /// <returns>是否找到总线。</returns>
+        public static bool TryGetBus(string busName, out EventBus bus)
+        {
+            return _eventBuses.TryGetValue(busName, out bus);
         }
 
         /// <summary>
         /// 销毁指定事件总线。
         /// </summary>
         /// <param name="busName">总线名称。</param>
-        /// <exception cref="InvalidOperationException">尝试销毁默认总线时抛出。</exception>
         public static void DestroyBus(string busName)
         {
             if (busName == DefaultBusName)
             {
                 GoveKitsCore.Log(nameof(EventCore), $"禁止销毁默认事件总线", logType: GoveKitsCore.LogType.Error);
+                return;
             }
-            _eventBuses.Remove(busName);
+
+            if (_eventBuses.Remove(busName))
+            {
+#if UNITY_EDITOR
+                OnEventSystemChanged?.Invoke();
+#endif
+            }
         }
 
         #endregion
@@ -75,12 +101,24 @@ namespace GoveKits.Runtime.Core.Event
         /// </remarks>
         public static void Publish<T>(Action<T> eventIniter, string busName = DefaultBusName) where T : EventInfo, new()
         {
+            if (eventIniter == null)
+            {
+                throw new ArgumentNullException(nameof(eventIniter));
+            }
+
             // 从池中获取事件对象，减少临时分配和 GC 压力。
             var eventInfo = PoolCore.Get<T>();
             eventIniter(eventInfo);
             EventBus bus = GetOrCreateBus(busName);
             try
             {
+#if UNITY_EDITOR
+            // 记录历史
+            string log = $"[{DateTime.Now:HH:mm:ss}] Bus: {busName} | Event: {typeof(T).Name}";
+            EventHistory.Insert(0, log);
+            if (EventHistory.Count > 50) EventHistory.RemoveAt(50);
+            OnEventSystemChanged?.Invoke();
+#endif
                 bus.Publish(eventInfo);
             }
             catch (Exception ex)
@@ -106,7 +144,16 @@ namespace GoveKits.Runtime.Core.Event
         {
             EventBus bus = GetOrCreateBus(busName);
             bus.Subscribe<T>(listener);
-            return new DisposeAction(() => bus.Unsubscribe<T>(listener));
+#if UNITY_EDITOR
+            OnEventSystemChanged?.Invoke();
+#endif
+            return new DisposeAction(() =>
+            {
+                bus.Unsubscribe<T>(listener);
+#if UNITY_EDITOR
+                OnEventSystemChanged?.Invoke();
+#endif
+            });
         }
 
         /// <summary>
@@ -122,6 +169,18 @@ namespace GoveKits.Runtime.Core.Event
             var listener = new ActionEventListener<T>(callback, priority);
             return Subscribe<T>(listener, busName);
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// 获取当前已存在的总线名快照（用于编辑器调试显示）。
+        /// </summary>
+        public static List<string> GetDebugBusNames()
+        {
+            var busNames = new List<string>(_eventBuses.Keys);
+            busNames.Sort(StringComparer.Ordinal);
+            return busNames;
+        }
+#endif
 
         #endregion
     }

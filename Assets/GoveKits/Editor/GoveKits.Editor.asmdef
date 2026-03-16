@@ -1,3 +1,16 @@
 {
-	"name": "GoveKits.Editor"
+    "name": "GoveKits.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:077f815a79aa0e844aa0d560eeb65641"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }

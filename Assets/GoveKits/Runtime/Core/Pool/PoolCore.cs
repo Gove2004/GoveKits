@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 namespace GoveKits.Runtime.Core.Pool
 {
@@ -26,6 +27,79 @@ namespace GoveKits.Runtime.Core.Pool
         private static readonly Dictionary<Type, BasePool> _csharpPools = new();
         private static readonly Dictionary<int, GameObjectPool> _gameObjectPools = new();
 
+#if UNITY_EDITOR
+        public static readonly List<string> PoolHistory = new();
+        public static Action OnPoolSystemChanged;
+
+        private static void RecordHistory(string message)
+        {
+            PoolHistory.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {message}");
+            if (PoolHistory.Count > 200)
+            {
+                PoolHistory.RemoveAt(PoolHistory.Count - 1);
+            }
+            OnPoolSystemChanged?.Invoke();
+        }
+
+        public readonly struct CSharpPoolDebugInfo
+        {
+            public CSharpPoolDebugInfo(string typeName, int cachedCount, int maxSize)
+            {
+                TypeName = typeName;
+                CachedCount = cachedCount;
+                MaxSize = maxSize;
+            }
+
+            public string TypeName { get; }
+            public int CachedCount { get; }
+            public int MaxSize { get; }
+        }
+
+        public readonly struct GameObjectPoolDebugInfo
+        {
+            public GameObjectPoolDebugInfo(int prefabId, string prefabName, int cachedCount, int activeCount, int allCount, int maxSize)
+            {
+                PrefabId = prefabId;
+                PrefabName = prefabName;
+                CachedCount = cachedCount;
+                ActiveCount = activeCount;
+                AllCount = allCount;
+                MaxSize = maxSize;
+            }
+
+            public int PrefabId { get; }
+            public string PrefabName { get; }
+            public int CachedCount { get; }
+            public int ActiveCount { get; }
+            public int AllCount { get; }
+            public int MaxSize { get; }
+        }
+
+        public static List<CSharpPoolDebugInfo> GetDebugCSharpPools()
+        {
+            return _csharpPools
+                .Select(kvp => new CSharpPoolDebugInfo(kvp.Key.Name, kvp.Value.CachedCount, kvp.Value.MaxSize))
+                .OrderByDescending(info => info.CachedCount)
+                .ThenBy(info => info.TypeName, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        public static List<GameObjectPoolDebugInfo> GetDebugGameObjectPools()
+        {
+            return _gameObjectPools
+                .Select(kvp => new GameObjectPoolDebugInfo(
+                    kvp.Key,
+                    kvp.Value.PrefabName,
+                    kvp.Value.CachedCount,
+                    kvp.Value.CountActive,
+                    kvp.Value.CountAll,
+                    kvp.Value.MaxSize))
+                .OrderByDescending(info => info.CachedCount)
+                .ThenBy(info => info.PrefabName, StringComparer.Ordinal)
+                .ToList();
+        }
+#endif
+
 #region C# Pool
 
         /// <summary>
@@ -45,6 +119,9 @@ namespace GoveKits.Runtime.Core.Pool
             {
                 pool = new CSharpPool<T>(count, maxSize);
                 _csharpPools[type] = pool;
+#if UNITY_EDITOR
+                RecordHistory($"Create C# Pool | Type: {type.Name} | Prewarm: {count} | Max: {maxSize}");
+#endif
             }
             return (CSharpPool<T>)pool;
         }
@@ -58,6 +135,9 @@ namespace GoveKits.Runtime.Core.Pool
         {
             CSharpPool<T> pool = Create<T>();
             IPoolable item = pool.GetTyped();
+#if UNITY_EDITOR
+            RecordHistory($"Get C# Item | Type: {typeof(T).Name} | Cached: {pool.CachedCount}/{pool.MaxSize}");
+#endif
             return (T)item;
         }
 
@@ -71,6 +151,9 @@ namespace GoveKits.Runtime.Core.Pool
             item.OnRecycle();
             CSharpPool<T> pool = Create<T>();
             pool.ReturnTyped(item);
+#if UNITY_EDITOR
+            RecordHistory($"Return C# Item | Type: {typeof(T).Name} | Cached: {pool.CachedCount}/{pool.MaxSize}");
+#endif
         }
 
         /// <summary>
@@ -84,6 +167,9 @@ namespace GoveKits.Runtime.Core.Pool
             {
                 pool.Clear();
                 _csharpPools.Remove(type);
+#if UNITY_EDITOR
+                RecordHistory($"Clear C# Pool | Type: {type.Name}");
+#endif
             }
          }
 
@@ -134,6 +220,9 @@ namespace GoveKits.Runtime.Core.Pool
             {
                 pool = new GameObjectPool(prefab, count: count, maxSize: maxSize);
                 _gameObjectPools[id] = pool;
+#if UNITY_EDITOR
+                RecordHistory($"Create GO Pool | Prefab: {prefab.name} | Id: {id} | Prewarm: {count} | Max: {maxSize}");
+#endif
             }
             return pool;
         }
@@ -147,7 +236,11 @@ namespace GoveKits.Runtime.Core.Pool
         {
             CheckPrefab(prefab);
             GameObjectPool pool = Create(prefab);
-            return pool.GetTyped();
+            GameObject item = pool.GetTyped();
+#if UNITY_EDITOR
+            RecordHistory($"Get GO Item | Prefab: {pool.PrefabName} | Cached: {pool.CachedCount}/{pool.MaxSize} | Active: {pool.CountActive}");
+#endif
+            return item;
         }
 
         /// <summary>
@@ -163,6 +256,13 @@ namespace GoveKits.Runtime.Core.Pool
             CheckPrefab(obj);
             PoolRecord record = obj.GetComponent<PoolRecord>();
             record?.SourcePool?.Return(obj);
+#if UNITY_EDITOR
+            if (record?.SourcePool != null)
+            {
+                var pool = record.SourcePool;
+                RecordHistory($"Return GO Item | Prefab: {pool.PrefabName} | Cached: {pool.CachedCount}/{pool.MaxSize} | Active: {pool.CountActive}");
+            }
+#endif
         }
 
         /// <summary>
@@ -177,6 +277,9 @@ namespace GoveKits.Runtime.Core.Pool
             {
                 pool.Clear();
                 _gameObjectPools.Remove(id);
+#if UNITY_EDITOR
+                RecordHistory($"Clear GO Pool | Prefab: {pool.PrefabName} | Id: {id}");
+#endif
             }
         }
 
@@ -192,6 +295,9 @@ namespace GoveKits.Runtime.Core.Pool
             foreach (var pool in _gameObjectPools.Values) pool.Clear();
             _csharpPools.Clear();
             _gameObjectPools.Clear();
+#if UNITY_EDITOR
+            RecordHistory("Clear All Pools");
+#endif
         }
     }
 }
