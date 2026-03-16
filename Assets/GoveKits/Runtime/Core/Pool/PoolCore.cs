@@ -105,12 +105,14 @@ namespace GoveKits.Runtime.Core.Pool
         {
             if (prefab == null)
             {
-                throw new ArgumentNullException($"Prefab {prefab?.name} is null.");
+                GoveKitsCore.Log(nameof(PoolCore), "Prefab cannot be null.", logType: GoveKitsCore.LogType.Error);
             }
             if (prefab.GetComponent<IPoolable>() == null)
             {
-                throw new ArgumentException($"Prefab {prefab.name} must have a IPoolable component.");
+                GoveKitsCore.Log(nameof(PoolCore), $"Prefab {prefab.name} must have a IPoolable component.", logType: GoveKitsCore.LogType.Error);
             }
+
+            
         }
 
         /// <summary>

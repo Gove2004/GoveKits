@@ -47,7 +47,7 @@ namespace GoveKits.Runtime.Core.Event
         {
             if (busName == DefaultBusName)
             {
-                throw new InvalidOperationException("[EventCore] Cannot destroy the default event bus.");
+                GoveKitsCore.Log(nameof(EventCore), $"Cannot destroy the default bus '{DefaultBusName}'.", logType: GoveKitsCore.LogType.Error);
             }
             _eventBuses.Remove(busName);
         }
