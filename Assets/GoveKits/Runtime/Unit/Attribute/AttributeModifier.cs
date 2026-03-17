@@ -62,28 +62,6 @@ namespace GoveKits.Runtime.Unit
                 _ => baseValue
             };
         }
-
-        #region Static Factory Methods
-
-        /// <summary>创建加法修改器。</summary>
-        public static AttributeModifier CreateAdditive(float value, ModifierSource source = null)
-        {
-            return new AttributeModifier(ModifierType.Additive, value, source);
-        }
-
-        /// <summary>创建乘法修改器（value=0.1 表示 +10%）。</summary>
-        public static AttributeModifier CreateMultiplicative(float value, ModifierSource source = null)
-        {
-            return new AttributeModifier(ModifierType.Multiplicative, value, source);
-        }
-
-        /// <summary>创建覆盖修改器（直接替换最终值）。</summary>
-        public static AttributeModifier CreateOverride(float value, ModifierSource source = null)
-        {
-            return new AttributeModifier(ModifierType.Override, value, source);
-        }
-
-        #endregion
     }
 
 
