@@ -1,6 +1,6 @@
-# Pool
+# Pool Module
 
-## 概述
+## 1. 概述
 
 这是一套统一的对象池系统，分为两类：
 
@@ -15,9 +15,9 @@
 - 子弹、特效、敌人等可复用的场景对象
 - 希望减少 `new` / `Instantiate` / `Destroy` 带来的运行时开销
 
-## 核心接口
+## 2. 核心接口
 
-### IPoolable
+### 2.1 IPoolable
 
 所有池化对象都需要实现 `IPoolable`：
 
@@ -36,9 +36,9 @@ public interface IPoolable
 
 - 在 `OnRecycle()` 中清理引用和运行时脏数据
 
-## 纯 C# 对象池
+## 3. 纯 C# 对象池
 
-### 适合什么
+### 3.1 适合什么
 
 适合不依赖 Unity 生命周期的对象，例如：
 
@@ -47,12 +47,12 @@ public interface IPoolable
 - 技能上下文对象
 - 临时计算对象
 
-### 使用方式
+### 3.2 使用方式
 
 ```csharp
 using GoveKits.Runtime.Core.Pool;
 
-public class EnemyData : IPoolable
+public class DemoEnemyData : IPoolable
 {
 	public int Id;
 	public float Hp;
@@ -66,16 +66,16 @@ public class EnemyData : IPoolable
 ```
 
 ```csharp
-PoolCore.Create<EnemyData>(count: 8, maxSize: 64);
+PoolCore.Create<DemoEnemyData>(count: 8, maxSize: 64);
 
-EnemyData enemy = PoolCore.Get<EnemyData>();
+DemoEnemyData enemy = PoolCore.Get<DemoEnemyData>();
 enemy.Id = 1;
 enemy.Hp = 100f;
 
 PoolCore.Return(enemy);
 ```
 
-### 要求
+### 3.3 要求
 
 - 必须是引用类型
 - 必须实现 `IPoolable`
@@ -87,9 +87,9 @@ PoolCore.Return(enemy);
 where T : class, IPoolable, new()
 ```
 
-## GameObject 对象池
+## 4. GameObject 对象池
 
-### 适合什么
+### 4.1 适合什么
 
 适合会频繁生成和回收的场景对象，例如：
 
@@ -98,7 +98,7 @@ where T : class, IPoolable, new()
 - 敌人
 - 掉落物
 
-### prefab 要求
+### 4.2 prefab 要求
 
 传入 `PoolCore.Create(prefab)` 或 `PoolCore.Get(prefab)` 的 prefab，至少要满足：
 
@@ -107,10 +107,10 @@ where T : class, IPoolable, new()
 例如：
 
 ```csharp
-using GoveKits.Runtime.Core.Pool;
 using UnityEngine;
+using GoveKits.Runtime.Core.Pool;
 
-public class Bullet : MonoBehaviour, IPoolable
+public class DemoBullet : MonoBehaviour, IPoolable
 {
 	public void OnRecycle()
 	{
@@ -118,13 +118,13 @@ public class Bullet : MonoBehaviour, IPoolable
 }
 ```
 
-### 使用方式
+### 4.3 使用方式
 
 ```csharp
-using GoveKits.Runtime.Core.Pool;
 using UnityEngine;
+using GoveKits.Runtime.Core.Pool;
 
-public class BulletShooter : MonoBehaviour
+public class DemoBulletShooter : MonoBehaviour
 {
 	[SerializeField] private GameObject bulletPrefab;
 
@@ -156,7 +156,7 @@ PoolCore.Return(bulletGameObject);
 bulletGameObject.ReturnToPool();
 ```
 
-### 内部行为
+### 4.4 内部行为
 
 `GameObjectPool` 在内部会：
 
@@ -166,43 +166,43 @@ bulletGameObject.ReturnToPool();
 - 归还对象时调用所有 `IPoolable` 组件的 `OnRecycle()`
 - 然后将对象设为失活状态
 
-## 常用 API
+## 5. 常用 API
 
-### 创建或获取池
+### 5.1 创建或获取池
 
 ```csharp
 PoolCore.Create<MyData>(count: 8, maxSize: 64);
 PoolCore.Create(prefab, count: 8, maxSize: 64);
 ```
 
-### 取对象
+### 5.2 取对象
 
 ```csharp
 MyData data = PoolCore.Get<MyData>();
 GameObject obj = PoolCore.Get(prefab);
 ```
 
-### 归还对象
+### 5.3 归还对象
 
 ```csharp
 PoolCore.Return(data);
 PoolCore.Return(obj);
 ```
 
-### 清空指定池
+### 5.4 清空指定池
 
 ```csharp
 PoolCore.Clear<MyData>();
 PoolCore.Clear(prefab);
 ```
 
-### 清空全部池
+### 5.5 清空全部池
 
 ```csharp
 PoolCore.ClearAll();
 ```
 
-## 扩展方法
+## 6. 扩展方法
 
 为了方便使用，系统提供了 `ReturnToPool()`：
 
@@ -211,9 +211,9 @@ data.ReturnToPool();
 gameObject.ReturnToPool();
 ```
 
-## 重要说明
+## 7. 重要说明
 
-### 1. Create 参数只在首次创建时生效
+### 7.1 Create 参数只在首次创建时生效
 
 如果某个类型或 prefab 的池已经创建过，再次调用 `Create` 不会重新应用新的 `count` 和 `maxSize`。
 
@@ -231,7 +231,7 @@ PoolCore.Clear(prefab);
 PoolCore.Create(prefab, count: 32, maxSize: 128);
 ```
 
-### 2. 非池对象不要调用 Return
+### 7.2 非池对象不要调用 Return
 
 `PoolCore.Return(GameObject obj)` 依赖实例上的 `PoolRecord` 找回来源池。
 
@@ -240,38 +240,38 @@ PoolCore.Create(prefab, count: 32, maxSize: 128);
 - 从池中拿出来的对象可以正常归还
 - 不是由池创建出来的普通对象，不应该调用 `Return`
 
-### 3. GameObject prefab 必须挂 IPoolable 组件
+### 7.3 GameObject prefab 必须挂 IPoolable 组件
 
 当前实现里，`CheckPrefab` 会检查对象是否为 null 以及是否存在 `IPoolable` 组件。
 
 如果检测不通过，会记录错误日志并中断操作，不会抛出异常。
 
-### 4. C# 池对象必须可 `new()`
+### 7.4 C# 池对象必须可 `new()`
 
 纯 C# 池在池空时会直接 `new T()`，所以不能用于没有无参构造函数的类型。
 
-## 推荐实践
+## 8. 推荐实践
 
-### 纯 C# 对象
+### 8.1 纯 C# 对象
 
 - 把可复用但生命周期很短的对象放进 `CSharpPool<T>`
 - 在 `OnRecycle()` 里清空引用类型字段
 - 不要在池对象里持有长期外部引用
 
-### GameObject 对象
+### 8.2 GameObject 对象
 
 - 让 prefab 上至少有一个主要脚本实现 `IPoolable`
 - 在业务初始化代码里设置位置、速度、计时器、动画状态
 - 在 `OnRecycle()` 中停止粒子、协程、Tween、事件监听并清理状态
 - 只归还由池生成的对象实例
 
-## 一个完整的 Bullet 示例
+## 9. 完整示例
 
 ```csharp
-using GoveKits.Runtime.Core.Pool;
 using UnityEngine;
+using GoveKits.Runtime.Core.Pool;
 
-public class Bullet : MonoBehaviour, IPoolable
+public class DemoBullet : MonoBehaviour, IPoolable
 {
 	[SerializeField] private float speed = 10f;
 	[SerializeField] private float lifeTime = 2f;
@@ -305,7 +305,7 @@ public class Bullet : MonoBehaviour, IPoolable
 }
 ```
 
-## 总结
+## 10. 总结
 
 如果你只记住 3 件事：
 

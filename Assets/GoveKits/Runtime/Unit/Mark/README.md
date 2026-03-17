@@ -8,9 +8,9 @@ Mark 用于给 Unit 挂载带时间语义的状态效果，例如：
 
 当前实现是纯 OnUpdate 驱动，不依赖外部 Timer 系统。
 
-## 核心结构
+## 1. 核心结构
 
-### UnitMark
+### 1.1 UnitMark
 
 基础状态类型，负责：
 
@@ -23,14 +23,14 @@ Mark 用于给 Unit 挂载带时间语义的状态效果，例如：
 - Duration > 0：按时间推进，超时后 IsExpired = true
 - Duration <= 0：视为永久（不会自动过期）
 
-### TickMark
+### 1.2 TickMark
 
 在 UnitMark 基础上增加周期触发能力：
 
 - TickInterval：触发间隔
 - OnTick()：每次间隔到达时回调
 
-### MarkContainer
+### 1.3 MarkContainer
 
 容器负责：
 
@@ -39,14 +39,14 @@ Mark 用于给 Unit 挂载带时间语义的状态效果，例如：
 - UpdateMarks(deltaTime)：推进所有 Mark，并清理过期项
 - HasTag：用于标签查询
 
-## 生命周期说明
+## 2. 生命周期说明
 
 1. 首次添加：调用 OnApply
 2. 重复添加同名：调用 OnStack
 3. 每帧驱动：调用 OnUpdate(deltaTime)
 4. 标记过期后：由容器移除并调用 OnRemove
 
-## 快速开始
+## 3. 快速开始
 
 下面是一个最小的中毒示例。
 
@@ -67,7 +67,7 @@ public sealed class DemoUnit : MonoBehaviour, IUnit
     [ContextMenu("Apply Poison")]
     private void ApplyPoison()
     {
-        Marks.AddMark(new PoisonMark(this, damagePerTick: 3f, duration: 5f));
+        Marks.AddMark(new DemoPoisonMark(this, damagePerTick: 3f, duration: 5f));
     }
 
     public void TakeDamage(float value)
@@ -76,13 +76,13 @@ public sealed class DemoUnit : MonoBehaviour, IUnit
     }
 }
 
-public sealed class PoisonMark : TickMark
+public sealed class DemoPoisonMark : TickMark
 {
     private readonly float _damagePerTick;
 
     public override UnitTag Name => "Poison";
 
-    public PoisonMark(IUnit owner, float damagePerTick, float duration)
+    public DemoPoisonMark(IUnit owner, float damagePerTick, float duration)
         : base(owner, interval: 1f, stack: 1, duration: duration)
     {
         _damagePerTick = damagePerTick;
@@ -91,7 +91,7 @@ public sealed class PoisonMark : TickMark
 
     protected override void OnTick()
     {
-        // 这里根据你项目中的单位接口做实际扣血
+        // 在此实现业务扣血逻辑。
         if (Owner is DemoUnit unit)
         {
             unit.TakeDamage(_damagePerTick * Stack);
@@ -101,7 +101,7 @@ public sealed class PoisonMark : TickMark
     public override void OnStack(UnitMark newMark)
     {
         base.OnStack(newMark);
-        // 可在这里加入额外堆叠逻辑，例如刷新特效强度
+        // 可在此加入额外堆叠逻辑。
     }
 
     public override void OnRemove()
@@ -112,7 +112,7 @@ public sealed class PoisonMark : TickMark
 }
 ```
 
-## 使用建议
+## 4. 注意事项
 
 - 由 Unit 或战斗系统统一驱动 Marks.UpdateMarks(deltaTime)。
 - 尽量让 Name 全局唯一，避免不同语义共用同名标签。

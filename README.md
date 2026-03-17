@@ -55,13 +55,13 @@ GoveKitsCore.Log("MySystem", "发生错误", logType: GoveKitsCore.LogType.Error
 
 ```csharp
 // 纯 C# 单例
-public class GameManager : CSharpSingleton<GameManager>
+public class DemoGameManager : CSharpSingleton<DemoGameManager>
 {
     protected override void OnSingletonInit() { }
 }
 
 // MonoBehaviour 单例
-public class AudioManager : MonoSingleton<AudioManager>
+public class DemoAudioManager : MonoSingleton<DemoAudioManager>
 {
     protected override void OnSingletonInit() { }
 }
@@ -80,19 +80,22 @@ public class AudioManager : MonoSingleton<AudioManager>
 
 ```csharp
 // 定义事件
-public class DamageEvent : EventInfo
+public class DemoDamageEvent : EventInfo
 {
     public float Amount;
 }
 
 // 订阅
-EventCore.Subscribe<DamageEvent>(OnDamage);
+var dispose = EventCore.Subscribe<DemoDamageEvent>(OnDamage);
 
 // 发布
-EventCore.Publish(new DamageEvent { Amount = 10f });
+EventCore.Publish<DemoDamageEvent>(e =>
+{
+    e.Amount = 10f;
+});
 
 // 取消订阅
-EventCore.Unsubscribe<DamageEvent>(OnDamage);
+dispose.Dispose();
 ```
 
 ---
@@ -108,8 +111,8 @@ EventCore.Unsubscribe<DamageEvent>(OnDamage);
 
 ```csharp
 // C# 对象池
-PoolCore.Create<EnemyData>(count: 8, maxSize: 64);
-EnemyData data = PoolCore.Get<EnemyData>();
+PoolCore.Create<DemoEnemyData>(count: 8, maxSize: 64);
+DemoEnemyData data = PoolCore.Get<DemoEnemyData>();
 PoolCore.Return(data);
 
 // GameObject 池
@@ -148,3 +151,17 @@ Assets/GoveKits/
 ```
 
 ---
+
+## 模块文档索引
+
+为便于分模块阅读，详细文档统一维护在各模块目录下：
+
+| 模块 | 文档 |
+|---|---|
+| Core / Singleton | [README](Assets/GoveKits/Runtime/Core/Singleton/README.md) |
+| Core / Event | [README](Assets/GoveKits/Runtime/Core/Event/README.md) |
+| Core / Pool | [README](Assets/GoveKits/Runtime/Core/Pool/README.md) |
+| AI / FSM | [README](Assets/GoveKits/Runtime/AI/FSM/README.md) |
+| Unit | [README](Assets/GoveKits/Runtime/Unit/README.md) |
+| Unit / Mark | [README](Assets/GoveKits/Runtime/Unit/Mark/README.md) |
+| Plugins | [README](Assets/GoveKits/Plugins/README.md) |

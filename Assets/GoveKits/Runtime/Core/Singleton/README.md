@@ -1,18 +1,20 @@
-# Singleton
+# Singleton Module
 
-GoveKits 的单例模块提供两种基类：
+GoveKits 单例模块提供两种基类：
 
-- `CSharpSingleton<T>`：用于纯 C# 类（非 `MonoBehaviour`）
-- `MonoSingleton<T>`：用于 Unity 组件类（继承 `MonoBehaviour`）
+- `CSharpSingleton<T>`：纯 C# 单例
+- `MonoSingleton<T>`：Unity 组件单例
 
-命名空间：`GoveKits.Core.Singleton`
+命名空间：`GoveKits.Runtime.Core.Singleton`
 
-## 文件说明
+## 1. 文件说明
 
 - `CSharpSingleton.cs`：线程安全的纯 C# 单例
-- `MonoSingleton.cs`：Unity 场景对象单例，支持自动查找/创建与跨场景保留
+- `MonoSingleton.cs`：场景对象单例，支持自动查找/创建与跨场景保留
 
-## 1) CSharpSingleton<T>
+## 2. 核心结构
+
+### 2.1 CSharpSingleton<T>
 
 适用场景：
 
@@ -26,12 +28,41 @@ GoveKits 的单例模块提供两种基类：
 - 双重检查锁（DCL）保证线程安全
 - 通过 `OnSingletonInit()` 提供初始化钩子
 
-### 使用示例
+约束：
 
 ```csharp
-using GoveKits.Core.Singleton;
+where T : CSharpSingleton<T>, new()
+```
 
-public class GameConfig : CSharpSingleton<GameConfig>
+### 2.2 MonoSingleton<T>
+
+适用场景：
+
+- 需要场景对象和 Unity 生命周期函数的全局管理器
+- 需要跨场景保留的系统组件
+
+特性：
+
+- 首次访问时自动查找场景已有实例
+- 若不存在则自动创建 `GameObject` 并挂载组件
+- 自动执行 `DontDestroyOnLoad`
+- 检测到多实例时输出日志提示
+- 应用退出后再次访问 `Instance` 返回 `null`
+
+约束：
+
+```csharp
+where T : MonoSingleton<T>
+```
+
+## 3. 快速开始
+
+### 3.1 CSharpSingleton<T>
+
+```csharp
+using GoveKits.Runtime.Core.Singleton;
+
+public class DemoGameConfig : CSharpSingleton<DemoGameConfig>
 {
     public int MaxLevel;
 
@@ -41,46 +72,16 @@ public class GameConfig : CSharpSingleton<GameConfig>
     }
 }
 
-// 访问
-int maxLevel = GameConfig.Instance.MaxLevel;
+int maxLevel = DemoGameConfig.Instance.MaxLevel;
 ```
 
-### 约束
-
-`T` 必须满足：
+### 3.2 MonoSingleton<T>
 
 ```csharp
-where T : CSharpSingleton<T>, new()
-```
-
-也就是：
-
-- 必须继承 `CSharpSingleton<T>`
-- 必须有无参构造函数
-
-## 2) MonoSingleton<T>
-
-适用场景：
-
-- 需要挂在场景中的全局管理器
-- 需要使用 Unity 生命周期函数（`Awake`/`Start`/`Update`）
-- 需要跨场景保留对象
-
-特性：
-
-- 首次访问时自动查找场景中的已有实例
-- 若不存在则自动创建 `GameObject` 并挂载组件
-- 自动执行 `DontDestroyOnLoad`，跨场景保留
-- 检测到多实例时输出日志提示
-- 应用退出后再次访问 `Instance` 返回 `null`
-
-### 使用示例
-
-```csharp
-using GoveKits.Core.Singleton;
 using UnityEngine;
+using GoveKits.Runtime.Core.Singleton;
 
-public class AudioManager : MonoSingleton<AudioManager>
+public class DemoAudioManager : MonoSingleton<DemoAudioManager>
 {
     public void PlayClick()
     {
@@ -88,38 +89,12 @@ public class AudioManager : MonoSingleton<AudioManager>
     }
 }
 
-// 调用
-AudioManager.Instance.PlayClick();
+DemoAudioManager.Instance.PlayClick();
 ```
 
-### 约束
+## 4. 注意事项
 
-`T` 必须满足：
-
-```csharp
-where T : MonoSingleton<T>
-```
-
-并且类型本身要继承 `MonoBehaviour`。
-
-## 常见问题
-
-### Q1: 什么时候用哪一种单例？
-
-- 不依赖 Unity 对象生命周期：优先 `CSharpSingleton<T>`
-- 需要场景对象与 Unity 生命周期：使用 `MonoSingleton<T>`
-
-### Q2: `MonoSingleton<T>` 为什么在退出后返回 `null`？
-
-为避免应用退出阶段重复创建“幽灵对象”，内部使用 `_applicationIsQuitting` 标记阻止重新初始化。
-
-### Q3: 出现多个 `MonoSingleton` 实例会怎样？
-
-当前实现会输出日志警告（不会自动销毁多余实例）。建议在项目逻辑中避免手动重复创建。
-
-## 建议实践
-
-- 单例只承载全局职责，避免成为“万能管理器”
-- 纯数据/服务逻辑放在 `CSharpSingleton<T>`
-- 与场景和组件强相关的逻辑放在 `MonoSingleton<T>`
-- 保持单例可测试：尽量拆分业务逻辑到可注入的普通类
+- 不依赖 Unity 生命周期时，优先使用 `CSharpSingleton<T>`。
+- 需要 `MonoBehaviour` 生命周期时，使用 `MonoSingleton<T>`。
+- `MonoSingleton<T>` 检测到多实例只会告警，不会自动销毁多余对象。
+- 单例应保持职责单一，避免成为“万能管理器”。

@@ -5,7 +5,7 @@ namespace GoveKits.Runtime.Unit
 {
     public abstract class UnitMark
     {
-        public abstract UnitTag Name { get; }
+        public abstract UnitTag Name { get; protected set; }
         public IUnit Owner { get; private set; }
 
         #region Data

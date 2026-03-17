@@ -8,7 +8,7 @@
 - `AttributeContainer`：统一属性容器
 - `IUnit`：单位接口（暴露 `Attributes`）
 
-## 目录结构
+## 1. 目录结构
 
 ```text
 Runtime/Unit/
@@ -26,7 +26,7 @@ Runtime/Unit/
 └─ Effect/UnitEffect.cs        (占位)
 ```
 
-## 1. UnitTag
+## 2. UnitTag
 
 `UnitTag` 是基于字符串语义的值类型，支持：
 
@@ -46,7 +46,7 @@ if (hpTag != atkTag)
 }
 ```
 
-## 2. TagQuery
+## 3. TagQuery
 
 `TagQuery` 用于构建标签匹配条件树，查询源需实现 `IUnitTagSource`：
 
@@ -73,9 +73,9 @@ TagQuery canCast = !"Silenced" & !"Stunned";
 bool ok = canCast.Match(tagSource);
 ```
 
-## 3. Attribute 系统
+## 4. Attribute 系统
 
-### 3.1 UnitAttribute
+### 4.1 UnitAttribute
 
 属性基类，提供：
 
@@ -83,7 +83,7 @@ bool ok = canCast.Match(tagSource);
 - `Value`：属性值（可被派生类重写）
 - `OnValueChanged(oldValue, newValue)`：值变更事件
 
-### 3.2 StateAttribute
+### 4.2 StateAttribute
 
 用于最大生命、攻击力等“状态值”。
 
@@ -106,7 +106,7 @@ final = (base + sumAdd) * (1 + sumMuty) -> override
 - `Multiplicative` 累加到 `sumMuty`（`0.1` 表示 +10%）
 - 若存在 `Override`，最终值直接覆盖为 `overrideValue`
 
-### 3.3 RuntimeAttribute
+### 4.3 RuntimeAttribute
 
 用于当前生命、当前法力等“运行时值”。
 
@@ -117,7 +117,7 @@ final = (base + sumAdd) * (1 + sumMuty) -> override
 - 提供便捷操作：`Change(delta)`、`Full()`、`Clear()`
 - 上限变化时自动重钳制
 
-## 4. AttributeModifier
+## 5. AttributeModifier
 
 修改器类型：
 
@@ -127,7 +127,7 @@ final = (base + sumAdd) * (1 + sumMuty) -> override
 
 可选来源：`ModifierSource`（用于追踪来源/后续批量移除）。
 
-## 5. AttributeContainer
+## 6. AttributeContainer
 
 `AttributeContainer` 是属性总入口，并实现了 `IUnitTagSource`。
 
@@ -138,7 +138,7 @@ final = (base + sumAdd) * (1 + sumMuty) -> override
 - 通用：`GetValue(name)`、`Clear()`
 - Tag 查询支持：`HasTag(tag)`（根据是否存在对应属性判断）
 
-## 6. IUnit
+## 7. IUnit
 
 当前 `IUnit` 定义为：
 
@@ -151,7 +151,7 @@ public interface IUnit
 
 建议单位对象实现该接口，将属性系统作为统一数据入口。
 
-## 快速示例
+## 8. 快速示例
 
 ```csharp
 // 1) 创建容器
@@ -174,6 +174,6 @@ TagQuery q = "Hp" & "MaxHp";
 bool pass = q.Match(attrs);
 ```
 
-## 说明
+## 9. 注意事项
 
 - `Ability/Reaction/Mark/Effect` 目录当前仍是占位，后续可基于本模块继续扩展。

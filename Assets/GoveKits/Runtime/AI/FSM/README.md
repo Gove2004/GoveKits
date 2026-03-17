@@ -1,8 +1,8 @@
-# FSM
+# FSM Module
 
 轻量泛型有限状态机，面向 Unity 运行时逻辑，支持异步状态进入/退出和双更新循环。
 
-## 1. 能力概览
+## 1. 概览
 
 - 使用枚举作为状态标签
 - 状态切换支持异步（`OnEnter` / `OnExit`）
@@ -52,30 +52,30 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 using GoveKits.Runtime.AI.FSM;
 
-public enum EnemyState
+public enum DemoEnemyState
 {
     Idle,
     Chase,
 }
 
-public class EnemyAgent : MonoBehaviour, IFSMObject
+public class DemoEnemyAgent : MonoBehaviour, IFSMObject
 {
-    private FSM<EnemyState, EnemyAgent> _fsm;
+    private FSM<DemoEnemyState, DemoEnemyAgent> _fsm;
 
     public Transform Target;
     public float MoveSpeed = 3f;
 
     private void Awake()
     {
-        _fsm = new FSM<EnemyState, EnemyAgent>(this);
-        _fsm.Start(EnemyState.Idle);
+        _fsm = new FSM<DemoEnemyState, DemoEnemyAgent>(this);
+        _fsm.Start(DemoEnemyState.Idle);
     }
 
     public void InitFSM()
     {
-        // Start 会自动调用一次 InitFSM
-        _fsm.AddState(EnemyState.Idle, new IdleState());
-        _fsm.AddState(EnemyState.Chase, new ChaseState());
+        // 在此注册状态。
+        _fsm.AddState(DemoEnemyState.Idle, new DemoIdleState());
+        _fsm.AddState(DemoEnemyState.Chase, new DemoChaseState());
     }
 
     private void Update()
@@ -94,7 +94,7 @@ public class EnemyAgent : MonoBehaviour, IFSMObject
     }
 }
 
-public sealed class IdleState : BaseState<EnemyState, EnemyAgent>
+public sealed class DemoIdleState : BaseState<DemoEnemyState, DemoEnemyAgent>
 {
     private float _timer;
 
@@ -109,18 +109,18 @@ public sealed class IdleState : BaseState<EnemyState, EnemyAgent>
         _timer += Time.deltaTime;
         if (_timer >= 2f)
         {
-            ChangeState(EnemyState.Chase);
+            ChangeState(DemoEnemyState.Chase);
         }
     }
 }
 
-public sealed class ChaseState : BaseState<EnemyState, EnemyAgent>
+public sealed class DemoChaseState : BaseState<DemoEnemyState, DemoEnemyAgent>
 {
     public override void OnUpdate()
     {
         if (Owner.Target == null)
         {
-            ChangeState(EnemyState.Idle);
+            ChangeState(DemoEnemyState.Idle);
             return;
         }
 
@@ -130,13 +130,13 @@ public sealed class ChaseState : BaseState<EnemyState, EnemyAgent>
 
     public override void Dispose()
     {
-        // 如果此状态有事件订阅/定时器，请在这里释放
+        // 在此释放事件订阅、定时器等状态资源。
         base.Dispose();
     }
 }
 ```
 
-## 5. 清理与资源管理
+## 5. 资源管理
 
 - `FSM.Dispose()` 会：
   - 对当前状态调用 `OnExit().Forget()`
@@ -144,7 +144,7 @@ public sealed class ChaseState : BaseState<EnemyState, EnemyAgent>
   - 清空状态表并断开 Owner 引用
 - 建议在 Owner 的 `OnDestroy` 中调用 `Dispose()`。
 
-## 6. 当前实现的行为说明
+## 6. 注意事项
 
 以下是当前实现的既定行为（不是 bug）：
 

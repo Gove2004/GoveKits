@@ -4,6 +4,12 @@ using System.Collections.Generic;
 
 namespace GoveKits.Runtime.Unit
 {
+    /// <summary>
+    /// 单位标记容器。负责管理一个单位的所有标记（Buff/Debuff/状态效果等）。
+    /// </summary>
+    /// <remarks>
+    /// 记得在单位的 Update 中调用 UpdateMarks 来维护标记的生命周期。
+    /// </remarks>
     public class MarkContainer : IUnitTagSource
     {
         private readonly Dictionary<UnitTag, UnitMark> _marks = new();
