@@ -157,6 +157,38 @@ namespace GoveKits.Runtime.Core.Pool
         }
 
         /// <summary>
+        /// 按运行时类型归还一个纯 C# 对象到已存在的池中。
+        /// </summary>
+        /// <param name="item">要归还的对象实例。</param>
+        /// <remarks>
+        /// 该接口适用于抽象基类引用（例如 UnitEffect）回池。
+        /// 仅会归还到“已创建”的对应类型池，不会隐式创建新池。
+        /// </remarks>
+        public static void Return(IPoolable item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            item.OnRecycle();
+
+            var runtimeType = item.GetType();
+            if (_csharpPools.TryGetValue(runtimeType, out var pool))
+            {
+                pool.Return(item);
+#if UNITY_EDITOR
+                RecordHistory($"Return C# Item | Type: {runtimeType.Name} | Cached: {pool.CachedCount}/{pool.MaxSize}");
+#endif
+                return;
+            }
+
+#if UNITY_EDITOR
+            RecordHistory($"Return C# Item Miss | Type: {runtimeType.Name} | Reason: pool not found");
+#endif
+        }
+
+        /// <summary>
         /// 清空指定类型的纯 C# 对象池。
         /// </summary>
         /// <typeparam name="T">要清理的对象类型。</typeparam>

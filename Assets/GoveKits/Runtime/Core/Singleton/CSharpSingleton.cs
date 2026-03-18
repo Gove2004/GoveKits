@@ -1,7 +1,7 @@
 
 
 
-namespace GoveKits.Core.Singleton
+namespace GoveKits.Runtime.Core.Singleton
 {
     /// <summary>
     /// C# 单例基类：适用于非 MonoBehaviour 类，线程安全。

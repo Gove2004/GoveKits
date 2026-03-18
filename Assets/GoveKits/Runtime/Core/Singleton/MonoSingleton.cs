@@ -1,7 +1,6 @@
-using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Core.Singleton
+namespace GoveKits.Runtime.Core.Singleton
 {
     /// <summary>
     /// MonoBehaviour 单例基类：Unity 特化，单线程无需锁。
