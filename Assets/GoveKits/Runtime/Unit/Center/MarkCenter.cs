@@ -9,7 +9,8 @@ namespace GoveKits.Runtime.Unit
 	/// Mark 工厂中心。
 	/// </summary>
 	/// <remarks>
-	/// 启动时可调用 <see cref="ScanAndRegisterFactories"/> 自动扫描并注册所有 UnitMark 派生类。
+	/// 启动时可调用 <see cref="ScanAndRegisterFactories"/> 自动扫描并注册带
+	/// <see cref="AutoUnitAttribute"/> 的 UnitMark 派生类。
 	/// 创建实例时约定构造函数第一个参数为 IUnit owner，其余参数通过 params 传入。
 	/// </remarks>
 	public static class MarkCenter
@@ -18,7 +19,7 @@ namespace GoveKits.Runtime.Unit
 		private static bool _scanned;
 
 		/// <summary>
-		/// 扫描当前 AppDomain 内所有 UnitMark 派生类并注册工厂。
+		/// 扫描当前 AppDomain 并注册带 FactoryAutoRegisterAttribute 的 UnitMark 派生类工厂。
 		/// </summary>
 		public static void ScanAndRegisterFactories()
 		{
@@ -27,71 +28,25 @@ namespace GoveKits.Runtime.Unit
 				return;
 			}
 
+			_factories.Clear();
+
 			var markBaseType = typeof(UnitMark);
-			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-
-			for (int i = 0; i < assemblies.Length; i++)
+			foreach (var type in GetAllLoadableTypes())
 			{
-				var assembly = assemblies[i];
-				Type[] types;
-
-				try
+				if (type == null || type.IsAbstract || !markBaseType.IsAssignableFrom(type))
 				{
-					types = assembly.GetTypes();
-				}
-				catch (ReflectionTypeLoadException ex)
-				{
-					types = ex.Types.Where(t => t != null).ToArray();
+					continue;
 				}
 
-				for (int j = 0; j < types.Length; j++)
+				if (!Attribute.IsDefined(type, typeof(AutoUnitAttribute), false))
 				{
-					var type = types[j];
-					if (type == null || type.IsAbstract || !markBaseType.IsAssignableFrom(type))
-					{
-						continue;
-					}
-
-					RegisterFactory(type);
+					continue;
 				}
+
+				_factories[type] = BuildFactory(type);
 			}
 
 			_scanned = true;
-		}
-
-		/// <summary>
-		/// 手动注册指定 Mark 类型工厂。
-		/// </summary>
-		/// <param name="markType">Mark 类型。</param>
-		public static void RegisterFactory(Type markType)
-		{
-			if (markType == null)
-			{
-				throw new ArgumentNullException(nameof(markType));
-			}
-
-			if (!typeof(UnitMark).IsAssignableFrom(markType) || markType.IsAbstract)
-			{
-				throw new ArgumentException($"Type {markType.FullName} is not a valid UnitMark.", nameof(markType));
-			}
-
-			_factories[markType] = BuildFactory(markType);
-		}
-
-		/// <summary>
-		/// 手动注册泛型 Mark 工厂。
-		/// </summary>
-		public static void RegisterFactory<TMark>() where TMark : UnitMark
-		{
-			RegisterFactory(typeof(TMark));
-		}
-
-		/// <summary>
-		/// 判断某个 Mark 类型是否已注册。
-		/// </summary>
-		public static bool IsRegistered<TMark>() where TMark : UnitMark
-		{
-			return _factories.ContainsKey(typeof(TMark));
 		}
 
 		/// <summary>
@@ -111,8 +66,8 @@ namespace GoveKits.Runtime.Unit
 
 			if (!_factories.TryGetValue(markType, out var factory))
 			{
-				RegisterFactory(markType);
-				factory = _factories[markType];
+				throw new InvalidOperationException(
+					$"Mark type {markType.FullName} is not registered. Add [FactoryAutoRegister].");
 			}
 
 			return factory(owner, args ?? Array.Empty<object>());
@@ -167,38 +122,20 @@ namespace GoveKits.Runtime.Unit
 			{
 				var ctor = constructors[i];
 				var ps = ctor.GetParameters();
-
 				if (ps.Length != args.Length + 1)
 				{
 					continue;
 				}
 
-				if (!ps[0].ParameterType.IsAssignableFrom(owner?.GetType() ?? typeof(IUnit)))
+				if (!IsOwnerParameterCompatible(ps[0].ParameterType, owner))
 				{
-					if (owner != null || !ps[0].ParameterType.IsAssignableFrom(typeof(IUnit)))
-					{
-						continue;
-					}
+					continue;
 				}
 
 				var ok = true;
 				for (int j = 0; j < args.Length; j++)
 				{
-					var arg = args[j];
-					var pType = ps[j + 1].ParameterType;
-
-					if (arg == null)
-					{
-						if (pType.IsValueType && Nullable.GetUnderlyingType(pType) == null)
-						{
-							ok = false;
-							break;
-						}
-
-						continue;
-					}
-
-					if (!pType.IsInstanceOfType(arg))
+					if (!IsArgumentCompatible(ps[j + 1].ParameterType, args[j]))
 					{
 						ok = false;
 						break;
@@ -212,6 +149,52 @@ namespace GoveKits.Runtime.Unit
 			}
 
 			return null;
+		}
+
+		private static bool IsOwnerParameterCompatible(Type parameterType, IUnit owner)
+		{
+			if (owner == null)
+			{
+				return !parameterType.IsValueType;
+			}
+
+			return parameterType.IsInstanceOfType(owner);
+		}
+
+		private static bool IsArgumentCompatible(Type parameterType, object value)
+		{
+			if (value == null)
+			{
+				return !parameterType.IsValueType || Nullable.GetUnderlyingType(parameterType) != null;
+			}
+
+			return parameterType.IsInstanceOfType(value);
+		}
+
+		private static IEnumerable<Type> GetAllLoadableTypes()
+		{
+			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+			for (int i = 0; i < assemblies.Length; i++)
+			{
+				Type[] types;
+				try
+				{
+					types = assemblies[i].GetTypes();
+				}
+				catch (ReflectionTypeLoadException ex)
+				{
+					types = ex.Types.Where(t => t != null).ToArray();
+				}
+
+				for (int j = 0; j < types.Length; j++)
+				{
+					var type = types[j];
+					if (type != null)
+					{
+						yield return type;
+					}
+				}
+			}
 		}
 	}
 }

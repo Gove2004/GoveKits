@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core.Pool;
 
 namespace GoveKits.Runtime.Unit
@@ -17,15 +18,35 @@ namespace GoveKits.Runtime.Unit
         /// <param name="target">效果目标 Unit。</param>
         internal void Apply(IUnit target)
         {
-            OnApply(target);
-            PoolCore.Return(this);
+            try
+            {
+                OnApply(target);
+            }
+            finally
+            {
+                PoolCore.Return(this);
+            }
         }
 
         /// <summary>
         /// 实际效果逻辑。
         /// </summary>
         /// <param name="target">效果目标 Unit。</param>
-        public abstract void OnApply(IUnit target);
+        public virtual void OnApply(IUnit target) { }
+
+        /// <summary>
+        /// 异步效果逻辑。
+        /// </summary>
+        /// <param name="target">效果目标 Unit。</param>
+        /// <remarks>
+        /// 默认会调用同步 <see cref="OnApply"/>，
+        /// 多段/延时效果可重写该方法实现异步流程。
+        /// </remarks>
+        public virtual UniTask OnApplyAsync(IUnit target)
+        {
+            OnApply(target);
+            return UniTask.CompletedTask;
+        }
 
         /// <summary>
         /// 回池前的重置逻辑。

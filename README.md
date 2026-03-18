@@ -1,167 +1,48 @@
+﻿# GoveKits 2.0
 
----
+GoveKits 是一套面向 Unity 的运行时与编辑器工具集合，强调模块化、低耦合与高可维护性。
 
-# GoveKits 2.0
+## 设计理念
 
-> GoveKits 将直接覆写 1.X，迎来全新的 2.0 版本。
+- 模块独立: 每个子系统按职责拆分，避免“大一统管理器”。
+- 统一规范: 接口命名、生命周期、调试入口、文档结构保持一致。
+- 工程优先: 优先考虑团队协作、可调试性与长期演进成本。
 
----
+## 架构介绍
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Gove2004/GoveKits)
+项目主要分为三层:
 
----
+1. Runtime
+- Core: 通用基础设施（日志、单例、事件、对象池）
+- Unit: 战斗与单位基础层（属性、标记、技能、反应、上下文、中心工厂）
+- AI: 状态机等 AI 基础能力
 
-## 安装指南（From Disk）
+2. Editor
+- Core: Event / Pool 调试窗口
+- Unit: Unit 运行时监控 Inspector
 
-本框架采用 Unity Package Manager 本地包管理模式：
+3. Plugins
+- 第三方依赖与说明（如 UniTask、Newtonsoft 等）
 
-1. **Clone 本仓库**：将代码克隆到你电脑的任意位置（例如 `E:\Unity Projects\GoveKits`）。
-2. **打开项目**：进入你需要使用该框架的 Unity 工程。
-3. **打开 Package Manager**：点击 `Window > Package Manager`。
-4. **添加包**：
-   - 点击左上角的 `+` 号。
-   - 选择 `Add package from disk...`。
-   - 导航到你克隆的 GoveKits 文件夹，选中 `package.json`。
-5. **开始使用**：Unity 会自动识别并编译，现在你可以在代码中直接调用 GoveKits 了。
+## 快速开始
 
----
+1. 克隆仓库到本地目录。
+2. 在 Unity 中打开项目，或通过 Package Manager 以 from disk 方式引入 package.json。
+3. 阅读 Runtime/Core 与 Runtime/Unit 文档，按最小示例接入。
+4. 进入 Play 模式后用 Editor 调试窗口排查问题。
 
-## 模块概览
+## 文档索引
 
-### Runtime/Core
+- Runtime Core: [Assets/GoveKits/Runtime/Core/README.md](Assets/GoveKits/Runtime/Core/README.md)
+- Runtime AI/FSM: [Assets/GoveKits/Runtime/AI/FSM/README.md](Assets/GoveKits/Runtime/AI/FSM/README.md)
+- Runtime Unit: [Assets/GoveKits/Runtime/Unit/README.md](Assets/GoveKits/Runtime/Unit/README.md)
+- Runtime Unit File Index: [Assets/GoveKits/Runtime/Unit/READ.md](Assets/GoveKits/Runtime/Unit/READ.md)
+- Editor Core: [Assets/GoveKits/Editor/Core/README.md](Assets/GoveKits/Editor/Core/README.md)
+- Editor Unit: [Assets/GoveKits/Editor/Unit/README.md](Assets/GoveKits/Editor/Unit/README.md)
+- Plugins: [Assets/GoveKits/Plugins/README.md](Assets/GoveKits/Plugins/README.md)
 
-框架的基础运行时模块，命名空间统一为 `GoveKits.Runtime.Core`。
+## 相关跳转
 
-#### GoveKitsCore — 日志
-
-统一日志入口，支持标签、消息、颜色和等级。
-
-```csharp
-GoveKitsCore.Log("MySystem", "初始化完成");
-GoveKitsCore.Log("MySystem", "出现警告", logType: GoveKitsCore.LogType.Warning);
-GoveKitsCore.Log("MySystem", "发生错误", logType: GoveKitsCore.LogType.Error);
-```
-
----
-
-#### Singleton — 单例
-
-提供两种单例基类，详见 [`Runtime/Core/Singleton/README.md`](Assets/GoveKits/Runtime/Core/Singleton/README.md)。
-
-| 基类 | 适用场景 |
-|---|---|
-| `CSharpSingleton<T>` | 纯 C# 类，线程安全，双重检查锁 |
-| `MonoSingleton<T>` | MonoBehaviour，自动查找/创建，跨场景保留 |
-
-```csharp
-// 纯 C# 单例
-public class DemoGameManager : CSharpSingleton<DemoGameManager>
-{
-    protected override void OnSingletonInit() { }
-}
-
-// MonoBehaviour 单例
-public class DemoAudioManager : MonoSingleton<DemoAudioManager>
-{
-    protected override void OnSingletonInit() { }
-}
-```
-
----
-
-#### Event — 事件系统
-
-轻量、类型安全的事件总线，详见 [`Runtime/Core/Event/README.md`](Assets/GoveKits/Runtime/Core/Event/README.md)。
-
-- 多总线路由（默认总线 `main`）
-- 监听器优先级
-- 事件传播中断（`IsBreak`）
-- 事件对象池化复用（与 `PoolCore` 集成）
-
-```csharp
-// 定义事件
-public class DemoDamageEvent : EventInfo
-{
-    public float Amount;
-}
-
-// 订阅
-var dispose = EventCore.Subscribe<DemoDamageEvent>(OnDamage);
-
-// 发布
-EventCore.Publish<DemoDamageEvent>(e =>
-{
-    e.Amount = 10f;
-});
-
-// 取消订阅
-dispose.Dispose();
-```
-
----
-
-#### Pool — 对象池
-
-统一的对象池系统，分为纯 C# 池和 GameObject 池，详见 [`Runtime/Core/Pool/README.md`](Assets/GoveKits/Runtime/Core/Pool/README.md)。
-
-| 类型 | 适用场景 |
-|---|---|
-| `CSharpPool<T>` | 临时数据、结算对象、命令对象等 |
-| `GameObjectPool` | 子弹、特效、敌人等场景对象 |
-
-```csharp
-// C# 对象池
-PoolCore.Create<DemoEnemyData>(count: 8, maxSize: 64);
-DemoEnemyData data = PoolCore.Get<DemoEnemyData>();
-PoolCore.Return(data);
-
-// GameObject 池
-PoolCore.Create(bulletPrefab, count: 16, maxSize: 64);
-GameObject bullet = PoolCore.Get(bulletPrefab);
-PoolCore.Return(bullet);
-```
-
----
-
-### Editor Tools
-
-在 Unity 编辑器菜单 `GoveKits/Core` 下提供以下调试窗口，仅在运行时生效：
-
-| 菜单项 | 功能 |
-|---|---|
-| `Event Debugger` | 查看当前所有总线的活跃频道与发布历史，支持 Bus 切换、事件类型过滤 |
-| `Pool Debugger` | 查看 C# 池与 GameObject 池的缓存/活跃状态，支持警告阈值可视化（Warning / Danger 两级）|
-
----
-
-## 目录结构
-
-```
-Assets/GoveKits/
-├── Runtime/
-│   └── Core/
-│       ├── GoveKitsCore.cs      # 日志
-│       ├── Singleton/           # 单例基类
-│       ├── Event/               # 事件系统
-│       └── Pool/                # 对象池
-└── Editor/
-    └── Core/
-        ├── EventDebuggerWindow.cs   # 事件调试窗口
-        └── PoolDebuggerWindow.cs    # 对象池调试窗口
-```
-
----
-
-## 模块文档索引
-
-为便于分模块阅读，详细文档统一维护在各模块目录下：
-
-| 模块 | 文档 |
-|---|---|
-| Core / Singleton | [README](Assets/GoveKits/Runtime/Core/Singleton/README.md) |
-| Core / Event | [README](Assets/GoveKits/Runtime/Core/Event/README.md) |
-| Core / Pool | [README](Assets/GoveKits/Runtime/Core/Pool/README.md) |
-| AI / FSM | [README](Assets/GoveKits/Runtime/AI/FSM/README.md) |
-| Unit | [README](Assets/GoveKits/Runtime/Unit/README.md) |
-| Unit / Mark | [README](Assets/GoveKits/Runtime/Unit/Mark/README.md) |
-| Plugins | [README](Assets/GoveKits/Plugins/README.md) |
+- Core Event: [Assets/GoveKits/Runtime/Core/Event/README.md](Assets/GoveKits/Runtime/Core/Event/README.md)
+- Core Pool: [Assets/GoveKits/Runtime/Core/Pool/README.md](Assets/GoveKits/Runtime/Core/Pool/README.md)
+- Core Singleton: [Assets/GoveKits/Runtime/Core/Singleton/README.md](Assets/GoveKits/Runtime/Core/Singleton/README.md)

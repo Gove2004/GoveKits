@@ -10,24 +10,14 @@ namespace GoveKits.Runtime.Unit
     /// <remarks>
     /// 负责管理反应实例的增删、批量激活/停用以及生命周期清理。
     /// </remarks>
-    public class ReactionContainer : IUnitTagSource
+    public class ReactionContainer : IUnitTagSource, IEnumerable<KeyValuePair<UnitTag, UnitReaction>>
     {
-        /// <summary>
-        /// 反应字典，Key 为反应标签。
-        /// </summary>
-        private readonly Dictionary<UnitTag, IUnitReaction> _reactions = new();
-
-        /// <summary>
-        /// 容器当前是否处于激活状态。
-        /// </summary>
         private bool _isActive = false;
-
-        /// <summary>
-        /// 判断容器内是否存在指定标签的反应。
-        /// </summary>
-        /// <param name="tag">反应标签。</param>
-        /// <returns>存在返回 true，否则返回 false。</returns>
+        private readonly Dictionary<UnitTag, UnitReaction> _reactions = new();
         public bool HasTag(UnitTag tag) => _reactions.ContainsKey(tag);
+        public int Count => _reactions.Count;
+        public IEnumerator<KeyValuePair<UnitTag, UnitReaction>> GetEnumerator() => _reactions.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _reactions.GetEnumerator();
 
         /// <summary>
         /// 设置容器激活状态。
@@ -57,7 +47,7 @@ namespace GoveKits.Runtime.Unit
         /// 若存在同名反应，会先移除旧实例；
         /// 若容器当前已激活，新反应会立即激活。
         /// </remarks>
-        public void AddReaction(IUnitReaction reaction)
+        public void AddReaction(UnitReaction reaction)
         {
             if (reaction == null) return;
             if (_reactions.ContainsKey(reaction.Name))
@@ -79,12 +69,20 @@ namespace GoveKits.Runtime.Unit
         /// <param name="name">反应名称。</param>
         public void RemoveReaction(UnitTag name)
         {
-            IUnitReaction reaction;
+            UnitReaction reaction;
             if (_reactions.TryGetValue(name, out reaction))
             {
                 reaction.Dispose();
                 _reactions.Remove(name);
             }
+        }
+
+        /// <summary>
+        /// 获取指定名称的反应实例。
+        /// </summary>
+        public T GetReaction<T>(UnitTag name) where T : UnitReaction
+        {
+            return _reactions.TryGetValue(name, out var reaction) ? reaction as T : null;
         }
 
         /// <summary>

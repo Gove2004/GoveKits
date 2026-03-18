@@ -4,45 +4,13 @@ using GoveKits.Runtime.Core.Event;
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// Unit 反应接口。
-    /// </summary>
-    public interface IUnitReaction : IEventListener<EventInfo>, IDisposable
-    {
-        /// <summary>
-        /// 反应唯一标识。
-        /// </summary>
-        UnitTag Name { get; }
-
-        /// <summary>
-        /// 当前反应归属的 Unit。
-        /// </summary>
-        IUnit Owner { get; }
-
-        /// <summary>
-        /// 当前反应是否处于激活状态。
-        /// </summary>
-        bool IsActive { get; }
-
-        /// <summary>
-        /// 激活反应并订阅对应事件。
-        /// </summary>
-        void Activate();
-
-        /// <summary>
-        /// 停用反应并取消订阅。
-        /// </summary>
-        void Deactivate();
-    }
-
-
-    /// <summary>
     /// Unit 反应基类（非泛型公共层）。
     /// </summary>
     /// <remarks>
     /// Reaction 常用于实现被动技能：监听某类事件并在命中条件时执行响应逻辑。
     /// 生命周期由容器驱动，建议通过 <see cref="ReactionContainer"/> 统一管理。
     /// </remarks>
-    public abstract class UnitReaction : IUnitReaction
+    public abstract class UnitReaction
     {
         /// <summary>
         /// 反应唯一标识。

@@ -6,18 +6,13 @@ namespace GoveKits.Runtime.Unit
     /// Unit 属性容器。
     /// 统一管理 StateAttribute / RuntimeAttribute 的创建、查询和修改。
     /// </summary>
-    public class AttributeContainer : IUnitTagSource
+    public class AttributeContainer : IUnitTagSource, IEnumerable<KeyValuePair<UnitTag, UnitAttribute>>
     {
         private readonly Dictionary<UnitTag, UnitAttribute> _attributes = new();
-
-        /// <summary>
-        /// 判断容器中是否存在指定标签对应的属性。
-        /// 该实现用于 TagQuery 的 HasTag 匹配。
-        /// </summary>
-        /// <param name="tag">待检查标签。</param>
-        /// <returns>存在则返回 true，否则返回 false。</returns>
         public bool HasTag(UnitTag tag) => _attributes.ContainsKey(tag);
-
+        public int Count => _attributes.Count;
+        public IEnumerator<KeyValuePair<UnitTag, UnitAttribute>> GetEnumerator() => _attributes.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _attributes.GetEnumerator();
 
         /// <summary>
         /// 获取指定属性的当前值，不存在时返回 0。

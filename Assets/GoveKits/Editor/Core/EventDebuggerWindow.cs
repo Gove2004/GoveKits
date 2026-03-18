@@ -5,6 +5,12 @@ using GoveKits.Runtime.Core.Event;
 using System;
 using System.Linq;
 
+/// <summary>
+/// Event 系统调试窗口。
+/// </summary>
+/// <remarks>
+/// 用于在 Play 模式下查看总线、频道订阅数和事件发布历史。
+/// </remarks>
 public class EventDebuggerWindow : EditorWindow
 {
     private Vector2 _scrollPos;
@@ -18,12 +24,18 @@ public class EventDebuggerWindow : EditorWindow
     private readonly List<string> _cachedBusNames = new();
     private int _historyDisplayCount = 50;
 
+    /// <summary>
+    /// 打开调试窗口。
+    /// </summary>
     [MenuItem("GoveKits/Core/Event Debugger")]
     public static void ShowWindow()
     {
         GetWindow<EventDebuggerWindow>("Event Debugger");
     }
 
+    /// <summary>
+    /// 订阅窗口刷新事件。
+    /// </summary>
     private void OnEnable()
     {
         // 订阅刷新事件
@@ -32,12 +44,18 @@ public class EventDebuggerWindow : EditorWindow
         _nextRepaintTime = EditorApplication.timeSinceStartup;
     }
 
+    /// <summary>
+    /// 取消订阅窗口刷新事件。
+    /// </summary>
     private void OnDisable()
     {
         EventCore.OnEventSystemChanged -= Repaint;
         EditorApplication.update -= OnEditorUpdate;
     }
 
+    /// <summary>
+    /// 编辑器更新回调，用于自动刷新窗口。
+    /// </summary>
     private void OnEditorUpdate()
     {
         if (!_autoRefresh || !Application.isPlaying)

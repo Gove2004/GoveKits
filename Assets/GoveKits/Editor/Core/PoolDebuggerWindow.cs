@@ -4,6 +4,12 @@ using UnityEditor;
 using UnityEngine;
 using GoveKits.Runtime.Core.Pool;
 
+/// <summary>
+/// Pool 系统调试窗口。
+/// </summary>
+/// <remarks>
+/// 支持查看 C# 池与 GameObject 池运行时状态、容量阈值告警与历史记录。
+/// </remarks>
 public class PoolDebuggerWindow : EditorWindow
 {
     private enum WarningLevel
@@ -34,12 +40,18 @@ public class PoolDebuggerWindow : EditorWindow
     private float _activeWarnThreshold = 0.70f;
     private float _activeDangerThreshold = 0.90f;
 
+    /// <summary>
+    /// 打开调试窗口。
+    /// </summary>
     [MenuItem("GoveKits/Core/Pool Debugger")]
     public static void ShowWindow()
     {
         GetWindow<PoolDebuggerWindow>("Pool Debugger");
     }
 
+    /// <summary>
+    /// 订阅窗口刷新事件。
+    /// </summary>
     private void OnEnable()
     {
         PoolCore.OnPoolSystemChanged += Repaint;
@@ -47,12 +59,18 @@ public class PoolDebuggerWindow : EditorWindow
         _nextRepaintTime = EditorApplication.timeSinceStartup;
     }
 
+    /// <summary>
+    /// 取消订阅窗口刷新事件。
+    /// </summary>
     private void OnDisable()
     {
         PoolCore.OnPoolSystemChanged -= Repaint;
         EditorApplication.update -= OnEditorUpdate;
     }
 
+    /// <summary>
+    /// 编辑器更新回调，用于自动刷新窗口。
+    /// </summary>
     private void OnEditorUpdate()
     {
         if (!_autoRefresh || !Application.isPlaying)

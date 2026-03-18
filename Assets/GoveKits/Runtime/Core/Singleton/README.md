@@ -1,100 +1,28 @@
-# Singleton Module
+﻿# Runtime Core Singleton Module
 
-GoveKits 单例模块提供两种基类：
+Singleton 模块提供 CSharp 与 MonoBehaviour 两套单例基类。
 
-- `CSharpSingleton<T>`：纯 C# 单例
-- `MonoSingleton<T>`：Unity 组件单例
+## 设计理念
 
-命名空间：`GoveKits.Runtime.Core.Singleton`
+- 区分运行上下文: 纯逻辑与 Unity 组件分开处理。
+- 降低重复代码: 统一初始化与实例获取逻辑。
+- 明确边界: 单例用于基础服务，不承载复杂业务流程。
 
-## 1. 文件说明
+## 架构介绍
 
-- `CSharpSingleton.cs`：线程安全的纯 C# 单例
-- `MonoSingleton.cs`：场景对象单例，支持自动查找/创建与跨场景保留
+- CSharpSingleton.cs: 线程安全、延迟初始化单例
+- MonoSingleton.cs: Unity 组件单例，支持自动查找/创建
 
-## 2. 核心结构
+## 快速开始
 
-### 2.1 CSharpSingleton<T>
+1. 纯服务类继承 CSharpSingleton<T>。
+2. 组件管理类继承 MonoSingleton<T>。
+3. 在 OnSingletonInit 中完成初始化。
+4. 通过 Instance 统一访问。
 
-适用场景：
+## 相关跳转
 
-- 配置管理器
-- 纯逻辑服务
-- 不依赖 Unity 生命周期的系统对象
-
-特性：
-
-- 延迟初始化（首次访问 `Instance` 时创建）
-- 双重检查锁（DCL）保证线程安全
-- 通过 `OnSingletonInit()` 提供初始化钩子
-
-约束：
-
-```csharp
-where T : CSharpSingleton<T>, new()
-```
-
-### 2.2 MonoSingleton<T>
-
-适用场景：
-
-- 需要场景对象和 Unity 生命周期函数的全局管理器
-- 需要跨场景保留的系统组件
-
-特性：
-
-- 首次访问时自动查找场景已有实例
-- 若不存在则自动创建 `GameObject` 并挂载组件
-- 自动执行 `DontDestroyOnLoad`
-- 检测到多实例时输出日志提示
-- 应用退出后再次访问 `Instance` 返回 `null`
-
-约束：
-
-```csharp
-where T : MonoSingleton<T>
-```
-
-## 3. 快速开始
-
-### 3.1 CSharpSingleton<T>
-
-```csharp
-using GoveKits.Runtime.Core.Singleton;
-
-public class DemoGameConfig : CSharpSingleton<DemoGameConfig>
-{
-    public int MaxLevel;
-
-    protected override void OnSingletonInit()
-    {
-        MaxLevel = 100;
-    }
-}
-
-int maxLevel = DemoGameConfig.Instance.MaxLevel;
-```
-
-### 3.2 MonoSingleton<T>
-
-```csharp
-using UnityEngine;
-using GoveKits.Runtime.Core.Singleton;
-
-public class DemoAudioManager : MonoSingleton<DemoAudioManager>
-{
-    public void PlayClick()
-    {
-        Debug.Log("Play click");
-    }
-}
-
-DemoAudioManager.Instance.PlayClick();
-```
-
-## 4. 注意事项
-
-- 不依赖 Unity 生命周期时，优先使用 `CSharpSingleton<T>`。
-- 需要 `MonoBehaviour` 生命周期时，使用 `MonoSingleton<T>`。
-- `MonoSingleton<T>` 检测到多实例只会告警，不会自动销毁多余对象。
-- 单例应保持职责单一，避免成为“万能管理器”。
+- Root: [../../../../../README.md](../../../../../README.md)
+- Runtime Core: [../README.md](../README.md)
+- Event: [../Event/README.md](../Event/README.md)
+- Unit: [../../Unit/README.md](../../Unit/README.md)

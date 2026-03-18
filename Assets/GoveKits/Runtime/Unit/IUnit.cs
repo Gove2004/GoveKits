@@ -1,6 +1,8 @@
 
 
 
+using Cysharp.Threading.Tasks;
+
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
@@ -50,7 +52,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 技能容器。
         /// </summary>
-        public AbilityContainer Abilitys { get; }
+        public AbilityContainer Abilities { get; }
 
         /// <summary>
         /// 反应容器。
@@ -70,7 +72,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 初始化技能数据。
         /// </summary>
-        void InitAbilitys();
+        void InitAbilities();
 
         /// <summary>
         /// 初始化反应数据。
@@ -78,10 +80,24 @@ namespace GoveKits.Runtime.Unit
         void InitReactions();
 
         /// <summary>
+        /// 获取属性值的快捷方法。
+        /// </summary>
+        /// <param name="attributeTag"></param>
+        /// <returns></returns>
+        float Value(UnitTag attributeTag) => Attributes.GetValue(attributeTag); 
+
+        /// <summary>
+        /// 尝试异步执行技能（由当前 Unit 作为 Source）。
+        /// </summary>
+        /// <param name="abilityTag">技能标签。</param>
+        /// <param name="target">技能目标，可为空。</param>
+        UniTask<bool> Use(UnitTag abilityTag, UnitContext context) => Abilities.TryExecuteAsync(abilityTag, context);
+        
+        /// <summary>
         /// 对当前 Unit 应用一个即时效果。
         /// </summary>
         /// <param name="effect">要执行的效果对象。</param>
-        void ApplyEffect(UnitEffect effect) => effect.Apply(this);
+        void Apply(UnitEffect effect) => effect.Apply(this);
     }
 
     /// <summary>
@@ -105,7 +121,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 技能容器实例。
         /// </summary>
-        public AbilityContainer Abilitys { get; private set; }
+        public AbilityContainer Abilities { get; private set; }
 
         /// <summary>
         /// 反应容器实例。
@@ -119,7 +135,7 @@ namespace GoveKits.Runtime.Unit
         {
             Attributes = new AttributeContainer();
             Marks = new MarkContainer();
-            Abilitys = new AbilityContainer();
+            Abilities = new AbilityContainer();
             Reactions = new ReactionContainer();
         }
 
@@ -136,7 +152,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 初始化技能数据。
         /// </summary>
-        public abstract void InitAbilitys();
+        public abstract void InitAbilities();
 
         /// <summary>
         /// 初始化反应数据。
