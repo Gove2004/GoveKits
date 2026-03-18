@@ -16,10 +16,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="tag">待检查标签。</param>
         /// <returns>存在则返回 true，否则返回 false。</returns>
-        public bool HasTag(UnitTag tag)
-        {
-            return _attributes.ContainsKey(tag);
-        }
+        public bool HasTag(UnitTag tag) => _attributes.ContainsKey(tag);
 
 
         /// <summary>

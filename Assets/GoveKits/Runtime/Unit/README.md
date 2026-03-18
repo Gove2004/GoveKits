@@ -6,6 +6,8 @@
 - `TagQuery`：可组合的标签查询表达式（`!` / `&` / `|`）
 - `StateAttribute` / `RuntimeAttribute`：状态值与运行时值
 - `AttributeContainer`：统一属性容器
+- `IUnitReaction` / `UnitReaction<T>`：事件驱动反应（被动技能）
+- `ReactionContainer`：反应容器（增删、启停、清理）
 - `IUnit`：单位接口（暴露 `Attributes`）
 
 ## 1. 目录结构
@@ -19,9 +21,12 @@ Runtime/Unit/
 │  ├─ AttributeModifier.cs
 │  ├─ UnitAttribute.cs
 │  └─ AttributeContainer.cs
+├─ Reaction/
+│  ├─ UnitReaction.cs
+│  ├─ ReactionContainer.cs
+│  └─ README.md
 ├─ IUnit.cs
 ├─ Ability/UnitAbility.cs      (占位)
-├─ Reaction/UnitReaction.cs    (占位)
 ├─ Mark/UnitMark.cs            (占位)
 └─ Effect/UnitEffect.cs        (占位)
 ```
@@ -151,7 +156,25 @@ public interface IUnit
 
 建议单位对象实现该接口，将属性系统作为统一数据入口。
 
-## 8. 快速示例
+## 8. Reaction（被动技能）
+
+Reaction 模块用于实现“事件触发型被动”：
+
+- 通过 `UnitReaction<T>` 监听指定事件类型
+- 通过 `DelegateReaction<T>` 快速挂载委托逻辑
+- 通过 `ReactionContainer` 统一管理反应生命周期
+
+常用流程：
+
+1. 创建反应实例（继承类或委托版）
+2. `AddReaction` 注册到容器
+3. `SetActive(true)` 启动监听
+4. 在事件触发时自动执行 `OnReaction`
+5. 销毁时 `Clear()` 释放全部订阅
+
+详细示例见 [Reaction/README.md](Reaction/README.md)。
+
+## 9. 快速示例
 
 ```csharp
 // 1) 创建容器
@@ -174,6 +197,7 @@ TagQuery q = "Hp" & "MaxHp";
 bool pass = q.Match(attrs);
 ```
 
-## 9. 注意事项
+## 10. 注意事项
 
-- `Ability/Reaction/Mark/Effect` 目录当前仍是占位，后续可基于本模块继续扩展。
+- `Ability/Mark/Effect` 目录当前仍是占位，后续可基于本模块继续扩展。
+- Reaction 模块已可用于被动技能场景，建议优先通过 `ReactionContainer` 管理生命周期。
