@@ -1,35 +1,46 @@
-﻿# Runtime Unit Ability Module
+﻿# Runtime Unit Ability 开发文档
 
-Ability 模块定义技能执行抽象、规则机制与容器管理。
+Ability 模块定义技能执行流程与规则约束。
 
 ## 设计理念
 
-- 执行可控: 将技能执行与前置约束拆分。
-- 规则可组合: 通过 AbilityRule 注入冷却、资源、状态限制。
-- 容器统一: 统一注册、查询、触发、释放流程。
+- 执行流程标准化。
+- 规则与技能逻辑解耦。
+- 容器统一调度。
 
 ## 架构介绍
 
-- UnitAbility.cs
-  - 抽象技能类型
-  - 执行入口与生命周期
-- AbilityRule.cs
-  - Check: 执行前检查
-  - Commit: 执行时提交副作用
-- AbilityContainer.cs
-  - Add/Remove/Get
-  - 按标签执行技能
+- UnitAbility.cs: 技能基类（CanExecute / TryExecuteAsync / ExecuteAsync）
+- AbilityRule.cs: 规则基类（Check / Commit）
+- AbilityContainer.cs: 技能管理与执行
 
 ## 快速开始
 
-1. 继承 UnitAbility 定义技能行为。
-2. 编写 AbilityRule（如冷却、消耗）并挂载到技能。
-3. 通过 AbilityContainer 注册技能。
-4. 在业务层按标签触发执行。
+```csharp
+public sealed class FireballAbility : UnitAbility
+{
+    public override UnitTag Name => "Ability.Fireball";
+
+    public FireballAbility(IUnit owner) : base(owner)
+    {
+    }
+
+    public override async Cysharp.Threading.Tasks.UniTask ExecuteAsync(UnitContext context)
+    {
+        // 技能逻辑
+        await Cysharp.Threading.Tasks.UniTask.CompletedTask;
+    }
+}
+```
+
+## 注意事项
+
+- Check 只做判断，不要写副作用。
+- Commit 内写副作用（如扣资源、加 CD）。
+- AbilityContainer 中移除技能时会调用 Dispose。
 
 ## 相关跳转
 
 - Unit: [../README.md](../README.md)
-- Unit File Index: [../READ.md](../READ.md)
 - Center: [../Center/README.md](../Center/README.md)
-- Extension: [../Extension/README.md](../Extension/README.md)
+- Extension CD: [../Extension/README.md](../Extension/README.md)

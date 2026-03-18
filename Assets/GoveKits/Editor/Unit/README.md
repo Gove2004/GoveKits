@@ -1,30 +1,45 @@
-﻿# Editor Unit Module
+﻿# Editor Unit 开发文档
 
-Editor/Unit 提供 Unit 系统运行时 Inspector 监控能力。
+Editor/Unit 提供 UnitBehaviour 的运行时监控 Inspector。
 
 ## 设计理念
 
-- 面向战斗调试: 直接在 Inspector 查看关键战斗状态。
-- 数据直观: 属性、标记、技能、反应分组可视化。
-- 低成本接入: 继承 UnitBehaviour 即可复用监控面板。
+- 关键战斗数据一屏查看。
+- 调试行为尽量不侵入业务代码。
+- 与 Runtime Unit 数据结构一致。
 
 ## 架构介绍
 
 - UnitBehaviourEditor.cs
-  - 自定义 Inspector
-  - 实时刷新
-  - 过滤与折叠面板
-  - 冷却状态可视化
+  - Attributes 面板
+  - Marks 面板
+  - Abilities 面板
+  - Reactions 面板
 
 ## 快速开始
 
-1. 让角色类继承 UnitBehaviour。
-2. 进入 Play 模式并选中 Unit 对象。
-3. 在 Inspector 中查看 Attributes/Marks/Abilities/Reactions。
-4. 用过滤器快速定位目标标签。
+1. 让角色组件继承 UnitBehaviour。
+2. 进入 Play 模式并选中对象。
+3. 在 Inspector 实时查看 Unit 数据。
+
+```csharp
+using GoveKits.Runtime.Unit;
+
+public sealed class DemoUnit : UnitBehaviour
+{
+  public override void InitAttributes() { }
+  public override void InitMarks() { }
+  public override void InitAbilitys() { }
+  public override void InitReactions() { }
+}
+```
+
+## 注意事项
+
+- 仅运行时显示完整调试数据。
+- 标签命名建议统一，便于过滤检索。
 
 ## 相关跳转
 
 - Root: [../../../../README.md](../../../../README.md)
 - Runtime Unit: [../../Runtime/Unit/README.md](../../Runtime/Unit/README.md)
-- Unit File Index: [../../Runtime/Unit/READ.md](../../Runtime/Unit/READ.md)

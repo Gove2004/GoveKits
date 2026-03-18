@@ -1,29 +1,44 @@
-﻿# Runtime Core Pool Module
+﻿# Runtime Core Pool 开发文档
 
-Pool 模块提供对象复用体系，包含纯 CSharp 对象池与 GameObject 对象池。
+Pool 提供 C# 对象与 GameObject 的复用能力。
 
 ## 设计理念
 
-- 降低 GC 压力: 减少高频 new/Destroy。
-- 统一入口: 通过 PoolCore 管理两类池。
-- 生命周期显式: 回收时统一重置对象状态。
+- 减少 GC 与 Instantiate/Destroy 抖动。
+- 统一入口，统一回收语义。
+- 运行时可视化监控缓存与活跃量。
 
 ## 架构介绍
 
-- IPoolable.cs: 池对象重置接口
-- Pool.cs: 具体池实现
-- PoolCore.cs: 对外统一创建、获取、归还、调试接口
+- IPoolable.cs: 回收重置接口
+- Pool.cs: 池实现
+- PoolCore.cs: 对外 API
 
 ## 快速开始
 
-1. 让可池化对象实现 IPoolable.OnRecycle。
-2. 用 PoolCore.Create 创建池。
-3. 业务中通过 Get/Return 复用对象。
-4. 打开 Pool Debugger 观察缓存与活跃量。
+```csharp
+using GoveKits.Runtime.Core.Pool;
+
+public class BulletData : IPoolable
+{
+    public float Speed;
+    public void OnRecycle() => Speed = 0f;
+}
+
+PoolCore.Create<BulletData>(count: 8, maxSize: 64);
+var data = PoolCore.Get<BulletData>();
+data.Speed = 12f;
+PoolCore.Return(data);
+```
+
+## 注意事项
+
+- 池对象必须可重置，`OnRecycle` 不要留引用。
+- GameObject 池 prefab 需要挂 `IPoolable` 组件。
+- 超过 `maxSize` 的回收对象会被丢弃。
 
 ## 相关跳转
 
-- Root: [../../../../../README.md](../../../../../README.md)
 - Runtime Core: [../README.md](../README.md)
 - Editor Pool Debugger: [../../../Editor/Core/README.md](../../../Editor/Core/README.md)
-- Unit: [../../Unit/README.md](../../Unit/README.md)
+- Event: [../Event/README.md](../Event/README.md)

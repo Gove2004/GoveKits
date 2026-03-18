@@ -1,32 +1,35 @@
-﻿# Runtime Unit Extension Module
+﻿# Runtime Unit Extension 开发文档
 
-Extension 模块承载 Unit 的扩展能力与桥接组件。
+Extension 模块承载 Unit 的扩展规则与 Unity 行为桥接。
 
 ## 设计理念
 
-- 扩展隔离: 将可插拔机制与核心模型解耦。
-- 规则复用: 通过 AbilityRule 扩展行为约束。
-- Unity 桥接: 通过 UnitBehaviour 把运行时模型接到 MonoBehaviour。
+- 核心稳定，扩展独立。
+- 战斗规则可插拔。
+- Unity 生命周期与运行时容器对齐。
 
 ## 架构介绍
 
-- CD.cs
-  - CDRule: 冷却检查与提交
-  - CDMark: 冷却标记
-- UnitBehaviour.cs
-  - IUnit 的 Unity 行为实现基类
-  - 生命周期内初始化与更新容器
+- CD.cs: CDRule + CDMark
+- UnitBehaviour.cs: IUnit 的 MonoBehaviour 实现基类
 
 ## 快速开始
 
-1. 在技能上添加 CDRule 并配置 CDTag 与时长。
-2. 继承 UnitBehaviour 实现 InitAttributes/InitAbilitys 等初始化函数。
-3. 在 Update 中由 UnitBehaviour 驱动 Mark 更新。
-4. 用 Editor/Unit 监控面板观察运行状态。
+```csharp
+var ability = new FireballAbility(owner);
+ability.AddRule(new CDRule("CD.Fireball", 3f));
+owner.Abilitys.AddAbility(ability);
+```
+
+## 注意事项
+
+- CDTag 建议包含技能名，避免冲突。
+- UnitBehaviour.OnDestroy 需清理容器。
+- Editor 监控面板只在 Play 模式显示完整数据。
 
 ## 相关跳转
 
 - Unit: [../README.md](../README.md)
-- Unit File Index: [../READ.md](../READ.md)
 - Ability: [../Ability/README.md](../Ability/README.md)
 - Mark: [../Mark/README.md](../Mark/README.md)
+- Editor Unit: [../../../Editor/Unit/README.md](../../../Editor/Unit/README.md)
