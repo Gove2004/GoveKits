@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using UnityEngine;
+#if TMP_PRESENT
 using TMPro;
+#endif
 
-namespace GoveKits.Localization
+namespace GoveKits.Runtime.Util
 {
     [CreateAssetMenu(fileName = "LocalizationConfig", menuName = "GoveKits/Localization Config")]
     public class LocalizationConfig : ScriptableObject
     {
-        [Header("语言数据文件 (JSON)")]
-        public TextAsset LanguageJson;
-
+#if TMP_PRESENT
         [Header("字体设置")]
         public List<LanguageFont> FontSettings = new List<LanguageFont>();
 
@@ -21,12 +21,15 @@ namespace GoveKits.Localization
             var setting = FontSettings.Find(x => x.languageCode == code);
             return setting != null && setting.fontAsset != null ? setting.fontAsset : DefaultFont;
         }
+#endif
     }
 
     [System.Serializable]
     public class LanguageFont
     {
         public LanguageCode languageCode;
+#if TMP_PRESENT
         public TMP_FontAsset fontAsset;
+#endif
     }
 }

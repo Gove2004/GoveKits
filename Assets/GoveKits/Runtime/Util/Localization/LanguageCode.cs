@@ -1,7 +1,7 @@
 
 
 
-namespace GoveKits.Localization
+namespace GoveKits.Runtime.Util
 {
     public enum LanguageCode : int
     {

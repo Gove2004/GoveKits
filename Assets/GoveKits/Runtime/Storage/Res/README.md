@@ -60,7 +60,7 @@ ResCore.Release<GameObject>(ResLoadType.Resources, "Prefabs/Enemy");
 - 缓存键包含加载类型、资源类型、路径，避免不同来源冲突。
 - `Release<T>` 时 `T` 必须与加载时一致，否则键不同无法正确减引用。
 - `AssetBundleResLoader` 的相对路径默认拼到 `Application.streamingAssetsPath`。
-- Addressables 需要安装包并启用 `UNITASK_ADDRESSABLE_SUPPORT`。
+- Addressables 需要安装 `com.unity.addressables`（或 `com.unity.addressables.cn`）；`UNITASK_ADDRESSABLE_SUPPORT` 会通过 asmdef `versionDefines` 自动启用。
 - `Resources.UnloadAsset` 不会处理 `GameObject/Component` 实例生命周期。
 
 ## 相关跳转

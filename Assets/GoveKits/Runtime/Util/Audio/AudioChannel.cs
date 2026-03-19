@@ -1,6 +1,6 @@
 
 
-namespace GoveKits.Audio
+namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// 音频资源频道
