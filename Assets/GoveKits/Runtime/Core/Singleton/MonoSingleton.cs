@@ -25,7 +25,7 @@ namespace GoveKits.Runtime.Core.Singleton
                 // 应用退出检测
                 if (_applicationIsQuitting)
                 {
-                    GoveKitsCore.Log("MonoSingleton", "实例已销毁");
+                    LogCore.LogWarning(nameof(MonoSingleton<T>), $"[MonoSingleton] 已退出，无法访问 {typeof(T).Name} 实例");
                     return null;
                 }
 
@@ -37,7 +37,8 @@ namespace GoveKits.Runtime.Core.Singleton
                     // 错误检查：确保只有一个实例
                     if (FindObjectsByType<T>(FindObjectsSortMode.None).Length > 1)
                     {
-                        GoveKitsCore.Log("MonoSingleton", "存在多个单例实例！");
+                        LogCore.LogError(nameof(MonoSingleton<T>), $"场景中存在多个 {typeof(T).Name} 实例，单例模式被破坏", "FF0000");
+                        return _instance;
                     }
 
                     // 如果不存在则创建新实例

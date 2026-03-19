@@ -43,7 +43,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                GoveKitsCore.Log("JsonConfigParser", "Failed to parse as List<T>, trying other formats.", logType: LogType.Warning);
+                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
             }
 
             try
@@ -56,7 +56,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                GoveKitsCore.Log("JsonConfigParser", "Failed to parse as Dictionary<int, T>, trying other formats.", logType: LogType.Warning);
+                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
             }
 
             try
@@ -69,7 +69,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                GoveKitsCore.Log("JsonConfigParser", "Failed to parse as Dictionary<string, T>, trying other formats.", logType: LogType.Warning);
+                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
             }
 
             T one = JsonConvert.DeserializeObject<T>(json);

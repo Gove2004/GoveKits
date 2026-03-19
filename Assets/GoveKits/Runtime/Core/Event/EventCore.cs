@@ -66,7 +66,7 @@ namespace GoveKits.Runtime.Core.Event
         {
             if (busName == DefaultBusName)
             {
-                GoveKitsCore.Log(nameof(EventCore), $"禁止销毁默认事件总线", logType: GoveKitsCore.LogType.Error);
+                LogCore.LogError(nameof(EventCore), $"禁止销毁默认总线 '{DefaultBusName}'", "FF0000");
                 return;
             }
 
@@ -123,7 +123,7 @@ namespace GoveKits.Runtime.Core.Event
             }
             catch (Exception ex)
             {
-                throw new Exception($"[EventCore] Exception occurred while publishing event of type {typeof(T).Name} on bus '{busName}'.", ex);
+                LogCore.LogError(nameof(EventCore), $"事件发布异常: {ex.Message}", "FF0000");
             }
             finally
             {

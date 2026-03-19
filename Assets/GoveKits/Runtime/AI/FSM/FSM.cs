@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.AI.FSM
 {
@@ -83,7 +84,7 @@ namespace GoveKits.Runtime.AI.FSM
             }
             catch (Exception ex)
             {
-                throw new Exception($"FSM 状态切换失败: {Current} -> {newState}", ex);
+                LogCore.LogInfo(nameof(FSM<TStateEnum, TFSMObject>), $"状态切换异常: {ex.Message}", "FF0000");
             }
             finally
             {
@@ -101,7 +102,7 @@ namespace GoveKits.Runtime.AI.FSM
         {
             if (!_stateDict.TryGetValue(initialState, out var state))
             {
-                throw new Exception($"FSM 启动失败: 未找到初始状态 {initialState}");
+                LogCore.LogError(nameof(FSM<TStateEnum, TFSMObject>), $"FSM 启动失败: 未找到初始状态 {initialState}", "FF0000");
             }
             Current = initialState;
             CurrentState.OnEnter().Forget();

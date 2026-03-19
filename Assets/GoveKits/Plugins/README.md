@@ -14,44 +14,7 @@ Plugins 目录用于管理第三方依赖来源与使用边界，目标是可追
 
 - Cysharp.Threading.Tasks (UniTask)
 - Newtonsoft.Json
-- ExcelDataReader
 - Google.Protobuf
-
-## 快速开始
-
-### 1. 在业务代码中使用 UniTask
-
-```csharp
-using Cysharp.Threading.Tasks;
-
-public static class AsyncDemo
-{
-    public static async UniTask DelayTick()
-    {
-        await UniTask.Delay(100);
-    }
-}
-```
-
-### 2. 使用 Json 序列化数据
-
-```csharp
-using Newtonsoft.Json;
-
-public static class JsonDemo
-{
-    public static string ToJson(int level)
-    {
-        var data = new SaveData { Level = level };
-        return JsonConvert.SerializeObject(data);
-    }
-
-    private sealed class SaveData
-    {
-        public int Level;
-    }
-}
-```
 
 ## 注意事项
 

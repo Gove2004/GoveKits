@@ -222,12 +222,12 @@ namespace GoveKits.Runtime.Core.Pool
         {
             if (prefab == null)
             {
-                GoveKitsCore.Log(nameof(PoolCore), "预制体不能为 null", logType: GoveKitsCore.LogType.Error);
+                LogCore.LogError(nameof(PoolCore), "预制体不能为 null", "FF0000");
                 return false;
             }
             if (prefab.GetComponent<IPoolable>() == null)
             {
-                GoveKitsCore.Log(nameof(PoolCore), $"预制体 {prefab.name} 必须包含一个 IPoolable 组件", logType: GoveKitsCore.LogType.Error);
+                LogCore.LogError(nameof(PoolCore), $"预制体 {prefab.name} 上缺少 IPoolable 组件，无法使用 PoolCore 管理", "FF0000");
                 return false;
             }
             return true;
@@ -289,7 +289,7 @@ namespace GoveKits.Runtime.Core.Pool
             PoolRecord record = obj.GetComponent<PoolRecord>();
             if (record == null || record.SourcePool == null)
             {
-                GoveKitsCore.Log(nameof(PoolCore), $"对象 {obj.name} 没有 PoolRecord 或来源池已丢失，请确认该对象是由 PoolCore.Get 创建的", logType: GoveKitsCore.LogType.Warning);
+                LogCore.LogError(nameof(PoolCore), $"对象 {obj.name} 没有 PoolRecord 或来源池已丢失，请确认该对象是由 PoolCore.Get 创建的", "FF0000");
                 return;
             }
             record.SourcePool.Return(obj);

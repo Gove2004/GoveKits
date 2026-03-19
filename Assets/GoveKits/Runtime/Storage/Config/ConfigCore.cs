@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -61,6 +62,8 @@ namespace GoveKits.Runtime.Storage.Config
         {
             IsInitialized = false;
             List<ConfigBinding> bindings = ConfigBindingScanner.Scan();
+            int loadedTableCount = 0;
+            var loadedTableNames = new StringBuilder(256);
 
             ConfigTables.Clear();
 
@@ -70,10 +73,26 @@ namespace GoveKits.Runtime.Storage.Config
 
                 Type configType = bindings[i].ConfigType;
                 ConfigAttribute binding = bindings[i].Attribute;
-                ConfigTables[configType] = await LoadTableAsync(configType, binding, cancellationToken);
+                List<IConfigData> rows = await LoadTableAsync(configType, binding, cancellationToken);
+                ConfigTables[configType] = rows;
+
+                loadedTableCount++;
+                if (loadedTableNames.Length > 0)
+                {
+                    loadedTableNames.Append(" | ");
+                }
+
+                loadedTableNames
+                    .Append(configType.Name)
+                    .Append(" -> ")
+                    .Append(binding.FilePath)
+                    .Append(" (")
+                    .Append(rows.Count)
+                    .Append(')');
             }
 
             IsInitialized = true;
+            LogCore.LogColor(nameof(ConfigCore), $"Init complete. Loaded {loadedTableCount} table(s). {loadedTableNames}", "00FF00");
         }
 
         /// <summary>
