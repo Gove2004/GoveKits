@@ -99,7 +99,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="name">状态属性名。</param>
         /// <param name="modifier">待移除修改器。</param>
-        public void RemoveModifier(UnitTag name, AttributeModifier modifier)
+        public void Modify(UnitTag name, AttributeModifier modifier)
         {
             var stateAttr = GetState(name);
             if (stateAttr != null)
@@ -144,12 +144,13 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="name">运行时属性名。</param>
         /// <param name="delta">变化量（正数恢复，负数扣减）。</param>
-        public void ApplyChange(UnitTag name, float delta)
+        /// <param name="type">修改器类型。</param>
+        public void Change(UnitTag name, float delta, ModifierType type = ModifierType.Additive)
         {
             var runtimeAttr = GetRuntime(name);
             if (runtimeAttr != null)
             {
-                runtimeAttr.Change(delta);
+                runtimeAttr.Change(delta, type);
             }
         }
 

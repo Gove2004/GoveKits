@@ -325,9 +325,20 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 按增量修改当前值（正数恢复，负数损失）。
         /// </summary>
-        public RuntimeAttribute Change(float delta)
+        public RuntimeAttribute Change(float delta, ModifierType type = ModifierType.Additive)
         {
-            Value = _value + delta;
+            switch (type)
+            {
+                case ModifierType.Additive:
+                    Value += delta;
+                    break;
+                case ModifierType.Multiplicative:
+                    Value *= (1f + delta);
+                    break;
+                case ModifierType.Override:
+                    Value = delta;
+                    break;
+            }
             return this;
         }
 

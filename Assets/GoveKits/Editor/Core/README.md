@@ -1,40 +1,61 @@
-﻿# Editor Core 开发文档
+﻿# Editor Core 开发手册
 
-Editor/Core 提供运行时调试窗口，配套 Runtime Core 使用。
+Editor/Core 提供 Runtime/Core 的调试窗口，帮助定位事件流和池状态问题。
 
 ## 设计理念
 
-- 让核心系统状态可视化。
-- 降低排错成本。
-- 运行期问题就地定位。
+- 运行期问题可视化，而不是只看日志。
+- 调试窗口使用门槛低，接入零侵入。
+- 与 Runtime 同步演进，保证观察维度一致。
 
 ## 架构介绍
 
-- EventDebuggerWindow.cs
-- PoolDebuggerWindow.cs
+- EventDebuggerWindow: 事件通道与监听观察
+- PoolDebuggerWindow: 池容量与活跃对象观察
 
 ## 快速开始
 
-1. 进入 Play 模式。
-2. 打开菜单:
-   - GoveKits/Core/Event Debugger
-   - GoveKits/Core/Pool Debugger
-3. 根据过滤条件查看活跃通道与池状态。
+### 1. 通过菜单打开窗口
 
 ```csharp
 using UnityEditor;
 
-// 也可通过命令方式直接打开窗口
 EditorApplication.ExecuteMenuItem("GoveKits/Core/Event Debugger");
 EditorApplication.ExecuteMenuItem("GoveKits/Core/Pool Debugger");
 ```
 
+### 2. 添加开发快捷菜单
+
+```csharp
+using UnityEditor;
+
+public static class EditorCoreShortcut
+{
+    [MenuItem("GoveKits/Dev/Open Event Debugger")]
+    public static void OpenEvent() => EditorApplication.ExecuteMenuItem("GoveKits/Core/Event Debugger");
+}
+```
+
 ## 注意事项
 
-- 非 Play 模式下数据可能为空。
-- Auto Refresh 过高会增加编辑器开销。
+- 绝大多数数据只有 Play 模式可见。
+- 过高刷新频率会增加 Editor 开销。
+- 窗口信息是观察值，不会回写 Runtime。
+
+## 常见故障排查
+
+- 现象: 调试窗口打开后为空。
+    - 排查: 确认当前是否处于 Play 模式，且 Runtime 系统已初始化。
+- 现象: 数据刷新明显滞后。
+    - 排查: 检查窗口刷新策略和项目帧率是否过低。
+- 现象: 事件或池状态显示不全。
+    - 排查: 检查是否使用了不同总线或对象未经过 PoolCore。
 
 ## 相关跳转
 
 - Root: [../../../../README.md](../../../../README.md)
 - Runtime Core: [../../Runtime/Core/README.md](../../Runtime/Core/README.md)
+- 术语与命名规范: [../../../../TERMINOLOGY.md](../../../../TERMINOLOGY.md)
+
+
+
