@@ -12,7 +12,9 @@ namespace GoveKits.Runtime.Core
             UnityEngine.Debug.Log(logMessage);
         }
 
-        public static void LogInfo(string tag, string message, string colorHex = "FFFFFF")
+        public static void LogGreen(string tag, string message) => LogColor(tag, message, "00FF00");
+
+        public static void Log(string tag, string message, string colorHex = "FFFFFF")
         {
             string logMessage = $"[{tag}] <color=#{colorHex}>{message}</color>";
             UnityEngine.Debug.Log(logMessage);

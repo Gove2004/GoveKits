@@ -15,7 +15,7 @@ namespace GoveKits.Runtime.Core
         private void Awake()
         {
             // 目前核心模块没有需要初始化的内容，但可以在这里添加全局设置或预热逻辑。
-            LogCore.LogInfo(nameof(GoveKitsCoreLifecycle), "GoveKitsCore initialized.");
+            LogCore.Log(nameof(GoveKitsCoreLifecycle), "GoveKitsCore initialized.");
 
             ConfigCore.InitAsync().Forget();  // 异步初始化配置系统，不等待完成。
         }
@@ -23,7 +23,7 @@ namespace GoveKits.Runtime.Core
         private void OnDestroy()
         {
             // 目前核心模块没有需要清理的内容，但可以在这里添加全局资源释放或保存逻辑。
-            LogCore.LogInfo(nameof(GoveKitsCoreLifecycle), "GoveKitsCore shutdown.");
+            LogCore.Log(nameof(GoveKitsCoreLifecycle), "GoveKitsCore shutdown.");
         }
     }        
 }

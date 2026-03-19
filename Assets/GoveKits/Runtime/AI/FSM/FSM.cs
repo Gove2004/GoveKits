@@ -84,7 +84,7 @@ namespace GoveKits.Runtime.AI.FSM
             }
             catch (Exception ex)
             {
-                LogCore.LogInfo(nameof(FSM<TStateEnum, TFSMObject>), $"状态切换异常: {ex.Message}", "FF0000");
+                LogCore.LogError(nameof(FSM<TStateEnum, TFSMObject>), $"状态切换异常: {ex.Message}", "FF0000");
             }
             finally
             {
