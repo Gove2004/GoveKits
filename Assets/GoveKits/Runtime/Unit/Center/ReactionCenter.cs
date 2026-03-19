@@ -60,7 +60,7 @@ namespace GoveKits.Runtime.Unit
 			if (!_factories.TryGetValue(reactionType, out var factory))
 			{
 				throw new InvalidOperationException(
-					$"Reaction type {reactionType.FullName} is not registered. Add [FactoryAutoRegister].");
+					$"Reaction type {reactionType.FullName} is not registered. Add [AutoUnitAttribute].");
 			}
 
 			return factory(owner, args ?? Array.Empty<object>());

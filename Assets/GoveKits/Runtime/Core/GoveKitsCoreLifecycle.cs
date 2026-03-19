@@ -3,6 +3,7 @@
 
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Storage.Config;
+using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Core
 {
@@ -17,7 +18,14 @@ namespace GoveKits.Runtime.Core
             // 目前核心模块没有需要初始化的内容，但可以在这里添加全局设置或预热逻辑。
             LogCore.Log(nameof(GoveKitsCoreLifecycle), "GoveKitsCore initialized.");
 
+            TimerManager.Initialize();
             ConfigCore.InitAsync().Forget();  // 异步初始化配置系统，不等待完成。
+        }
+
+        private void Update()
+        {
+            // TimeWheel 需要持续驱动，否则定时任务不会触发。
+            TimerManager.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
         }
 
         private void OnDestroy()

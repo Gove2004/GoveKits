@@ -39,6 +39,39 @@ namespace GoveKits.Runtime.Unit
         }
 
         /// <summary>
+        /// 添加一个执行规则。
+        /// </summary>
+        /// <param name="rule">规则实例。</param>
+        /// <returns>当前技能实例，便于链式调用。</returns>
+        public UnitAbility AddRule(AbilityRule rule)
+        {
+            if (rule != null)
+            {
+                _rules.Add(rule);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// 移除一个执行规则。
+        /// </summary>
+        /// <param name="rule">规则实例。</param>
+        /// <returns>是否移除成功。</returns>
+        public bool RemoveRule(AbilityRule rule)
+        {
+            return rule != null && _rules.Remove(rule);
+        }
+
+        /// <summary>
+        /// 清空全部执行规则。
+        /// </summary>
+        public void ClearRules()
+        {
+            _rules.Clear();
+        }
+
+        /// <summary>
         /// 检查技能是否允许执行。
         /// </summary>
         /// <param name="context">执行上下文。</param>

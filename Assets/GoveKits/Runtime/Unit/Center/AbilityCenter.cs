@@ -60,7 +60,7 @@ namespace GoveKits.Runtime.Unit
 			if (!_factories.TryGetValue(abilityType, out var factory))
 			{
 				throw new InvalidOperationException(
-					$"Ability type {abilityType.FullName} is not registered. Add [FactoryAutoRegister].");
+					$"Ability type {abilityType.FullName} is not registered. Add [AutoUnitAttribute].");
 			}
 
 			return factory(owner, args ?? Array.Empty<object>());

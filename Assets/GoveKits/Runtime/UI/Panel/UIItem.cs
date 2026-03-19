@@ -3,7 +3,7 @@
 
 using UnityEngine;
 
-namespace GoveKits.UI
+namespace GoveKits.Runtime.UI.Panel
 {
     public abstract class UIItem : MonoBehaviour
     {

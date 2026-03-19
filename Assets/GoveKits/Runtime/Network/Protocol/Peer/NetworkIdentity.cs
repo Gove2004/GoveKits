@@ -1,3 +1,7 @@
+// NOTE:
+// This file is currently a placeholder and intentionally kept commented out.
+// Peer replication is not part of the active runtime pipeline in this revision.
+
 // using System.Collections.Generic;
 // using UnityEngine;
 

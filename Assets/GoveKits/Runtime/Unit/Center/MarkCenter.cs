@@ -19,7 +19,7 @@ namespace GoveKits.Runtime.Unit
 		private static bool _scanned;
 
 		/// <summary>
-		/// 扫描当前 AppDomain 并注册带 FactoryAutoRegisterAttribute 的 UnitMark 派生类工厂。
+		/// 扫描当前 AppDomain 并注册带 AutoUnitAttribute 的 UnitMark 派生类工厂。
 		/// </summary>
 		public static void ScanAndRegisterFactories()
 		{
@@ -67,7 +67,7 @@ namespace GoveKits.Runtime.Unit
 			if (!_factories.TryGetValue(markType, out var factory))
 			{
 				throw new InvalidOperationException(
-					$"Mark type {markType.FullName} is not registered. Add [FactoryAutoRegister].");
+					$"Mark type {markType.FullName} is not registered. Add [AutoUnitAttribute].");
 			}
 
 			return factory(owner, args ?? Array.Empty<object>());
