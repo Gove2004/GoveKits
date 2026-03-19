@@ -1,6 +1,7 @@
 
 
 
+using System;
 using Cysharp.Threading.Tasks;
 
 namespace GoveKits.Runtime.Unit
@@ -84,20 +85,33 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="attributeTag"></param>
         /// <returns></returns>
-        float Value(UnitTag attributeTag) => Attributes.GetValue(attributeTag); 
+        public float Value(UnitTag attributeTag)
+             => Attributes.GetValue(attributeTag); 
 
         /// <summary>
         /// 尝试异步执行技能（由当前 Unit 作为 Source）。
         /// </summary>
         /// <param name="abilityTag">技能标签。</param>
-        /// <param name="target">技能目标，可为空。</param>
-        UniTask<bool> Use(UnitTag abilityTag, UnitContext context) => Abilities.TryExecuteAsync(abilityTag, context);
+        /// <param name="context">执行上下文。</param>
+        public UniTask<bool> Use(UnitTag abilityTag, UnitContext context)
+             => Abilities.TryExecuteAsync(abilityTag, context);
         
         /// <summary>
         /// 对当前 Unit 应用一个即时效果。
         /// </summary>
         /// <param name="effect">要执行的效果对象。</param>
-        void Apply(UnitEffect effect) => effect.Apply(this);
+        public void Apply(UnitEffect effect) => effect.Apply(this);
+
+        /// <summary>
+        /// 清理当前 Unit 的全部容器数据。
+        /// </summary>
+        public void Clear()
+        {
+            Attributes.Clear();
+            Marks.Clear();
+            Abilities.Clear();
+            Reactions.Clear();
+        }
     }
 
     /// <summary>
@@ -158,5 +172,40 @@ namespace GoveKits.Runtime.Unit
         /// 初始化反应数据。
         /// </summary>
         public abstract void InitReactions();
+
+        /// <summary>
+        /// 获取属性值的快捷方法。
+        /// </summary>
+        /// <param name="attributeTag">属性标签。</param>
+        /// <returns>当前属性值。</returns>
+        public float Value(UnitTag attributeTag)
+            => Attributes.GetValue(attributeTag);
+
+        /// <summary>
+        /// 尝试异步执行技能（由当前 Unit 作为 Source）。
+        /// </summary>
+        /// <param name="abilityTag">技能标签。</param>
+        /// <param name="context">执行上下文。</param>
+        /// <returns>是否执行成功。</returns>
+        public UniTask<bool> Use(UnitTag abilityTag, UnitContext context)
+            => Abilities.TryExecuteAsync(abilityTag, context);
+
+        /// <summary>
+        /// 对当前 Unit 应用一个即时效果。
+        /// </summary>
+        /// <param name="effect">要执行的效果对象。</param>
+        public void Apply(UnitEffect effect)
+            => effect.Apply(this);
+
+        /// <summary>
+        /// 清理当前 Unit 的全部容器数据。
+        /// </summary>
+        public void Clear()
+        {
+            Attributes.Clear();
+            Marks.Clear();
+            Abilities.Clear();
+            Reactions.Clear();
+        }
     }
 }

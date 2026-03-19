@@ -31,8 +31,6 @@ namespace GoveKits.Runtime.Unit
         {
             if (string.IsNullOrEmpty(name))
             {
-                // 保持结构可用，避免抛异常；同时输出错误帮助定位非法标签来源。
-                GoveKitsCore.Log("UnitTag", "禁止创建空标签", logType: GoveKitsCore.LogType.Error);
                 _name = string.Empty;
                 _hash = 0;
                 return;
