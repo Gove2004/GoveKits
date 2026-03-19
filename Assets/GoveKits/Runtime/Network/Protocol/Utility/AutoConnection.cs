@@ -2,7 +2,7 @@
 using UnityEngine;
 
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     [RequireComponent(typeof(NetworkManager))]
     public class AutoConnection : MonoBehaviour

@@ -1,9 +1,10 @@
 using System;
 using Cysharp.Threading.Tasks;
 using Google.Protobuf;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public enum ClientState { Disconnected, Connecting, Connected }
 
@@ -32,7 +33,7 @@ namespace GoveKits.Network
         public void Connect(string ip, int port)
         {
             if (State != ClientState.Disconnected) return;
-            LogManager.Log("Client", $"Connecting to {ip}:{port}...");
+            LogCore.Log("Client", $"Connecting to {ip}:{port}...");
             State = ClientState.Connecting;
 
             ConnectAsync(ip, port).Forget();
@@ -47,12 +48,12 @@ namespace GoveKits.Network
                 
                 // 成功
                 State = ClientState.Connected;
-                LogManager.Log("Client", "Connected!");
+                LogCore.Log("Client", "Connected!");
                 OnConnected?.Invoke();
             }
             catch (Exception)
             {
-                LogManager.LogError("Client", "Connection Failed/Timeout");
+                LogCore.LogError("Client", "Connection Failed/Timeout");
                 // 确保重置状态
                 HandleDisconnect();
             }
@@ -75,7 +76,7 @@ namespace GoveKits.Network
         {
             if (State == ClientState.Disconnected) return;
             State = ClientState.Disconnected;
-            LogManager.Log("Client", "Disconnected");
+            LogCore.Log("Client", "Disconnected");
             OnDisconnected?.Invoke();
         }
 

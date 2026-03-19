@@ -1,8 +1,9 @@
 using System;
 using Google.Protobuf;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public class PacketParser
     {
@@ -29,7 +30,7 @@ namespace GoveKits.Network
             int msgId = MessageRegistry.GetId(msg.GetType());
             if (msgId == -1) 
             {
-                LogManager.LogError("Parser", $"Msg {msg.GetType().Name} not registered!");
+                LogCore.LogError("Parser", $"Msg {msg.GetType().Name} not registered!");
                 packetLength = 0;
                 return null;
             }
@@ -93,11 +94,11 @@ namespace GoveKits.Network
                         IMessage msg = parser.ParseFrom(_buffer, bodyOffset, bodyLen);
                         _onMessageDecoded(msg);
                     }
-                    catch (Exception e) { LogManager.LogError("Parser", $"Error: {e}"); }
+                    catch (Exception e) { LogCore.LogError("Parser", $"Error: {e}"); }
                 }
                 else
                 {
-                    LogManager.LogWarning("Parser", $"Unknown MsgID: {msgId}");
+                    LogCore.LogWarning("Parser", $"Unknown MsgID: {msgId}");
                 }
 
                 _readIndex += totalLen;

@@ -1,8 +1,8 @@
 using Generated;
-using GoveKits.Singleton; 
+using GoveKits.Runtime.Core.Singleton;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     // 确保最先初始化，防止 PingPong Start 时报错
     [RequireComponent(typeof(NetworkManager))]

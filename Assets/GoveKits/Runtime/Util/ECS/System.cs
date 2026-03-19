@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace GoveKits.ECS
+namespace GoveKits.Runtime.Util.ECS
 {
     public abstract class System
     {

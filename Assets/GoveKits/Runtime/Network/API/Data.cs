@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
+using GoveKits.Runtime.Core;
 using Newtonsoft.Json; // 必须引用
 using UnityEngine.Networking;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     /// <summary>
     /// HTTP 方法类型。
@@ -43,6 +45,10 @@ namespace GoveKits.Network
         /// 最大重试次数（针对网络错误和 5xx）。默认取 <see cref="WebAPI.CONST_RETRY"/>。
         /// </summary>
         public int Retry = WebAPI.CONST_RETRY;
+        /// <summary>
+        /// 请求使用的基础地址（当 Url 为相对路径时生效）。默认取 <see cref="WebAPI.CONST_BASE_URL"/>。
+        /// </summary>
+        public string BaseUrl = WebAPI.CONST_BASE_URL;
         /// <summary>
         /// 是否使用响应缓存（仅对 GET 有效）。默认 false。
         /// </summary>
@@ -165,10 +171,25 @@ namespace GoveKits.Network
             return this;
         }
 
+        /// <summary>设置自定义基础地址（用于多服务接入）。</summary>
+        public RequestData SetBaseUrl(string baseUrl)
+        {
+            BaseUrl = string.IsNullOrWhiteSpace(baseUrl) ? WebAPI.CONST_BASE_URL : baseUrl.Trim();
+            return this;
+        }
+
         /// <summary>设置超时（秒）。</summary>
-        public RequestData SetTimeout(float seconds) { Timeout = seconds; return this; }
+        public RequestData SetTimeout(float seconds)
+        {
+            Timeout = float.IsFinite(seconds) ? Math.Max(1f, seconds) : WebAPI.CONST_TIMEOUT;
+            return this;
+        }
         /// <summary>设置最大重试次数。</summary>
-        public RequestData SetRetry(int count) { Retry = count; return this; }
+        public RequestData SetRetry(int count)
+        {
+            Retry = Math.Max(0, count);
+            return this;
+        }
         /// <summary>是否启用缓存（仅 GET 生效）。</summary>
         public RequestData SetCache(bool enable) { UseCache = enable; return this; }
     }
@@ -213,9 +234,20 @@ namespace GoveKits.Network
         /// <returns>反序列化结果或默认值。</returns>
         public T As<T>()
         {
-            if (!Success || string.IsNullOrEmpty(Text)) return default;
-            try { return JsonConvert.DeserializeObject<T>(Text); }
-            catch { return default; }
+            if (!Success || string.IsNullOrEmpty(Text))
+            {
+                LogCore.LogWarning(nameof(ResponseData), $"Response unsuccessful or empty: Success={Success}, StatusCode={StatusCode}, Error={Error}");
+                return default;
+            }
+            try 
+            {
+                return JsonConvert.DeserializeObject<T>(Text);
+            }
+            catch (Exception ex)
+            {
+                LogCore.LogError(nameof(ResponseData), $"Failed to deserialize response: {ex.Message}");
+                return default;
+            }
         }
 
         /// <summary>

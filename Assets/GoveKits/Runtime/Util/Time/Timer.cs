@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using GoveKits.Runtime.Core.Pool;
 
-namespace GoveKits.Times
+namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// 轻量定时器对象：由 <see cref="TimeWheel"/> 调度，支持暂停/恢复/取消、循环与实时/受缩放模式。

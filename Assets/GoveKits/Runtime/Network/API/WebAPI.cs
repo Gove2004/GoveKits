@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine.Networking;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     /// <summary>
     /// 轻量 HTTP 管理器：提供并发限制、可选 GET 缓存与重试策略。
@@ -21,11 +22,18 @@ namespace GoveKits.Network
         public const int CONST_RETRY = 3;                                // 默认重试次数
         /// <summary>最大并发请求数。</summary>
         public const int CONST_MAX_CONCURRENT = 5;                       // 最大并发请求数
+        /// <summary>默认缓存有效期（秒）。</summary>
+        public const int CONST_CACHE_TTL_SECONDS = 300;
+        /// <summary>缓存最大条目数，超过后触发轻量裁剪。</summary>
+        public const int CONST_CACHE_MAX_COUNT = 512;
+        /// <summary>每 N 次写缓存触发一次清理。</summary>
+        public const int CONST_CACHE_SWEEP_INTERVAL = 32;
 
         // --- 并发与缓存 ---
         private static readonly SemaphoreSlim _gate = new SemaphoreSlim(CONST_MAX_CONCURRENT);
         private static readonly ConcurrentDictionary<string, (string data, long expire)> _cache 
             = new ConcurrentDictionary<string, (string, long)>();
+        private static int _cacheWriteCounter;
 
         /// <summary>
         /// 发送请求（通用入口）。
@@ -37,17 +45,35 @@ namespace GoveKits.Network
         /// <returns>响应数据。</returns>
         public static async UniTask<ResponseData> Send(RequestData req, CancellationToken ct = default)
         {
-            // 1. URL 自动补全
-            string finalUrl = req.Url.StartsWith("http") ? req.Url : $"{CONST_BASE_URL.TrimEnd('/')}/{req.Url.TrimStart('/')}";
+            if (req == null)
+            {
+                return ResponseData.Fail("RequestData is null.");
+            }
+
+            if (string.IsNullOrWhiteSpace(req.Url))
+            {
+                return ResponseData.Fail("RequestData.Url is null or empty.");
+            }
+
+            if (!TryResolveFinalUrl(req, out string finalUrl, out string urlError))
+            {
+                return ResponseData.Fail(urlError);
+            }
+
             string cacheKey = null;
 
             // 2. 读缓存 (仅GET)
             if (req.UseCache && req.Method == HttpMethod.GET)
             {
                 cacheKey = finalUrl;
-                if (_cache.TryGetValue(cacheKey, out var item) && DateTime.UtcNow.Ticks < item.expire)
+                if (_cache.TryGetValue(cacheKey, out var item))
                 {
-                    return new ResponseData(true, 200, null, item.data, null);
+                    if (DateTime.UtcNow.Ticks < item.expire)
+                    {
+                        return new ResponseData(true, 200, null, item.data, null);
+                    }
+
+                    _cache.TryRemove(cacheKey, out _);
                 }
             }
 
@@ -86,8 +112,7 @@ namespace GoveKits.Network
                             // 写缓存 (5分钟)
                             if (cacheKey != null && !string.IsNullOrEmpty(text))
                             {
-                                long exp = DateTime.UtcNow.AddSeconds(300).Ticks;
-                                _cache[cacheKey] = (text, exp);
+                                WriteCache(cacheKey, text);
                             }
 
                             return new ResponseData(true, uwr.responseCode, null, text, uwr.downloadHandler?.data);
@@ -145,5 +170,84 @@ namespace GoveKits.Network
         /// 清空所有 GET 响应缓存。
         /// </summary>
         public static void ClearCache() => _cache.Clear();
+
+        private static bool TryResolveFinalUrl(RequestData req, out string finalUrl, out string error)
+        {
+            finalUrl = null;
+            error = null;
+
+            string rawUrl = req.Url.Trim();
+            if (Uri.TryCreate(rawUrl, UriKind.Absolute, out Uri absoluteUri))
+            {
+                if (!IsHttpScheme(absoluteUri))
+                {
+                    error = $"Unsupported URL scheme: {absoluteUri.Scheme}";
+                    return false;
+                }
+
+                finalUrl = absoluteUri.ToString();
+                return true;
+            }
+
+            string baseUrl = string.IsNullOrWhiteSpace(req.BaseUrl) ? CONST_BASE_URL : req.BaseUrl.Trim();
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri baseUri) || !IsHttpScheme(baseUri))
+            {
+                error = $"Invalid BaseUrl: {baseUrl}";
+                return false;
+            }
+
+            if (!Uri.TryCreate(baseUri, rawUrl, out Uri mergedUri) || !IsHttpScheme(mergedUri))
+            {
+                error = $"Invalid request URL: {rawUrl}";
+                return false;
+            }
+
+            finalUrl = mergedUri.ToString();
+            return true;
+        }
+
+        private static bool IsHttpScheme(Uri uri)
+        {
+            return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+        }
+
+        private static void WriteCache(string key, string text)
+        {
+            long expire = DateTime.UtcNow.AddSeconds(CONST_CACHE_TTL_SECONDS).Ticks;
+            _cache[key] = (text, expire);
+
+            int writeCount = Interlocked.Increment(ref _cacheWriteCounter);
+            if (writeCount % CONST_CACHE_SWEEP_INTERVAL == 0)
+            {
+                SweepCache();
+            }
+        }
+
+        private static void SweepCache()
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            foreach (var item in _cache)
+            {
+                if (item.Value.expire <= nowTicks)
+                {
+                    _cache.TryRemove(item.Key, out _);
+                }
+            }
+
+            int count = _cache.Count;
+            if (count <= CONST_CACHE_MAX_COUNT)
+            {
+                return;
+            }
+
+            var snapshot = new List<KeyValuePair<string, (string data, long expire)>>(_cache);
+            snapshot.Sort((a, b) => a.Value.expire.CompareTo(b.Value.expire));
+
+            int removeCount = snapshot.Count - CONST_CACHE_MAX_COUNT;
+            for (int i = 0; i < removeCount; i++)
+            {
+                _cache.TryRemove(snapshot[i].Key, out _);
+            }
+        }
     }
 }

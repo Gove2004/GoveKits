@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using GoveKits.Runtime.Core;
 
-
-namespace GoveKits.Times
+namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// 时间轮（Timing Wheel）：以固定 tick 精度调度大量定时器，具备高性能与低 GC 的定时调度结构。

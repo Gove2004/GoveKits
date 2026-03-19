@@ -2,7 +2,7 @@
 // using System.Reflection;
 // using UnityEngine;
 
-// namespace GoveKits.Network
+// namespace GoveKits.Runtime.Network.Protocol
 // {
 //     public class NetworkBehaviour : MonoBehaviour
 //     {
@@ -81,7 +81,7 @@
 //                 }
 //                 catch (System.Exception ex)
 //                 {
-//                     LogManager.LogError($"[RPC Fail] {methodName}: {ex.InnerException?.Message ?? ex.Message}");
+//                     LogCore.LogError($"[RPC Fail] {methodName}: {ex.InnerException?.Message ?? ex.Message}");
 //                 }
 //             }
 //             return false;

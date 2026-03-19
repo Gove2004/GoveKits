@@ -6,7 +6,7 @@
 
 
 
-// namespace GoveKits.Network
+// namespace GoveKits.Runtime.Network.Protocol
 // {
 //     // 标记哪些方法可以被 RPC 调用
 //     [AttributeUsage(AttributeTargets.Method)]
@@ -54,7 +54,7 @@
 //             }
 //             // ... 可自行扩展 Long, Double 等
 //             else {
-//                 LogManager.LogError($"[RPC] Unsupported type: {data.GetType()}");
+//                 LogCore.LogError($"[RPC] Unsupported type: {data.GetType()}");
 //             }
 //         }
 

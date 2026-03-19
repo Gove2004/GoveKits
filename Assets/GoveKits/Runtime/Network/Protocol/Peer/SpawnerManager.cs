@@ -3,7 +3,7 @@
 // using GoveKits.Singleton;
 // using UnityEngine;
 
-// namespace GoveKits.Network
+// namespace GoveKits.Runtime.Network.Protocol
 // {
 //     public class SpawnerManager : MonoSingleton<SpawnerManager>
 //     {
@@ -49,7 +49,7 @@
 //             }
 //             else
 //             {
-//                 LogManager.LogWarning($"[Spawner] NetID {identity.NetID} already registered!");
+//                 LogCore.LogWarning($"[Spawner] NetID {identity.NetID} already registered!");
 //             }
 //         }
 
@@ -96,7 +96,7 @@
 //             if (newPlayerID == NetworkManager.Instance.MyPlayerID) return;
 //             if (_activeObjects.Count == 0) return;
 
-//             LogManager.Log($"[Spawner] Syncing {_activeObjects.Count} objects to Player {newPlayerID}...");
+//             LogCore.Log($"[Spawner] Syncing {_activeObjects.Count} objects to Player {newPlayerID}...");
 
 //             foreach (var kvp in _activeObjects.ToList()) 
 //             {

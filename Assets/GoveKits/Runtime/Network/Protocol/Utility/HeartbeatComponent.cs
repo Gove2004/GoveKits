@@ -1,8 +1,9 @@
 using Generated;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public class HeartbeatComponent : MonoBehaviour
     {
@@ -39,7 +40,7 @@ namespace GoveKits.Network
         {
             _lastRecvTime = Time.unscaledTime;
             _lastSendTime = Time.unscaledTime;
-            LogManager.Log("PingPong", "Connected. Starting Heartbeat.");
+            LogCore.Log("PingPong", "Connected. Starting Heartbeat.");
         }
 
         private void OnDisconnected()
@@ -56,7 +57,7 @@ namespace GoveKits.Network
             // 1. 超时检测
             if (now - _lastRecvTime > Timeout)
             {
-                LogManager.LogError("Heartbeat", $"Server Timeout! ({now - _lastRecvTime:F1}s > {Timeout}s)");
+                LogCore.LogError("Heartbeat", $"Server Timeout! ({now - _lastRecvTime:F1}s > {Timeout}s)");
                 NetworkManager.Instance.Disconnect();
                 return;
             }
@@ -89,7 +90,7 @@ namespace GoveKits.Network
             if (RTT < 0) RTT = rtt;
             else RTT = Mathf.Lerp(RTT, rtt, 0.2f); // 简单平滑
             
-            LogManager.Log("Heartbeat", $"Pong. RTT: {RTT:F1}ms");
+            LogCore.Log("Heartbeat", $"Pong. RTT: {RTT:F1}ms");
         }
     }
 }

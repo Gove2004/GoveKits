@@ -1,6 +1,6 @@
 using System;
 
-namespace GoveKits.ECS
+namespace GoveKits.Runtime.Util.ECS
 {
     public readonly struct Entity : IEquatable<Entity>
     {

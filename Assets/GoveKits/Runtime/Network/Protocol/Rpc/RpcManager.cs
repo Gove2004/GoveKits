@@ -4,9 +4,10 @@ using Cysharp.Threading.Tasks;
 using Google.Protobuf;
 using UnityEngine;
 using Generated;
-using GoveKits.Singleton; // Proto 代码
+using GoveKits.Runtime.Core.Singleton;
+using GoveKits.Runtime.Core; // Proto 代码
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     [RequireComponent(typeof(NetworkManager))]
     public class RpcManager : MonoSingleton<RpcManager>
@@ -63,7 +64,7 @@ namespace GoveKits.Network
             catch (TimeoutException)
             {
                 _pendingRpcs.Remove(rpcId);
-                LogManager.LogError("RPC", $"Timeout! ID: {rpcId}, Req: {request.GetType().Name}");
+                LogCore.LogError("RPC", $"Timeout! ID: {rpcId}, Req: {request.GetType().Name}");
                 return default;
             }
         }

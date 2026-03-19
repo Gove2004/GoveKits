@@ -2,7 +2,7 @@
 
 using GoveKits.Runtime.Core.Pool;
 
-namespace GoveKits.Times
+namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// 定时器管理器：维护缩放与非缩放两个时间轮，提供 Once/Loop API，并在 Update 中驱动。

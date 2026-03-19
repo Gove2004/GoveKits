@@ -309,7 +309,7 @@ namespace Cysharp.Threading.Tasks.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void Run()
         {
-            // UnityEngine.LogManager.Log($"MoveNext State:" + StateMachineUtility.GetState(stateMachine));
+            // UnityEngine.LogCore.Log($"MoveNext State:" + StateMachineUtility.GetState(stateMachine));
             stateMachine.MoveNext();
         }
 

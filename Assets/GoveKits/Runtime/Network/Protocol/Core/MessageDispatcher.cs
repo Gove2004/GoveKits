@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Reflection;
 using Cysharp.Threading.Tasks;
 using Google.Protobuf;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     [AttributeUsage(AttributeTargets.Method)]
     public class MessageHandlerAttribute : Attribute { }
@@ -52,7 +53,7 @@ namespace GoveKits.Network
                 var param = method.GetParameters();
                 if (param.Length != 1 || !typeof(IMessage).IsAssignableFrom(param[0].ParameterType)) 
                 {
-                    LogManager.LogWarning("Dispatcher", $"Invalid Signature: {method.Name}");
+                    LogCore.LogWarning("Dispatcher", $"Invalid Signature: {method.Name}");
                     continue;
                 }
 
@@ -60,7 +61,7 @@ namespace GoveKits.Network
                 int msgId = MessageRegistry.GetId(msgType);
                 if (msgId == -1) 
                 {
-                    LogManager.LogWarning("Dispatcher", $"Msg {msgType.Name} not registered!");
+                    LogCore.LogWarning("Dispatcher", $"Msg {msgType.Name} not registered!");
                     continue;
                 }
 

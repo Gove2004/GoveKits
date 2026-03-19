@@ -1,7 +1,6 @@
 using System;
-using System.Collections.Generic;
 
-namespace GoveKits.ECS
+namespace GoveKits.Runtime.Util.ECS
 {
     // 只是一个标记基类，实际数据建议直接用 POCO 类或 struct
     public class Component { }

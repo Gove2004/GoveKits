@@ -1,7 +1,7 @@
 // using System.Collections.Generic;
 // using UnityEngine;
 
-// namespace GoveKits.Network
+// namespace GoveKits.Runtime.Network.Protocol
 // {
 //     public class NetworkIdentity : MonoBehaviour
 //     {
@@ -55,7 +55,7 @@
 //                     return; 
 //                 }
 //             }
-//             LogManager.LogWarning($"[RPC] Method '{methodName}' not found on NetID {NetID}");
+//             LogCore.LogWarning($"[RPC] Method '{methodName}' not found on NetID {NetID}");
 //         }
 //     }
 // }

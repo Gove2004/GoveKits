@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Google.Protobuf;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public static class MessageRegistry
     {
@@ -46,7 +47,7 @@ namespace GoveKits.Network
 
                 if (msgType == null)
                 {
-                    LogManager.LogError("Registry", $"Class '{fullClassName}' not found for Enum '{enumName}'");
+                    LogCore.LogError("Registry", $"Class '{fullClassName}' not found for Enum '{enumName}'");
                     continue;
                 }
 
@@ -57,7 +58,7 @@ namespace GoveKits.Network
                 Register(msgId, msgType, parser);
                 count++;
             }
-            LogManager.Log("Registry", $"Registered {count} messages from {enumType.Name}");
+            LogCore.Log("Registry", $"Registered {count} messages from {enumType.Name}");
         }
     }
 }

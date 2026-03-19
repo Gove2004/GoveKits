@@ -2,9 +2,10 @@ using System;
 using System.Buffers;
 using System.Net.Sockets;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public static class BufferPool
     {
@@ -66,7 +67,7 @@ namespace GoveKits.Network
             }
             catch (Exception ex)
             {
-                LogManager.LogError("Transport", $"Connect Failed: {ex.Message}");
+                LogCore.LogError("Transport", $"Connect Failed: {ex.Message}");
                 Close();
                 throw; // 抛出异常给上层处理
             }
@@ -116,7 +117,7 @@ namespace GoveKits.Network
                     
                     // 安全触发回调
                     try { OnDisconnected?.Invoke(); } 
-                    catch (Exception e) { LogManager.LogError("Transport", e.ToString()); }
+                    catch (Exception e) { LogCore.LogError("Transport", e.ToString()); }
                 }
 
                 if (_recvBuffer != null)

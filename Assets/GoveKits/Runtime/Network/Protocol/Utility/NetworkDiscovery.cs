@@ -4,9 +4,10 @@ using System.Net.Sockets;
 using UnityEngine;
 using Cysharp.Threading.Tasks;
 using Google.Protobuf;
-using Generated; // 引用生成的 Proto 代码
+using Generated;
+using GoveKits.Runtime.Core; // 引用生成的 Proto 代码
 
-namespace GoveKits.Network
+namespace GoveKits.Runtime.Network.Protocol
 {
     public class NetworkDiscovery : MonoBehaviour
     {
@@ -51,7 +52,7 @@ namespace GoveKits.Network
                 // 绑定到任意端口发送
                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-                LogManager.Log("Discovery", $"Start broadcasting on port {DiscoveryPort}...");
+                LogCore.Log("Discovery", $"Start broadcasting on port {DiscoveryPort}...");
 
                 // 1. 构造 Protobuf 消息
                 var msg = new DiscoveryMsg
@@ -72,7 +73,7 @@ namespace GoveKits.Network
             }
             catch (Exception e)
             {
-                LogManager.LogError("Discovery", $"Host Error: {e.Message}");
+                LogCore.LogError("Discovery", $"Host Error: {e.Message}");
                 StopDiscovery();
             }
         }
@@ -88,7 +89,7 @@ namespace GoveKits.Network
                 catch (Exception ex) 
                 { 
                     // 忽略一些网络不可达的临时错误
-                    LogManager.LogWarning("Discovery", $"Send warning: {ex.Message}"); 
+                    LogCore.LogWarning("Discovery", $"Send warning: {ex.Message}"); 
                 }
                 
                 await UniTask.Delay(TimeSpan.FromSeconds(BroadcastInterval));
@@ -113,13 +114,13 @@ namespace GoveKits.Network
                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, DiscoveryPort));
                 
                 _isRunning = true;
-                LogManager.Log("Discovery", "Listening for rooms...");
+                LogCore.Log("Discovery", "Listening for rooms...");
                 
                 ListenLoop().Forget();
             }
             catch (Exception e)
             {
-                LogManager.LogError("Discovery", $"Client Error: {e.Message}");
+                LogCore.LogError("Discovery", $"Client Error: {e.Message}");
             }
         }
 
@@ -157,7 +158,7 @@ namespace GoveKits.Network
                 catch (ObjectDisposedException) { break; }
                 catch (Exception ex) 
                 { 
-                    LogManager.LogWarning("Discovery", $"Recv error: {ex.Message}"); 
+                    LogCore.LogWarning("Discovery", $"Recv error: {ex.Message}"); 
                 }
             }
         }
