@@ -33,11 +33,8 @@ namespace GoveKits.Runtime.Network.Protocol
         {
             int rpcId = _nextRpcId++;
             
-            // 1. 序列化业务消息
+            // 1. 序列化业务消息体（不包含网络层包头）
             int reqMsgId = MessageRegistry.GetId(request.GetType());
-            byte[] payload = PacketParser.Pack(request, out int _); 
-            // 注意：PacketParser.Pack 包含了 Length+MsgID 头，这里我们只需要 Body
-            // 修正：我们应该只序列化 Body。Protobuf 原生方法：
             byte[] bodyBytes = request.ToByteArray();
 
             // 2. 构造信封

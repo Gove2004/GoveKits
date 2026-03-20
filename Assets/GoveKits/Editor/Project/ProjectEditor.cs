@@ -112,18 +112,47 @@ namespace GoveKits.Editor
         /// </summary>
         private void CreateGitIgnore()
         {
-            string gitignoreContent = File.ReadAllText(ToAbsolutePath(_gitignorePath), Encoding.UTF8);
+            string templatePath = ToAbsolutePath(_gitignorePath);
+            if (!File.Exists(templatePath))
+            {
+                ShowNotification(new GUIContent("模板文件不存在"));
+                LogCore.LogError("ProjectEditor", $".gitignore 模板不存在: {templatePath}");
+                return;
+            }
+
             string fullPath = Path.Combine(ProjectRootPath, ".gitignore");
-            File.WriteAllText(fullPath, gitignoreContent, Encoding.UTF8);
-            
-            ShowNotification(new GUIContent("已创建 .gitignore 文件"));
-            LogCore.LogGreen("ProjectEditor", "已创建 .gitignore 文件");
+            if (File.Exists(fullPath))
+            {
+                bool overwrite = EditorUtility.DisplayDialog(
+                    "覆盖确认",
+                    $"检测到已存在 .gitignore，是否覆盖？\n{fullPath}",
+                    "覆盖",
+                    "取消");
+                if (!overwrite)
+                {
+                    return;
+                }
+            }
+
+            try
+            {
+                string gitignoreContent = File.ReadAllText(templatePath, Encoding.UTF8);
+                File.WriteAllText(fullPath, gitignoreContent, Encoding.UTF8);
+
+                ShowNotification(new GUIContent("已创建 .gitignore 文件"));
+                LogCore.LogGreen("ProjectEditor", $"已创建 .gitignore 文件: {fullPath}");
+            }
+            catch (Exception e)
+            {
+                ShowNotification(new GUIContent("创建 .gitignore 失败"));
+                LogCore.LogError("ProjectEditor", $"创建 .gitignore 失败: {e.Message}");
+            }
         }
 
         private void CopyAndroidPrivacyPopup()
         {
-            string sourceRoot = ToAbsolutePath(_androidPrivacySourcePath);
-            string targetRoot = ToAbsolutePath(_androidPrivacyTargetPath);
+            string sourceRoot = NormalizeFullPath(ToAbsolutePath(_androidPrivacySourcePath));
+            string targetRoot = NormalizeFullPath(ToAbsolutePath(_androidPrivacyTargetPath));
 
             if (!Directory.Exists(sourceRoot))
             {
@@ -132,17 +161,53 @@ namespace GoveKits.Editor
                 return;
             }
 
-            Directory.CreateDirectory(targetRoot);
-            CopyDirectoryWithoutMeta(sourceRoot, targetRoot);
-            AssetDatabase.Refresh();
+            if (string.IsNullOrWhiteSpace(targetRoot))
+            {
+                ShowNotification(new GUIContent("目标目录无效"));
+                LogCore.LogError("ProjectEditor", "Android 隐私弹窗目标目录无效");
+                return;
+            }
 
-            ShowNotification(new GUIContent("安卓隐私弹窗已复制"));
-            LogCore.LogGreen("ProjectEditor", $"安卓隐私弹窗复制完成: {sourceRoot} -> {targetRoot}");
+            if (IsSameOrSubPath(sourceRoot, targetRoot) || IsSameOrSubPath(targetRoot, sourceRoot))
+            {
+                ShowNotification(new GUIContent("源目录与目标目录存在包含关系"));
+                LogCore.LogError("ProjectEditor", $"源目标目录冲突: {sourceRoot} <-> {targetRoot}");
+                return;
+            }
+
+            if (Directory.Exists(targetRoot))
+            {
+                bool overwrite = EditorUtility.DisplayDialog(
+                    "覆盖确认",
+                    $"目标目录已存在，复制将覆盖同名文件。\n{targetRoot}",
+                    "继续",
+                    "取消");
+                if (!overwrite)
+                {
+                    return;
+                }
+            }
+
+            try
+            {
+                Directory.CreateDirectory(targetRoot);
+                int copiedFileCount = CopyDirectoryWithoutMeta(sourceRoot, targetRoot);
+                AssetDatabase.Refresh();
+
+                ShowNotification(new GUIContent($"复制完成: {copiedFileCount} 个文件"));
+                LogCore.LogGreen("ProjectEditor", $"安卓隐私弹窗复制完成({copiedFileCount}): {sourceRoot} -> {targetRoot}");
+            }
+            catch (Exception e)
+            {
+                ShowNotification(new GUIContent("复制失败"));
+                LogCore.LogError("ProjectEditor", $"安卓隐私弹窗复制失败: {e.Message}");
+            }
         }
 
-        private static void CopyDirectoryWithoutMeta(string sourceDir, string targetDir)
+        private static int CopyDirectoryWithoutMeta(string sourceDir, string targetDir)
         {
             Directory.CreateDirectory(targetDir);
+            int copiedFileCount = 0;
 
             string[] files = Directory.GetFiles(sourceDir);
             foreach (string file in files)
@@ -155,6 +220,7 @@ namespace GoveKits.Editor
                 string fileName = Path.GetFileName(file);
                 string targetFile = Path.Combine(targetDir, fileName);
                 File.Copy(file, targetFile, true);
+                copiedFileCount++;
             }
 
             string[] directories = Directory.GetDirectories(sourceDir);
@@ -167,8 +233,10 @@ namespace GoveKits.Editor
                 }
 
                 string targetSubDir = Path.Combine(targetDir, directoryName);
-                CopyDirectoryWithoutMeta(directory, targetSubDir);
+                copiedFileCount += CopyDirectoryWithoutMeta(directory, targetSubDir);
             }
+
+            return copiedFileCount;
         }
         
         private void OnEnable()
@@ -230,6 +298,29 @@ namespace GoveKits.Editor
             }
 
             return absolutePath;
+        }
+
+        private static bool IsSameOrSubPath(string parentPath, string candidatePath)
+        {
+            if (string.IsNullOrWhiteSpace(parentPath) || string.IsNullOrWhiteSpace(candidatePath))
+            {
+                return false;
+            }
+
+            string parent = NormalizeFullPath(parentPath).TrimEnd('/');
+            string candidate = NormalizeFullPath(candidatePath).TrimEnd('/');
+            return string.Equals(parent, candidate, StringComparison.OrdinalIgnoreCase)
+                || candidate.StartsWith(parent + "/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeFullPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return string.Empty;
+            }
+
+            return Path.GetFullPath(path).Replace('\\', '/');
         }
     }
 }
