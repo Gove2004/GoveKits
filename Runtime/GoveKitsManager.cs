@@ -14,20 +14,21 @@ namespace GoveKits.Runtime
     {
         private void Awake()
         {
-            LogCore.InfuseLogger(new UnityLogger());
             RandomCore.Init(Environment.TickCount);  // 使用系统时间戳初始化随机数生成器。
+#if UNITY_EDITOR
+            LogCore.InfuseLogger(new UnityLogger());  // 默认注入 Unity 日志器
+#endif
 
             // TimerManager.Initialize();
             // ConfigCore.InitAsync().Forget();  // 异步初始化配置系统，不等待完成。
 
             // 目前核心模块没有需要初始化的内容，但可以在这里添加全局设置或预热逻辑。
             LogCore.Success(nameof(GoveKitsManager), "GoveKits initialized.");
-
         }
 
         private void Update()
         {
-            TimerManager.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
+            // TimerManager.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
         }
 
         private void OnDestroy()
