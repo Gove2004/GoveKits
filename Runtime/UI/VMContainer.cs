@@ -41,8 +41,11 @@ namespace GoveKits.Runtime.UI
         public static void Remove<T>() where T : ViewModel
         {
             Type type = typeof(T);
-            if (ViewModels.ContainsKey(type))
+            if (ViewModels.TryGetValue(type, out var vm))
+            {
+                vm.OnUninit();
                 ViewModels.Remove(type);
+            }
         }
     }
 }

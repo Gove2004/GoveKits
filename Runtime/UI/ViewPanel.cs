@@ -67,7 +67,7 @@ namespace GoveKits.Runtime.UI
         /// <summary>
         /// 面板显示 - 绑定 ViewModel 并订阅事件
         /// </summary>
-        public sealed override void OnShow(object payload = null)
+        public override void OnShow(object payload = null)
         {
             // 从 UIController 获取单例 ViewModel
             ViewModel = VMContainer.Get<TVM>();

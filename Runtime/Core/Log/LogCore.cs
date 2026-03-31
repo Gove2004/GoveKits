@@ -73,10 +73,10 @@ namespace GoveKits.Runtime.Core
         /// <param name="tag">日志标签</param>
         /// <param name="message">日志内容</param>
         /// <param name="colorHex">显示颜色，默认橙色</param>
-        public static void Warn(string tag, string message, string colorHex = "#ffa500")
+        public static void Warn(string tag, string message)
         {
             if (ShowLevel > LogLevel.Warning) return;
-            DispatchLog(tag, message, LogLevel.Warning, colorHex);
+            DispatchLog(tag, message, LogLevel.Warning, "#ffa500");
         }
 
         /// <summary>
@@ -85,10 +85,10 @@ namespace GoveKits.Runtime.Core
         /// <param name="tag">日志标签</param>
         /// <param name="message">日志内容</param>
         /// <param name="colorHex">显示颜色，默认红色</param>
-        public static void Error(string tag, string message, string colorHex = "#ff0000")
+        public static void Error(string tag, string message)
         {
             if (ShowLevel > LogLevel.Error) return;
-            DispatchLog(tag, message, LogLevel.Error, colorHex);
+            DispatchLog(tag, message, LogLevel.Error, "#ff0000");
         }
 
         #endregion
@@ -129,6 +129,11 @@ namespace GoveKits.Runtime.Core
         /// 输出高亮日志（信息级别的青色日志）
         /// </summary>
         public static void Highlight(string tag, string message) => Info(tag, message, "#00d9ff");
+
+        /// <summary>
+        /// 输出紫色日志（信息级别的紫色日志）
+        /// </summary> <param name="tag">日志标签</param>
+        public static void Purple(string tag, string message) => Info(tag, message, "#a500ff");
 
         #endregion
     }

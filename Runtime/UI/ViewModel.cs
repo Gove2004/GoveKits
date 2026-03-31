@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -40,10 +41,17 @@ namespace GoveKits.Runtime.UI
         /// <returns>值是否发生改变</returns>
         protected bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
         {
-            if (Equals(storage, value)) return false;
+            if (EqualityComparer<T>.Default.Equals(storage, value)) return false;
             storage = value;
             OnPropertyChanged(propertyName);
             return true;
         }
+
+
+        /// <summary>
+        /// 当 ViewModel 被销毁时触发。
+        /// 子类可重写此方法，用于注销全局事件监听。
+        /// </summary>
+        public virtual void OnUninit() { }
     }
 }
