@@ -1,5 +1,5 @@
 using System;
-using GoveKits.Runtime.Core.Event;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Unit
 {
@@ -19,17 +19,38 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public abstract int Priority { get; }
 
+        /// <summary>
+        /// 反应所属的单位
+        /// </summary>
         public IUnit Owner { get; private set; }
+        
+        /// <summary>
+        /// 反应是否处于激活状态
+        /// </summary>
         public bool IsActive { get; protected set; }
 
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="owner">反应所属的单位</param>
         public UnitReaction(IUnit owner)
         {
             Owner = owner;
         }
 
+        /// <summary>
+        /// 激活反应，开始监听事件
+        /// </summary>
         public abstract void Activate();
+        
+        /// <summary>
+        /// 停用反应，停止监听事件
+        /// </summary>
         public abstract void Deactivate();
 
+        /// <summary>
+        /// 释放反应资源
+        /// </summary>
         public virtual void Dispose()
         {
             Deactivate();
@@ -42,12 +63,22 @@ namespace GoveKits.Runtime.Unit
     /// 第二层：泛型 Unit 反应基类。
     /// 职责：实现 IEventListener<T> 接口，管理具体事件类型的订阅与反订阅。
     /// </summary>
-    public abstract class UnitReaction<T> : UnitReaction, IEventListener<T> where T : EventInfo, new()
+    public abstract class UnitReaction<T> : UnitReaction, IEventListener<T> where T : EventData, new()
     {
+        /// <summary>
+        /// 取消订阅动作，用于在停用时取消事件订阅
+        /// </summary>
         private DisposeAction _unsubscribeAction;
 
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="owner">反应所属的单位</param>
         public UnitReaction(IUnit owner) : base(owner) { }
 
+        /// <summary>
+        /// 激活反应，订阅指定类型事件
+        /// </summary>
         public override void Activate()
         {
             if (IsActive) return;
@@ -56,6 +87,9 @@ namespace GoveKits.Runtime.Unit
             IsActive = true;
         }
 
+        /// <summary>
+        /// 停用反应，取消事件订阅
+        /// </summary>
         public override void Deactivate()
         {
             if (!IsActive) return;
@@ -65,37 +99,18 @@ namespace GoveKits.Runtime.Unit
         }
 
         // --- IEventListener<T> 接口实现 ---
-        public abstract void OnEvent(T eventInfo);
-        public virtual bool Filter(T eventInfo) => true; // 默认不过滤
-    }
-
-
-    /// <summary>
-    /// 第三层：基于委托的具体反应实现。
-    /// 职责：快速实例化，无需手写新类。
-    /// </summary>
-    public class DelegateReaction<T> : UnitReaction<T> where T : EventInfo, new()
-    {
-        private readonly Action<T> _reactionAction;
         
-        // 字段 backing
-        private readonly UnitTag _name;
-        private readonly int _priority;
-
-        public override UnitTag Name => _name;
-        public override int Priority => _priority;
-
-        public DelegateReaction(IUnit owner, UnitTag name, Action<T> reactionAction, int priority = 0) 
-            : base(owner)
-        {
-            _name = name;
-            _reactionAction = reactionAction;
-            _priority = priority;
-        }
-
-        public override void OnEvent(T eventInfo)
-        {
-            _reactionAction?.Invoke(eventInfo);
-        }
+        /// <summary>
+        /// 处理事件的回调方法，由事件系统调用
+        /// </summary>
+        /// <param name="eventInfo">事件数据</param>
+        public abstract void OnEvent(T eventInfo);
+        
+        /// <summary>
+        /// 事件过滤方法，决定是否处理该事件
+        /// </summary>
+        /// <param name="eventInfo">事件数据</param>
+        /// <returns>true表示处理事件，false表示忽略事件</returns>
+        public virtual bool OnFilter(T eventInfo) => true; // 默认不过滤
     }
 }

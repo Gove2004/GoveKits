@@ -15,20 +15,6 @@ namespace GoveKits.Runtime.AI
     /// 2. 每帧执行当前状态的 OnUpdate
     /// 3. 根据 OnUpdate 返回的 nextState 决定是否跳转
     /// 4. 返回状态的行为意图给 AIActor
-    /// 
-    /// 使用示例：
-    /// var tinker = new FSMTinker();
-    /// tinker.AddState(new IdleState());
-    /// tinker.AddState(new PatrolState());
-    /// tinker.AddState(new AttackState());
-    /// tinker.SetInitialState("Idle");
-    /// 
-    /// // 在 AIActor.SetupAI 中返回此 tinker
-    /// 
-    /// 注意事项：
-    /// - 状态名称必须唯一
-    /// - 必须设置初始状态
-    /// - 状态跳转在 OnUpdate 结束后执行
     /// </summary>
     public class FSMTinker : IAITinker
     {

@@ -7,7 +7,7 @@ namespace GoveKits.Runtime.Unit
     /// 表示能够提供标签查询源的接口。
     /// 例如：单位的 MarkContainer 可以实现此接口以支持 TagQuery 的匹配。
     /// </summary>
-    public interface IUnitTagSource
+    public interface ITagSource
     {
         /// <summary>
         /// 检查是否包含指定标签。
@@ -27,7 +27,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 判断给定的标签源是否满足此查询条件。
         /// </summary>
-        public abstract bool Match(IUnitTagSource container);
+        public abstract bool Match(ITagSource container);
 
         #region 运算符重载 & 隐式转换 (语法糖)
 
@@ -60,24 +60,24 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="func">匹配函数。</param>
         /// <returns>自定义条件查询节点。</returns>
-        public static TagQuery Custom(Func<IUnitTagSource, bool> func) => new ConditionTag(func);
+        public static TagQuery Custom(Func<ITagSource, bool> func) => new ConditionTag(func);
 
         /// <summary>
-        /// 构建“全部满足”查询。
+        /// 构建"全部满足"查询。
         /// </summary>
         /// <param name="queries">子查询列表。</param>
         /// <returns>AND 查询节点。</returns>
         public static TagQuery All(params TagQuery[] queries) => new AllTag(queries);
 
         /// <summary>
-        /// 构建“任一满足”查询。
+        /// 构建"任一满足"查询。
         /// </summary>
         /// <param name="queries">子查询列表。</param>
         /// <returns>OR 查询节点。</returns>
         public static TagQuery Any(params TagQuery[] queries) => new AnyTag(queries);
 
         /// <summary>
-        /// 构建“取反”查询。
+        /// 构建"取反"查询。
         /// </summary>
         /// <param name="query">子查询。</param>
         /// <returns>NOT 查询节点。</returns>
@@ -109,12 +109,12 @@ namespace GoveKits.Runtime.Unit
             Tag = tag;
         }
 
-        public override bool Match(IUnitTagSource container)
+        public override bool Match(ITagSource container)
         {
             return container != null && container.HasTag(Tag);
         }
 
-        public override string ToString() => $"Has({Tag})";
+        public override string ToString() => $"({Tag})";
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ namespace GoveKits.Runtime.Unit
             _query = query ?? throw new ArgumentNullException(nameof(query));
         }
 
-        public override bool Match(IUnitTagSource container)
+        public override bool Match(ITagSource container)
         {
             return !_query.Match(container);
         }
@@ -154,18 +154,18 @@ namespace GoveKits.Runtime.Unit
         /// <param name="queries">子查询列表。</param>
         public AllTag(params TagQuery[] queries)
         {
-            _queries = queries ?? Array.Empty<TagQuery>();
+            var validQueries = new List<TagQuery>();
+            if (queries != null)
+            {
+                foreach (var q in queries) if (q != null) validQueries.Add(q);
+            }
+            _queries = validQueries.ToArray();
         }
 
-        public override bool Match(IUnitTagSource container)
+        public override bool Match(ITagSource container)
         {
             for (int i = 0; i < _queries.Length; i++)
             {
-                if (_queries[i] == null)
-                {
-                    continue;
-                }
-
                 if (!_queries[i].Match(container))
                 {
                     return false;
@@ -191,18 +191,18 @@ namespace GoveKits.Runtime.Unit
         /// <param name="queries">子查询列表。</param>
         public AnyTag(params TagQuery[] queries)
         {
-            _queries = queries ?? Array.Empty<TagQuery>();
+            var validQueries = new List<TagQuery>();
+            if (queries != null)
+            {
+                foreach (var q in queries) if (q != null) validQueries.Add(q);
+            }
+            _queries = validQueries.ToArray();
         }
 
-        public override bool Match(IUnitTagSource container)
+        public override bool Match(ITagSource container)
         {
             for (int i = 0; i < _queries.Length; i++)
             {
-                if (_queries[i] == null)
-                {
-                    continue;
-                }
-
                 if (_queries[i].Match(container))
                 {
                     return true;
@@ -220,18 +220,18 @@ namespace GoveKits.Runtime.Unit
     /// </summary>
     public class ConditionTag : TagQuery
     {
-        private readonly Func<IUnitTagSource, bool> _func;
+        private readonly Func<ITagSource, bool> _func;
 
         /// <summary>
         /// 创建自定义条件查询节点。
         /// </summary>
         /// <param name="func">匹配函数。</param>
-        public ConditionTag(Func<IUnitTagSource, bool> func)
+        public ConditionTag(Func<ITagSource, bool> func)
         {
             _func = func ?? throw new ArgumentNullException(nameof(func));
         }
 
-        public override bool Match(IUnitTagSource container)
+        public override bool Match(ITagSource container)
         {
             return _func(container);
         }

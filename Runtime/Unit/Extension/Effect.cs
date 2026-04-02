@@ -23,11 +23,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public AttributeChangeEffect(UnitTag attributeKey, float changeValue)
-        {
-            Set(attributeKey, changeValue);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -38,9 +33,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            target.Attributes.Change(AttributeKey, ChangeValue);
+            target.Attributes.ChangeBase(AttributeKey, ChangeValue);
         }
 
         public override void OnRecycle()
@@ -70,11 +65,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public AttributeModifierAddEffect(UnitTag attributeKey, AttributeModifier modifier)
-        {
-            Set(attributeKey, modifier);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -85,9 +75,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            target.Attributes.ApplyModifier(AttributeKey, Modifier);
+            target.Attributes.AddModifier(AttributeKey, Modifier);
         }
 
         public override void OnRecycle()
@@ -110,36 +100,31 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 要移除的修改器。
         /// </summary>
-        public AttributeModifier Modifier { get; private set; }
+        public ModifierSource Source { get; private set; }
 
         public AttributeModifierRemoveEffect()
         {
         }
 
-        public AttributeModifierRemoveEffect(UnitTag attributeKey, AttributeModifier modifier)
-        {
-            Set(attributeKey, modifier);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
-        public AttributeModifierRemoveEffect Set(UnitTag attributeKey, AttributeModifier modifier)
+        public AttributeModifierRemoveEffect Set(UnitTag attributeKey, ModifierSource source)
         {
             AttributeKey = attributeKey;
-            Modifier = modifier;
+            Source = source;
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            target.Attributes.Modify(AttributeKey, Modifier);
+            target.Attributes.RemoveModifier(AttributeKey, Source);
         }
 
         public override void OnRecycle()
         {
             AttributeKey = default;
-            Modifier = default;
+            Source = default;
         }
     }
 
@@ -157,11 +142,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public MarkAddEffect(UnitMark mark)
-        {
-            Set(mark);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -171,12 +151,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            if (Mark != null)
-            {
-                target.Marks.AddMark(Mark);
-            }
+            target.Marks.AddMark(Mark);
         }
 
         public override void OnRecycle()
@@ -199,16 +176,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public MarkRemoveEffect(UnitTag markTag)
-        {
-            Set(markTag);
-        }
-
-        public MarkRemoveEffect(UnitMark mark)
-        {
-            Set(mark != null ? mark.Name : default);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -218,12 +185,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            if (MarkTag != UnitTag.None)
-            {
-                target.Marks.RemoveMark(MarkTag);
-            }
+            target.Marks.RemoveMark(MarkTag);
         }
 
         public override void OnRecycle()
@@ -246,11 +210,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public AbilityAddEffect(UnitAbility ability)
-        {
-            Set(ability);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -260,12 +219,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            if (Ability != null)
-            {
-                target.Abilities.AddAbility(Ability);
-            }
+            target.Abilities.AddAbility(Ability);
         }
 
         public override void OnRecycle()
@@ -288,11 +244,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public AbilityRemoveEffect(UnitTag abilityTag)
-        {
-            Set(abilityTag);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -302,7 +253,7 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
             target.Abilities.RemoveAbility(AbilityTag);
         }
@@ -327,11 +278,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public ReactionAddEffect(UnitReaction reaction)
-        {
-            Set(reaction);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -341,12 +287,9 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
-            if (Reaction != null)
-            {
-                target.Reactions.AddReaction(Reaction);
-            }
+            target.Reactions.AddReaction(Reaction);
         }
 
         public override void OnRecycle()
@@ -369,11 +312,6 @@ namespace GoveKits.Runtime.Unit
         {
         }
 
-        public ReactionRemoveEffect(UnitTag reactionTag)
-        {
-            Set(reactionTag);
-        }
-
         /// <summary>
         /// 设置效果参数，便于池化对象复用。
         /// </summary>
@@ -383,7 +321,7 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
-        public override void OnApply(IUnit target)
+        public override void OnApply<TUnit>(TUnit target)
         {
             target.Reactions.RemoveReaction(ReactionTag);
         }

@@ -9,20 +9,6 @@ namespace GoveKits.Runtime.AI
     /// 1. 提供泛型键值对存储
     /// 2. 支持任意类型的数据存取
     /// 3. 作为 IAIMemory 接口的默认实现
-    /// 
-    /// 数据结构：Dictionary<string, object>
-    /// 
-    /// 使用示例：
-    /// var memory = new KVMemory();
-    /// memory.Set("EnemyHP", 100);
-    /// memory.Set("LastSeenPos", new Vector3(1, 2, 3));
-    /// 
-    /// int hp = memory.Get<int>("EnemyHP");
-    /// Vector3 pos = memory.Get<Vector3>("LastSeenPos");
-    /// 
-    /// 注意事项：
-    /// - Get 时需要指定正确的类型，否则会抛出异常
-    /// - 键名建议使用常量或枚举，避免硬编码字符串
     /// </summary>
     public class KVMemory : IAIMemory
     {

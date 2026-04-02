@@ -1,6 +1,5 @@
-
-
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace GoveKits.Runtime.Unit
@@ -33,6 +32,10 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         private readonly List<AbilityRule> _rules = new();
 
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="owner">技能所属的单位</param>
         public UnitAbility(IUnit owner)
         {
             Owner = owner;
@@ -75,7 +78,7 @@ namespace GoveKits.Runtime.Unit
         /// 检查技能是否允许执行。
         /// </summary>
         /// <param name="context">执行上下文。</param>
-        public virtual bool CanExecute(UnitContext context)
+        public virtual bool CanExecute(AbilityContext context)
         {
             if (IsExecuting) return false;
 
@@ -98,7 +101,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="context">执行上下文。</param>
         /// <returns>执行成功返回 true，否则返回 false。</returns>
-        public async UniTask<bool> TryExecuteAsync(UnitContext context)
+        public async UniTask<bool> TryExecuteAsync(AbilityContext context, CancellationToken cancellationToken = default)
         {
             if (!CanExecute(context)) return false;
 
@@ -112,7 +115,7 @@ namespace GoveKits.Runtime.Unit
                     rule?.Commit(context);
                 }
                 
-                await ExecuteAsync(context);
+                await ExecuteAsync(context, cancellationToken);
                 return true;
             }
             finally
@@ -125,7 +128,7 @@ namespace GoveKits.Runtime.Unit
         /// 异步执行技能逻辑。
         /// </summary>
         /// <param name="context">执行上下文。</param>
-        public abstract UniTask ExecuteAsync(UnitContext context);
+        public abstract UniTask ExecuteAsync(AbilityContext context, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// 释放技能资源。
@@ -137,5 +140,4 @@ namespace GoveKits.Runtime.Unit
             _rules.Clear();
         }
     }
-
 }

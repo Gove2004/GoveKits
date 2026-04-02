@@ -2,36 +2,11 @@
 
 
 using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace GoveKits.Runtime.Unit
 {
-    /// <summary>
-    /// Unit 容器类型枚举。
-    /// </summary>
-    public enum UnitContainerType
-    {
-        /// <summary>
-        /// 属性容器（AttributeContainer）。
-        /// </summary>
-        Attribute = 1,
-
-        /// <summary>
-        /// 标记容器（MarkContainer）。
-        /// </summary>
-        Mark = 1 << 1,
-
-        /// <summary>
-        /// 技能容器（AbilityContainer）。
-        /// </summary>
-        Ability = 1 << 2,
-
-        /// <summary>
-        /// 反应容器（ReactionContainer）。
-        /// </summary>
-        Reaction = 1 << 3
-    }
-
     /// <summary>
     /// Unit 统一接口。
     /// </summary>
@@ -85,22 +60,31 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="attributeTag"></param>
         /// <returns></returns>
-        public float Value(UnitTag attributeTag)
-             => Attributes.GetValue(attributeTag); 
+        public float Value(UnitTag attributeTag) => Attributes.GetValue(attributeTag); 
+
+
+        public void UpdateUnit(float deltaTime) => Marks.UpdateMarks(deltaTime);
+
 
         /// <summary>
         /// 尝试异步执行技能（由当前 Unit 作为 Source）。
         /// </summary>
         /// <param name="abilityTag">技能标签。</param>
         /// <param name="context">执行上下文。</param>
-        public UniTask<bool> Use(UnitTag abilityTag, UnitContext context)
-             => Abilities.TryExecuteAsync(abilityTag, context);
+        public UniTask<bool> Use(UnitTag abilityTag, AbilityContext context, CancellationToken cancellationToken = default)
+             => Abilities.TryExecuteAsync(abilityTag, context, cancellationToken);
+        
+        
+
+        public void Enable(UnitTag reactionTag, bool enable) => Reactions.Enable(reactionTag, enable);
         
         /// <summary>
         /// 对当前 Unit 应用一个即时效果。
         /// </summary>
         /// <param name="effect">要执行的效果对象。</param>
-        public void Apply(UnitEffect effect) => effect.Apply(this);
+        public void ApplyEffect(UnitEffect effect) => effect.Apply(this);
+
+        
 
         /// <summary>
         /// 清理当前 Unit 的全部容器数据。
@@ -120,7 +104,7 @@ namespace GoveKits.Runtime.Unit
     /// <remarks>
     /// 基类负责创建四类核心容器，具体初始化逻辑由派生类实现。
     /// </remarks>
-    public abstract class UnitBase : IUnit
+    public abstract class BaseUnit : IUnit
     {
         /// <summary>
         /// 属性容器实例。
@@ -143,64 +127,62 @@ namespace GoveKits.Runtime.Unit
         public ReactionContainer Reactions { get; private set; }
 
         /// <summary>
-        /// 构造并初始化基础容器。
-        /// </summary>
-        protected UnitBase()
-        {
-            Attributes = new AttributeContainer();
-            Marks = new MarkContainer();
-            Abilities = new AbilityContainer();
-            Reactions = new ReactionContainer();
-        }
-
-        /// <summary>
         /// 初始化属性数据。
         /// </summary>
-        public abstract void InitAttributes();
+        public virtual void InitAttributes() => Attributes = new AttributeContainer();
 
         /// <summary>
         /// 初始化标记数据。
         /// </summary>
-        public abstract void InitMarks();
+        public virtual void InitMarks() => Marks = new MarkContainer();
 
         /// <summary>
         /// 初始化技能数据。
         /// </summary>
-        public abstract void InitAbilities();
+        public virtual void InitAbilities() => Abilities = new AbilityContainer();
 
         /// <summary>
         /// 初始化反应数据。
         /// </summary>
-        public abstract void InitReactions();
+        public virtual void InitReactions() => Reactions = new ReactionContainer();
 
         /// <summary>
         /// 获取属性值的快捷方法。
         /// </summary>
-        /// <param name="attributeTag">属性标签。</param>
-        /// <returns>当前属性值。</returns>
-        public float Value(UnitTag attributeTag)
-            => Attributes.GetValue(attributeTag);
+        /// <param name="attributeTag"></param>
+        /// <returns></returns>
+        public float Value(UnitTag attributeTag) => Attributes.GetValue(attributeTag); 
+
+        /// <summary>
+        /// 更新标记数据。
+        /// </summary>
+        /// <param name="deltaTime"></param>
+        public void UpdateUnit(float deltaTime) => Marks.UpdateMarks(deltaTime);
+
 
         /// <summary>
         /// 尝试异步执行技能（由当前 Unit 作为 Source）。
         /// </summary>
         /// <param name="abilityTag">技能标签。</param>
         /// <param name="context">执行上下文。</param>
-        /// <returns>是否执行成功。</returns>
-        public UniTask<bool> Use(UnitTag abilityTag, UnitContext context)
-            => Abilities.TryExecuteAsync(abilityTag, context);
+        public UniTask<bool> Use(UnitTag abilityTag, AbilityContext context, CancellationToken cancellationToken = default)
+             => Abilities.TryExecuteAsync(abilityTag, context, cancellationToken);
+        
 
+        public void Enable(UnitTag reactionTag, bool enable) => Reactions.Enable(reactionTag, enable);
+        
         /// <summary>
         /// 对当前 Unit 应用一个即时效果。
         /// </summary>
         /// <param name="effect">要执行的效果对象。</param>
-        public void Apply(UnitEffect effect)
-            => effect.Apply(this);
+        public void ApplyEffect(UnitEffect effect) => effect.Apply(this);
+
+        
 
         /// <summary>
         /// 清理当前 Unit 的全部容器数据。
         /// </summary>
-        public virtual void Clear()
+        public void Clear()
         {
             Attributes.Clear();
             Marks.Clear();

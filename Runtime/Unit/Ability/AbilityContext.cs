@@ -1,7 +1,5 @@
-
-
-
 using System.Collections.Generic;
+
 
 namespace GoveKits.Runtime.Unit
 {
@@ -9,7 +7,7 @@ namespace GoveKits.Runtime.Unit
     /// Unit 执行上下文。
     /// <para>提供 Source/Target 以及可扩展的运行时参数容器。</para>
     /// </summary>
-    public class UnitContext
+    public class AbilityContext
     {
         /// <summary>
         /// 触发方（施法者、攻击者等）。
@@ -21,12 +19,41 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public readonly IUnit Target;
 
+        // 浮点数数据字典，用于存储各种浮点数值参数
+        private readonly Dictionary<string, float> _floatData = new();
+
+        /// <summary>
+        /// 获取指定键的浮点数值，如果不存在则返回默认值。
+        /// </summary>
+        /// <param name="key">参数键。</param>
+        /// <param name="defaultValue">不存在时的默认值。</param>
+        /// <returns>找到的值或默认值。</returns>
+        public float GetFloat(string key, float defaultValue = 0f)
+        {
+            return _floatData.TryGetValue(key, out var value) ? value : defaultValue;
+        }
+
+        /// <summary>
+        /// 设置指定键的浮点数值。
+        /// </summary>
+        /// <param name="key">参数键。</param>
+        /// <param name="value">参数值。</param>
+        public void SetFloat(string key, float value)
+        {
+            _floatData[key] = value;
+        }
+
         /// <summary>
         /// 扩展参数表，用于承载技能计算中的临时上下文。
         /// </summary>
         private readonly Dictionary<string, object> _data = new();
 
-        public UnitContext(IUnit source, IUnit target = null)
+        /// <summary>
+        /// 创建执行上下文实例。
+        /// </summary>
+        /// <param name="source">触发方单位。</param>
+        /// <param name="target">目标单位，可为空。</param>
+        public AbilityContext(IUnit source, IUnit target = null)
         {
             Source = source;
             Target = target;
@@ -38,7 +65,7 @@ namespace GoveKits.Runtime.Unit
         /// <param name="key">参数键。</param>
         /// <param name="value">参数值。</param>
         /// <returns>当前上下文实例，便于链式调用。</returns>
-        public UnitContext SetData(string key, object value)
+        public AbilityContext SetData<T>(string key, T value)
         {
             _data[key] = value;
             return this;
@@ -69,6 +96,7 @@ namespace GoveKits.Runtime.Unit
         /// <typeparam name="T">目标类型。</typeparam>
         /// <param name="key">参数键。</param>
         /// <param name="defaultValue">读取失败时的默认值。</param>
+        /// <returns>找到的值或默认值。</returns>
         public T GetData<T>(string key, T defaultValue = default)
         {
             return TryGetData<T>(key, out var value) ? value : defaultValue;
@@ -90,6 +118,7 @@ namespace GoveKits.Runtime.Unit
         public void ClearData()
         {
             _data.Clear();
+            _floatData.Clear();
         }
     }
 }

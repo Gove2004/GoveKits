@@ -15,26 +15,6 @@ namespace GoveKits.Runtime.AI
     /// - 组件化：Memory、Tinker、Observers 可自由组合
     /// - 扩展性：子类通过 SetupAI 装配自己的 AI 零件
     /// - 生命周期：与 MonoBehaviour 生命周期绑定
-    /// 
-    /// 使用示例：
-    /// public class EnemyActor : AIActor
-    /// {
-    ///     protected override void SetupAI(out IAIMemory memory, out IAITinker tinker, out List<IAIObserver> observers)
-    ///     {
-    ///         memory = new KVMemory();
-    ///         tinker = new FSMTinker();
-    ///         observers = new List<IAIObserver> { new VisionObserver(), new HearingObserver() };
-    ///     }
-    ///     
-    ///     protected override void Act(string intendedAction)
-    ///     {
-    ///         switch (intendedAction)
-    ///         {
-    ///             case "Attack": /* 执行攻击 */ break;
-    ///             case "Patrol": /* 执行巡逻 */ break;
-    ///         }
-    ///     }
-    /// }
     /// </summary>
     public abstract class AIActor : MonoBehaviour
     {

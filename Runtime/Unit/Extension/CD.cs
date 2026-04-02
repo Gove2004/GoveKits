@@ -1,5 +1,3 @@
-
-
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
@@ -36,7 +34,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="context">技能执行上下文。</param>
         /// <returns>不在冷却中返回 true。</returns>
-        public override bool Check(UnitContext context)
+        public override bool Check(AbilityContext context)
         {
             return context.Source.Marks.HasTag(CDTag) == false;
         }
@@ -45,9 +43,11 @@ namespace GoveKits.Runtime.Unit
         /// 提交冷却：向 Source 添加 CDMark。
         /// </summary>
         /// <param name="context">技能执行上下文。</param>
-        public override void Commit(UnitContext context)
+        public override void Commit(AbilityContext context)
         {
-            context.Source.Marks.AddMark(new CDMark(context.Source, CDTag, duration));
+            MarkAddEffect.Create()
+                .Set(new CDMark(context.Source, CDTag, duration))
+                .Apply(context.Source);
         }
     }
 

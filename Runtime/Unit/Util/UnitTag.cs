@@ -13,7 +13,7 @@ namespace GoveKits.Runtime.Unit
     public readonly struct UnitTag : IEquatable<UnitTag>
     {
         /// <summary>
-        /// 空 Tag，语义等同于“无标签”。
+        /// 空 Tag，语义等同于"无标签"。
         /// 建议仅用于占位，不作为业务有效标签。
         /// </summary>
         public static readonly UnitTag None = new UnitTag(string.Empty);

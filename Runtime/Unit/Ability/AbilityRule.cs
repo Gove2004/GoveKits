@@ -1,5 +1,3 @@
-
-
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
@@ -15,12 +13,12 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="context">技能执行上下文。</param>
         /// <returns>满足执行条件返回 true，否则返回 false。</returns>
-        public abstract bool Check(UnitContext context);
+        public abstract bool Check(AbilityContext context);
 
         /// <summary>
         /// 提交规则副作用。
         /// </summary>
         /// <param name="context">技能执行上下文。</param>
-        public abstract void Commit(UnitContext context);
+        public abstract void Commit(AbilityContext context);
     }
 }

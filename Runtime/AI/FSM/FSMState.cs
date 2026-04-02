@@ -10,35 +10,6 @@ namespace GoveKits.Runtime.AI
     /// 
     /// 状态生命周期：
     /// 进入状态 → OnEnter → 每帧 OnUpdate → 退出状态 → OnExit
-    /// 
-    /// 使用示例：
-    /// public class PatrolState : FSMState
-    /// {
-    ///     public PatrolState() => StateName = "Patrol";
-    ///     
-    ///     public override void OnEnter(IAIMemory memory)
-    ///     {
-    ///         // 进入巡逻状态时的初始化
-    ///     }
-    ///     
-    ///     public override string OnUpdate(IAIMemory memory, out string nextState)
-    ///     {
-    ///         nextState = null;
-    ///         
-    ///         // 发现敌人则切换到攻击状态
-    ///         if (memory.Get<bool>("EnemySpotted"))
-    ///         {
-    ///             nextState = "Attack";
-    ///         }
-    ///         
-    ///         return "Patrol"; // 返回巡逻动作意图
-    ///     }
-    ///     
-    ///     public override void OnExit(IAIMemory memory)
-    ///     {
-    ///         // 退出巡逻状态时的清理
-    ///     }
-    /// }
     /// </summary>
     public abstract class FSMState
     {

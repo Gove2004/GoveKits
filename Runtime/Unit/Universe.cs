@@ -1,57 +1,59 @@
+
+
+
 using System.Threading;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Unit
 {
-    /// <summary>
-    /// Unit 行为接口。
-    /// 包含 Unit 的核心行为方法，如应用效果、执行技能等。
-    /// </summary>
-    public abstract class UnitBehaviour : MonoBehaviour, IUnit
+    public class Universe : CSharpSingleton<Universe>, IUnit
     {
         public AttributeContainer Attributes { get; protected set; }
         public MarkContainer Marks { get; protected set; }
         public AbilityContainer Abilities { get; protected set; }
         public ReactionContainer Reactions { get; protected set; }
 
-        /// <summary>
-        /// 初始化属性数据。
-        /// </summary>
-        public virtual void InitAttributes() => Attributes = new AttributeContainer();
-
-        /// <summary>
-        /// 初始化标记数据。
-        /// </summary>
-        public virtual void InitMarks() => Marks = new MarkContainer();
-
-        /// <summary>
-        /// 初始化技能数据。
-        /// </summary>
-        public virtual void InitAbilities() => Abilities = new AbilityContainer();
-
-        /// <summary>
-        /// 初始化反应数据。
-        /// </summary>
-        public virtual void InitReactions() => Reactions = new ReactionContainer();
-
-        protected virtual void Awake()
+        public void InitAbilities()
         {
+            // 添加技能
+            Abilities = new AbilityContainer();
+        }
+
+        public void InitAttributes()
+        {
+            // 添加属性
+            Attributes = new AttributeContainer();  
+        }
+
+        public void InitMarks()
+        {
+            // 添加标记
+            Marks = new MarkContainer();
+        }
+
+        public void InitReactions()
+        {
+            // 添加反应
+            Reactions = new ReactionContainer();
+        }
+
+
+        protected override void Init()
+        {
+            base.Init();
             InitAttributes();
-            InitMarks();
             InitAbilities();
+            InitMarks();
             InitReactions();
         }
 
-        protected virtual void Update()
+        protected override void Uninit()
         {
-            UpdateUnit(Time.deltaTime);
-        }
-
-        protected virtual void OnDestroy()
-        {
+            base.Uninit();
             Clear();
         }
+        
 
         /// <summary>
         /// 获取属性值的快捷方法。
@@ -60,7 +62,9 @@ namespace GoveKits.Runtime.Unit
         /// <returns></returns>
         public float Value(UnitTag attributeTag) => Attributes.GetValue(attributeTag); 
 
+
         public void UpdateUnit(float deltaTime) => Marks.UpdateMarks(deltaTime);
+
 
         /// <summary>
         /// 尝试异步执行技能（由当前 Unit 作为 Source）。
@@ -70,6 +74,7 @@ namespace GoveKits.Runtime.Unit
         public UniTask<bool> Use(UnitTag abilityTag, AbilityContext context, CancellationToken cancellationToken = default)
              => Abilities.TryExecuteAsync(abilityTag, context, cancellationToken);
         
+
         public void Enable(UnitTag reactionTag, bool enable) => Reactions.Enable(reactionTag, enable);
         
         /// <summary>
@@ -77,6 +82,8 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         /// <param name="effect">要执行的效果对象。</param>
         public void ApplyEffect(UnitEffect effect) => effect.Apply(this);
+
+        
 
         /// <summary>
         /// 清理当前 Unit 的全部容器数据。

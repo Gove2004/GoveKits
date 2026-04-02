@@ -1,5 +1,3 @@
-
-
 using System.Collections.Generic;
 
 namespace GoveKits.Runtime.Unit
@@ -10,12 +8,27 @@ namespace GoveKits.Runtime.Unit
     /// <remarks>
     /// 负责管理反应实例的增删、批量激活/停用以及生命周期清理。
     /// </remarks>
-    public class ReactionContainer : IUnitTagSource, IEnumerable<KeyValuePair<UnitTag, UnitReaction>>
+    public class ReactionContainer : ITagSource, IEnumerable<KeyValuePair<UnitTag, UnitReaction>>
     {
-        private bool _isActive = true; // 容器激活状态，默认为激活
+        // 容器激活状态，默认为激活
+        private bool _isActive = true; 
+        
+        // 存储反应的字典，以反应名称为键，反应实例为值
         private readonly Dictionary<UnitTag, UnitReaction> _reactions = new();
+        
+        /// <summary>
+        /// 检查是否包含指定标签的反应
+        /// </summary>
         public bool HasTag(UnitTag tag) => _reactions.ContainsKey(tag);
+        
+        /// <summary>
+        /// 反应数量
+        /// </summary>
         public int Count => _reactions.Count;
+        
+        /// <summary>
+        /// 获取枚举器，支持foreach遍历
+        /// </summary>
         public IEnumerator<KeyValuePair<UnitTag, UnitReaction>> GetEnumerator() => _reactions.GetEnumerator();
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _reactions.GetEnumerator();
 
@@ -60,7 +73,6 @@ namespace GoveKits.Runtime.Unit
             {
                 reaction.Activate();
             }
-
         }
 
         /// <summary>
@@ -106,6 +118,26 @@ namespace GoveKits.Runtime.Unit
             if (_reactions.TryGetValue(name, out var reaction))
             {
                 reaction.Deactivate();
+            }
+        }
+
+        /// <summary>
+        /// 启用或禁用指定标签的反应
+        /// </summary>
+        /// <param name="reactionTag">反应标签</param>
+        /// <param name="enable">true为启用，false为禁用</param>
+        public void Enable(UnitTag reactionTag, bool enable)
+        {
+            if (_reactions.TryGetValue(reactionTag, out var reaction))
+            {
+                if (enable)
+                {
+                    reaction.Activate();
+                }
+                else
+                {
+                    reaction.Deactivate();
+                }
             }
         }
 
