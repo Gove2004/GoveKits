@@ -80,7 +80,7 @@ namespace GoveKits.Runtime.UI
         {
             if (!_panels.TryGetValue(type, out var nextPanel))
             {
-                LogCore.Error(nameof(UIController), $"未注册 Panel: {type.Name}");
+                CoreLocator.Log.Error(nameof(UIController), $"未注册 Panel: {type.Name}");
                 return;
             }
 
