@@ -1,62 +1,50 @@
+using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core.Singleton;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Runtime.Storage.Save
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 自动保存组件，挂载在场景中负责自动保存游戏。
     /// </summary>
     public class AutoSaveBehaviour : MonoSingleton<AutoSaveBehaviour>
     {
-        [SerializeField] private bool autoSaveEnabled = true;
-        [SerializeField] private float saveIntervalSeconds = 30f;
+        [SerializeField] private float intervalSeconds = 60f;
+        
+        private readonly Dictionary<string, Func<object>> _registrations = new();
+        private readonly Dictionary<string, string> _paths = new();
+        private float _timer;
 
-        private readonly Dictionary<object, System.Func<UniTask>> runtimeTargets = new();
-        private float elapsedSeconds;
-        private bool isSaving;
 
         private void Update()
         {
-            if (!autoSaveEnabled || saveIntervalSeconds <= 0f)
+            _timer += Time.deltaTime;
+            if (_timer < intervalSeconds)
             {
                 return;
             }
-
-            elapsedSeconds += Time.unscaledDeltaTime;
-            if (elapsedSeconds >= saveIntervalSeconds)
-            {
-                elapsedSeconds = 0f;
-                SaveAllAsync().Forget();
-            }
+            SaveAll();
+            _timer = 0;
         }
 
         /// <summary>
-        /// 外部注册存档对象。
+        /// 注册自动保存对象
         /// </summary>
-        public bool Register<T>(ISaveData<T> saveable)
+        /// <param name="key">唯一标识（用于日志）</param>
+        /// <param name="path">存档路径</param>
+        /// <param name="getData">获取当前数据的委托</param>
+        public void Register<T>(string key, string path, Func<T> getData)
         {
-            if (saveable == null)
-            {
-                return false;
-            }
-
-            runtimeTargets[saveable.RelativePath] = () => SaveCore.SaveAsync(saveable);
-            return true;
+            _registrations[key] = () => getData();
+            _paths[key] = path;
         }
 
-        /// <summary>
-        /// 外部注销存档对象。
-        /// </summary>
-        public bool Unregister<T>(ISaveData<T> saveable)
+        public void Unregister(string key)
         {
-            if (saveable == null)
-            {
-                return false;
-            }
-
-            return runtimeTargets.Remove(saveable.RelativePath);
+            _registrations.Remove(key);
+            _paths.Remove(key);
         }
 
         /// <summary>
@@ -68,24 +56,20 @@ namespace GoveKits.Runtime.Storage.Save
             SaveAllAsync().Forget();
         }
 
-        public async UniTask SaveAllAsync()
+        private async UniTask SaveAllAsync()
         {
-            if (isSaving)
+            foreach (var kvp in _registrations)
             {
-                return;
-            }
-
-            isSaving = true;
-            try
-            {
-                foreach (System.Func<UniTask> saveAction in runtimeTargets.Values)
+                try
                 {
-                    await saveAction.Invoke();
+                    var data = kvp.Value.Invoke();
+                    var path = _paths[kvp.Key];
+                    await CoreLocator.Save.SaveAsync(path, data);  // 直接调用新API
                 }
-            }
-            finally
-            {
-                isSaving = false;
+                catch (Exception ex)
+                {
+                    CoreLocator.Log.Error(nameof(AutoSaveBehaviour), $"AutoSave failed [{kvp.Key}]: {ex}");
+                }
             }
         }
     }

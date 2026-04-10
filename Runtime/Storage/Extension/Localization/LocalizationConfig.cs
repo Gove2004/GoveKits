@@ -4,7 +4,7 @@ using UnityEngine;
 using TMPro;
 #endif
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Storage
 {
     [CreateAssetMenu(fileName = "LocalizationConfig", menuName = "GoveKits/Localization Config")]
     public class LocalizationConfig : ScriptableObject

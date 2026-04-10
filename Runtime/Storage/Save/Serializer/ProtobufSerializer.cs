@@ -2,13 +2,15 @@ using System;
 using System.Reflection;
 using Google.Protobuf;
 
-namespace GoveKits.Runtime.Storage.Save
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 基于 Google.Protobuf 的序列化器。
     /// </summary>
     public sealed class ProtobufSerializer : ISerializer
     {
+        public string FileExtension => ".proto";
+        
         public byte[] Serialize(object data, Type dataType)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));

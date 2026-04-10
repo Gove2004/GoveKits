@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 标记配置类型对应的文件路径、来源和解析器。

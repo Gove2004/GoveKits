@@ -4,18 +4,11 @@ using Newtonsoft.Json;
 using UnityEngine;
 using GoveKits.Runtime.Core;
 
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// Json 配置解析器。
     /// </summary>
-    /// <remarks>
-    /// 支持以下 JSON 结构:
-    /// 1) List&lt;T&gt;
-    /// 2) Dictionary&lt;int, T&gt;
-    /// 3) Dictionary&lt;string, T&gt;
-    /// 4) 单对象 T
-    /// </remarks>
     public sealed class JsonConfigParser : IConfigParser
     {
         private static readonly string[] ParserExtensions = { ".json" };
@@ -43,7 +36,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
+                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
             }
 
             try
@@ -56,7 +49,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
+                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
             }
 
             try
@@ -69,7 +62,7 @@ namespace GoveKits.Runtime.Storage.Config
             }
             catch
             {
-                LogCore.LogWarning(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
+                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
             }
 
             T one = JsonConvert.DeserializeObject<T>(json);

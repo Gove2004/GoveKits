@@ -9,7 +9,7 @@ using GoveKits.Runtime.Core;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 配置来源类型。
@@ -34,18 +34,18 @@ namespace GoveKits.Runtime.Storage.Config
     /// <para>扫描所有带 ConfigAttribute 的类型并加载到内存。</para>
     /// <para>提供 Load 系列查询接口。</para>
     /// </summary>
-    public static class ConfigCore
+    public class ConfigCore : ICore
     {
-        private static readonly Dictionary<ConfigFileType, IConfigParser> Parsers = new();
-        private static readonly Dictionary<Type, List<IConfigData>> ConfigTables = new();
-        private static readonly MethodInfo ParseMethodDefinition =
+        private readonly Dictionary<ConfigFileType, IConfigParser> Parsers = new();
+        private readonly Dictionary<Type, List<IConfigData>> ConfigTables = new();
+        private readonly MethodInfo ParseMethodDefinition =
             typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse))
             ?? throw new InvalidOperationException("IConfigParser.Parse method not found.");
 
-        private static bool IsInitialized;
-        public static bool Initialized => IsInitialized;
+        private bool IsInitialized;
+        public bool Initialized => IsInitialized;
 
-        static ConfigCore()
+        public ConfigCore()
         {
             Parsers[ConfigFileType.Json] = new JsonConfigParser();
             Parsers[ConfigFileType.Csv] = new CsvConfigParser();
@@ -58,7 +58,7 @@ namespace GoveKits.Runtime.Storage.Config
         /// 该方法会清空已有缓存并重建内存表。
         /// 建议在游戏启动流程中只调用一次。
         /// </remarks>
-        public static async UniTask InitAsync(CancellationToken cancellationToken = default)
+        public async UniTask InitAsync(CancellationToken cancellationToken = default)
         {
             IsInitialized = false;
             List<ConfigBinding> bindings = ConfigBindingScanner.Scan();
@@ -92,13 +92,13 @@ namespace GoveKits.Runtime.Storage.Config
             }
 
             IsInitialized = true;
-            LogCore.LogColor(nameof(ConfigCore), $"Init complete. Loaded {loadedTableCount} table(s). {loadedTableNames}", "00FF00");
+            CoreLocator.Log.Success(nameof(ConfigCore), $"Init complete. Loaded {loadedTableCount} table(s). {loadedTableNames}");
         }
 
         /// <summary>
         /// 使用 Lambda 条件筛选配置。
         /// </summary>
-        public static List<T> Load<T>(Func<T, bool> predicate)
+        public List<T> Load<T>(Func<T, bool> predicate)
             where T : class, IConfigData
         {
             EnsureInitialized();
@@ -124,7 +124,7 @@ namespace GoveKits.Runtime.Storage.Config
         /// <summary>
         /// 获取单个配置表的全部数据。
         /// </summary>
-        public static List<T> LoadAll<T>()
+        public List<T> LoadAll<T>()
             where T : class, IConfigData
         {
             EnsureInitialized();
@@ -142,7 +142,7 @@ namespace GoveKits.Runtime.Storage.Config
             return result;
         }
 
-        private static string BuildStreamingAssetLocation(string relativePath)
+        private string BuildStreamingAssetLocation(string relativePath)
         {
             if (string.IsNullOrWhiteSpace(relativePath))
             {
@@ -153,10 +153,10 @@ namespace GoveKits.Runtime.Storage.Config
             return Path.Combine(Application.streamingAssetsPath, normalized);
         }
 
-        private static bool NeedWebRequest(string location)
+        private bool NeedWebRequest(string location)
             => location.Contains("://", StringComparison.OrdinalIgnoreCase) || location.StartsWith("jar:", StringComparison.OrdinalIgnoreCase);
 
-        private static async UniTask<List<IConfigData>> LoadTableAsync(Type configType, ConfigAttribute binding, CancellationToken cancellationToken)
+        private async UniTask<List<IConfigData>> LoadTableAsync(Type configType, ConfigAttribute binding, CancellationToken cancellationToken)
         {
             if (!TryGetParser(binding.ParseType, out IConfigParser parser))
             {
@@ -187,7 +187,7 @@ namespace GoveKits.Runtime.Storage.Config
             return rows;
         }
 
-        private static async UniTask<(byte[] bytes, string text)> ReadRawContentAsync(ConfigAttribute binding, CancellationToken cancellationToken)
+        private async UniTask<(byte[] bytes, string text)> ReadRawContentAsync(ConfigAttribute binding, CancellationToken cancellationToken)
         {
             if (binding.SourceType == ConfigSourceType.Resources)
             {
@@ -201,7 +201,7 @@ namespace GoveKits.Runtime.Storage.Config
             return (bytes, text);
         }
 
-        private static async UniTask<byte[]> LoadStreamingBytesAsync(string relativePath, CancellationToken cancellationToken)
+        private async UniTask<byte[]> LoadStreamingBytesAsync(string relativePath, CancellationToken cancellationToken)
         {
             string location = BuildStreamingAssetLocation(relativePath);
             if (NeedWebRequest(location))
@@ -213,7 +213,7 @@ namespace GoveKits.Runtime.Storage.Config
             return await UniTask.RunOnThreadPool(() => File.ReadAllBytes(location), cancellationToken: cancellationToken);
         }
 
-        private static List<IConfigData> GetTable(Type type)
+        private List<IConfigData> GetTable(Type type)
         {
             if (!ConfigTables.TryGetValue(type, out List<IConfigData> table))
             {
@@ -223,7 +223,7 @@ namespace GoveKits.Runtime.Storage.Config
             return table;
         }
 
-        private static void EnsureInitialized()
+        private void EnsureInitialized()
         {
             if (!IsInitialized)
             {
@@ -231,12 +231,12 @@ namespace GoveKits.Runtime.Storage.Config
             }
         }
 
-        private static bool IsTextParse(ConfigFileType parseType)
+        private bool IsTextParse(ConfigFileType parseType)
         {
             return parseType == ConfigFileType.Json || parseType == ConfigFileType.Csv;
         }
 
-        private static string NormalizeResourcePath(string path)
+        private string NormalizeResourcePath(string path)
         {
             string normalized = (path ?? string.Empty).Replace('\\', '/').TrimStart('/');
             string ext = Path.GetExtension(normalized);
@@ -248,12 +248,12 @@ namespace GoveKits.Runtime.Storage.Config
             return normalized;
         }
 
-        private static bool TryGetParser(ConfigFileType parseType, out IConfigParser parser)
+        private bool TryGetParser(ConfigFileType parseType, out IConfigParser parser)
         {
             return Parsers.TryGetValue(parseType, out parser);
         }
 
-        private static async UniTask<byte[]> LoadBytesByWebRequest(string location, CancellationToken cancellationToken)
+        private async UniTask<byte[]> LoadBytesByWebRequest(string location, CancellationToken cancellationToken)
         {
             using UnityWebRequest request = UnityWebRequest.Get(location);
             await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
@@ -264,6 +264,12 @@ namespace GoveKits.Runtime.Storage.Config
             }
 
             return request.downloadHandler.data;
+        }
+
+        public void OnShutdown()
+        {
+            Parsers.Clear();
+            ConfigTables.Clear();
         }
     }
 }

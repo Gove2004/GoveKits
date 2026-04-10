@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using GoveKits.Runtime.Core;
-using GoveKits.Runtime.Storage.Config;
 using Cysharp.Threading.Tasks;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 本地化行数据。通过 ConfigCore 自动加载。
@@ -20,26 +19,28 @@ namespace GoveKits.Runtime.Util
         public string Korean;
     }
 
-    public static class LocalizationCore
+    public class LocalizationCore : ICore
     {
         private const string LanguagePrefKey = "Localization.Language";
         private const string FontConfigResourcePath = "Config/LocalizationConfig";
 
-        private static readonly Dictionary<string, LocalizationTextRow> RawRows = new Dictionary<string, LocalizationTextRow>();
-        private static readonly Dictionary<string, string> CurrentLangCache = new Dictionary<string, string>();
+        private readonly Dictionary<string, LocalizationTextRow> RawRows = new Dictionary<string, LocalizationTextRow>();
+        private readonly Dictionary<string, string> CurrentLangCache = new Dictionary<string, string>();
 
-        private static LocalizationConfig _fontConfig;
-        private static bool _isInitialized;
-        private static LanguageCode _currentLanguage = LanguageCode.ChineseCN;
+        private LocalizationConfig _fontConfig;
+        private bool _isInitialized;
+        private LanguageCode _currentLanguage = LanguageCode.ChineseCN;
 
-        public static event Action OnLanguageChanged;
-        public static bool IsInitialized => _isInitialized;
-        public static LanguageCode CurrentLanguage => _currentLanguage;
+        public event Action OnLanguageChanged;
+        public bool IsInitialized => _isInitialized;
+        public LanguageCode CurrentLanguage => _currentLanguage;
+
+        private ConfigCore configCore => CoreLocator.GetCore<ConfigCore>();
 
         /// <summary>
         /// 初始化本地化系统。
         /// </summary>
-        public static void Initialize()
+        public void Initialize()
         {
             if (_isInitialized)
             {
@@ -56,18 +57,18 @@ namespace GoveKits.Runtime.Util
                 RefreshCache();
 
                 _isInitialized = true;
-                LogCore.LogGreen("LocalizationCore", $"Initialized. Language={_currentLanguage}, Keys={CurrentLangCache.Count}");
+                CoreLocator.Log.Success(nameof(LocalizationCore), $"Initialized. Language={_currentLanguage}, Keys={CurrentLangCache.Count}");
             }
             catch (Exception e)
             {
-                LogCore.LogError("LocalizationCore", $"Initialize failed: {e.Message}");
+                CoreLocator.Log.Success(nameof(LocalizationCore), $"Initialize failed: {e.Message}");
             }
         }
 
         /// <summary>
         /// 切换当前语言。
         /// </summary>
-        public static void SwitchLanguage(LanguageCode code)
+        public void SwitchLanguage(LanguageCode code)
         {
             if (_isInitialized == false)
             {
@@ -89,7 +90,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 获取本地化文本。命中缓存时为 O(1)。
         /// </summary>
-        public static string GetText(string key)
+        public string GetText(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
             {
@@ -113,7 +114,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 获取当前语言字体。若未配置则返回 null。
         /// </summary>
-        public static TMP_FontAsset GetCurrentFont()
+        public TMP_FontAsset GetCurrentFont()
         {
             if (_fontConfig == null)
             {
@@ -124,21 +125,21 @@ namespace GoveKits.Runtime.Util
         }
 #endif
 
-        private static void EnsureConfigReady()
+        private void EnsureConfigReady()
         {
-            if (ConfigCore.Initialized)
+            if (configCore.Initialized)
             {
                 return;
             }
 
-            ConfigCore.InitAsync().AsTask().GetAwaiter().GetResult();
+            configCore.InitAsync().AsTask().GetAwaiter().GetResult();
         }
 
-        private static void LoadRowsFromConfig()
+        private void LoadRowsFromConfig()
         {
             RawRows.Clear();
 
-            List<LocalizationTextRow> rows = ConfigCore.LoadAll<LocalizationTextRow>();
+            List<LocalizationTextRow> rows = configCore.LoadAll<LocalizationTextRow>();
             for (int i = 0; i < rows.Count; i++)
             {
                 LocalizationTextRow row = rows[i];
@@ -151,7 +152,7 @@ namespace GoveKits.Runtime.Util
             }
         }
 
-        private static void RefreshCache()
+        private void RefreshCache()
         {
             CurrentLangCache.Clear();
             string langName = _currentLanguage.ToString();
@@ -175,7 +176,7 @@ namespace GoveKits.Runtime.Util
             }
         }
 
-        private static string ReadLanguageField(LocalizationTextRow row, string fieldName)
+        private string ReadLanguageField(LocalizationTextRow row, string fieldName)
         {
             var field = typeof(LocalizationTextRow).GetField(fieldName);
             if (field == null)
@@ -187,13 +188,13 @@ namespace GoveKits.Runtime.Util
             return value as string;
         }
 
-        private static void SaveLanguageSettings()
+        private void SaveLanguageSettings()
         {
             PlayerPrefs.SetInt(LanguagePrefKey, (int)_currentLanguage);
             PlayerPrefs.Save();
         }
 
-        private static void LoadLanguageSettings()
+        private void LoadLanguageSettings()
         {
             int defaultCode = (int)LanguageCode.ChineseCN;
             int code = PlayerPrefs.GetInt(LanguagePrefKey, defaultCode);
@@ -205,6 +206,11 @@ namespace GoveKits.Runtime.Util
             {
                 _currentLanguage = LanguageCode.ChineseCN;
             }
+        }
+
+        public void OnShutdown()
+        {
+            SaveLanguageSettings();
         }
     }
 }

@@ -1,104 +1,99 @@
+// ============================================
+// Timer.cs - 精简版，移除回收职责
+// ============================================
 using System;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core.Pool;
+using GoveKits.Runtime.Core;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Procedure
 {
     /// <summary>
-    /// 轻量定时器对象：由 <see cref="TimeWheel"/> 调度，支持暂停/恢复/取消、循环与实时/受缩放模式。
+    /// 轻量定时器对象：状态数据载体，无回收逻辑（由 TimeWheel 统一管理）。
     /// </summary>
     public class Timer : IPoolable
     {
-        // --- 基础属性 ---
-        /// <summary>唯一标识。</summary>
+        // --- 状态标识 ---
         public long Id { get; private set; }
-        /// <summary>是否已暂停。</summary>
-        public bool IsPaused { get; private set; }
-        /// <summary>是否已完成（循环结束）。</summary>
-        public bool IsDone { get; private set; }
-        /// <summary>是否已取消。</summary>
-        public bool IsCancelled { get; private set; }
+        public bool IsPaused { get; internal set; }
+        public bool IsDone { get; internal set; }
+        public bool IsCancelled { get; internal set; }
 
-        // --- 内部数据 (供 TimeWheel 使用) ---
+        // --- 调度数据 ---
         internal Action Callback;
-        internal float Interval;      // 循环间隔
+        internal float Interval;
         internal int LoopCount;       // 剩余循环次数 (-1 无限)
-        internal long TargetTick;     // 目标触发的 Tick 时间点
-        internal int Rounds;          // 剩余圈数
-        internal bool UseRealTime;    // 是否受 TimeScale 影响
+        internal long TargetTick;
+        internal int Rounds;
+        internal bool UseRealTime;
         
-        // 关键优化：持有链表节点引用，实现 O(1) 删除/暂停
+        // --- 链表节点（O(1) 操作关键）---
         internal LinkedListNode<Timer> LinkNode;
-        // 归属的时间轮引用
         internal TimeWheel BelongsToWheel;
 
-        // --- 暂停计算用 ---
-        private float _remainingTimeOnPause; // 暂停那一刻，距离触发还剩多少秒
+        // --- 暂停数据 ---
+        internal float RemainingTimeOnPause;
 
-        /// <summary>设置唯一标识（由管理器分配）。</summary>
         public void SetID(long id) => Id = id;
 
-        /// <inheritdoc />
+        /// <summary>
+        /// 重置所有状态（对象池回收时调用）。
+        /// </summary>
         public void OnRecycle()
         {
+            Id = 0;
             IsPaused = false;
             IsDone = false;
             IsCancelled = false;
+            Callback = null;
+            Interval = 0;
+            LoopCount = 0;
+            TargetTick = 0;
+            Rounds = 0;
+            UseRealTime = false;
+            RemainingTimeOnPause = 0;
             LinkNode = null;
             BelongsToWheel = null;
-            Callback = null;
-            _remainingTimeOnPause = 0;
         }
 
-        // --- Public API ---
+        // --- Public API：只标记状态，不直接操作 ---
 
         /// <summary>
-        /// 暂停 (精确暂停：冻结时间)
+        /// 暂停
         /// </summary>
         public void Pause()
         {
             if (IsPaused || IsDone || IsCancelled || BelongsToWheel == null) return;
-
             IsPaused = true;
-
-            // 1. 计算当前时刻距离目标触发还有多久
-            // 公式：(目标Tick - 当前Tick) * Tick间隔 + 剩余圈数 * 轮盘总时长
-            long currentTick = BelongsToWheel.CurrentTick;
-            long tickDiff = TargetTick - currentTick; // 还有多少 Tick
-            if (tickDiff < 0) tickDiff = 0;
-            
-            // 加上圈数的时间 (如果有的话)
-            // 注意：这里简化计算，直接让 Wheel 帮我们移除，并计算剩余时间
-            // 为了准确，我们在 Wheel 里处理移除逻辑
-            _remainingTimeOnPause = BelongsToWheel.RemoveAndGetRemainingTime(this);
+            // 计算剩余时间，从时间轮移除（但不回收）
+            RemainingTimeOnPause = BelongsToWheel.RemoveAndCalcRemaining(this);
         }
 
         /// <summary>
-        /// 恢复（按照暂停时的剩余时间重新调度）。
+        /// 恢复
         /// </summary>
         public void Resume()
         {
             if (!IsPaused || IsDone || IsCancelled || BelongsToWheel == null) return;
-
             IsPaused = false;
-
-            // 2. 将剩余时间重新加入时间轮
-            BelongsToWheel.Reschedule(this, _remainingTimeOnPause);
+            BelongsToWheel.Schedule(this, RemainingTimeOnPause);
         }
 
         /// <summary>
-        /// 取消（从时间轮移除，不再回调）。
+        /// 取消
         /// </summary>
         public void Cancel()
         {
             if (IsDone || IsCancelled) return;
             IsCancelled = true;
-
-            // 从时间轮中移除
-            if (BelongsToWheel != null)
+            // 标记为待移除，由 Wheel 在 Process 时统一处理并回收
+            // 如果正在当前槽位处理中，立即处理
+            if (BelongsToWheel != null && BelongsToWheel.IsProcessing)
             {
-                BelongsToWheel.RemoveTimer(this);
+                // Wheel 会在本轮处理完后回收
+                return;
             }
+            // 否则立即从链表移除，等待 Wheel 的下一轮处理或立即回收
+            BelongsToWheel?.MarkForRemove(this);
         }
     }
 }

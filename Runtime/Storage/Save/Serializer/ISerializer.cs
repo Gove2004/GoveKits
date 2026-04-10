@@ -1,12 +1,13 @@
 using System;
 
-namespace GoveKits.Runtime.Storage.Save
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 存档序列化器。
     /// </summary>
     public interface ISerializer
     {
+        string FileExtension { get; }
         /// <summary>
         /// 将对象序列化为二进制数据。
         /// </summary>

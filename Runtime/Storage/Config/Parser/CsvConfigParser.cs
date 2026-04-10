@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// Csv 配置解析器。

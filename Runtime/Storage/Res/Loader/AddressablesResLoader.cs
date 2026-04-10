@@ -1,64 +1,79 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
-
+using Object = UnityEngine.Object;
 #if UNITASK_ADDRESSABLE_SUPPORT
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 #endif
 
-namespace GoveKits.Runtime.Storage.Res
+namespace GoveKits.Runtime.Storage
 {
-    /// <summary>
-    /// 基于 Addressables 的资源加载器。
-    /// </summary>
-    /// <remarks>
-    /// 需启用 UNITASK_ADDRESSABLE_SUPPORT 宏并安装 Addressables 包。
-    /// </remarks>
     public sealed class AddressablesResLoader : IResLoader
     {
-        public ResLoadType LoadType => ResLoadType.Addressable;
-
-        public T Load<T>(string path) where T :  UnityEngine.Object
-        {
 #if UNITASK_ADDRESSABLE_SUPPORT
-            AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(path);
+        // 记录 path 到 Handle 的映射
+        private readonly Dictionary<string, AsyncOperationHandle> _handles = new();
+
+        public T Load<T>(string path) where T : Object
+        {
+            var handle = Addressables.LoadAssetAsync<T>(path);
             handle.WaitForCompletion();
-            if (handle.Status != AsyncOperationStatus.Succeeded)
+            
+            if (handle.Status == AsyncOperationStatus.Succeeded)
+            {
+                _handles[path] = handle; // 注意：Addressables 同一路径重复加载返回的是同一Handle
+                return handle.Result;
+            }
+
+            Addressables.Release(handle);
+            return null;
+        }
+
+        public async UniTask<T> LoadAsync<T>(string path, CancellationToken ct = default) where T : Object
+        {
+            var handle = Addressables.LoadAssetAsync<T>(path);
+            try
+            {
+                T result = await handle.ToUniTask(cancellationToken: ct);
+                if (result != null)
+                {
+                    _handles[path] = handle;
+                }
+                return result;
+            }
+            catch
+            {
+                if (handle.IsValid()) Addressables.Release(handle);
+                throw;
+            }
+        }
+
+        public void Unload(string path, Object asset)
+        {
+            // 根据路径查出 Handle 释放
+            if (_handles.TryGetValue(path, out var handle))
             {
                 Addressables.Release(handle);
-                return null;
+                _handles.Remove(path);
             }
-
-            return handle.Result;
-#else
-            throw new InvalidOperationException("Addressables package not found. Install com.unity.addressables.");
-#endif
         }
 
-        public async UniTask<T> LoadAsync<T>(string path, CancellationToken cancellationToken = default) where T : UnityEngine.Object
+        public void Clear()
         {
-#if UNITASK_ADDRESSABLE_SUPPORT
-            AsyncOperationHandle<T> handle = Addressables.LoadAssetAsync<T>(path);
-            T result = await handle.ToUniTask(cancellationToken: cancellationToken);
-            return result;
-#else
-            await UniTask.CompletedTask;
-            throw new InvalidOperationException("Addressables package not found. Install com.unity.addressables.");
-#endif
-        }
-
-        public void Unload( UnityEngine.Object asset)
-        {
-#if UNITASK_ADDRESSABLE_SUPPORT
-            if (asset != null)
+            foreach (var handle in _handles.Values)
             {
-                Addressables.Release(asset);
+                if (handle.IsValid()) Addressables.Release(handle);
             }
-#else
-            // no-op when Addressables package is unavailable.
-#endif
+            _handles.Clear();
         }
+#else
+        public T Load<T>(string path) where T : Object => throw new NotSupportedException();
+        public UniTask<T> LoadAsync<T>(string path, CancellationToken ct = default) where T : Object => throw new NotSupportedException();
+        public void Unload(string path, Object asset) { }
+        public void Clear() { }
+#endif
     }
 }

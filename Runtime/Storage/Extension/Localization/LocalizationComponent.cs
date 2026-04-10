@@ -1,10 +1,11 @@
+using GoveKits.Runtime.Core;
 using UnityEngine;
 #if TMP_PRESENT
 using TMPro;
 #endif
 using UnityEngine.UI;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Storage
 {
     public class LocalizationComponent : MonoBehaviour
     {
@@ -15,6 +16,7 @@ namespace GoveKits.Runtime.Util
         private TMP_Text _tmpText;
 #endif
         private Text _uiText;
+        private LocalizationCore LocalizationCore => CoreLocator.Localization;
 
         private void Awake()
         {

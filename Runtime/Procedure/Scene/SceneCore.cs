@@ -1,22 +1,22 @@
+using System;
+using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Procedure
 {
-    using System;
-    using Cysharp.Threading.Tasks;
-    using UnityEngine;
-    using UnityEngine.SceneManagement;
-
-    public static class SceneCore
+    public class SceneCore : ICore
     {
         /// <summary>
         /// 获取当前活动场景的名称。
         /// </summary>
-        public static string ActiveSceneName => SceneManager.GetActiveScene().name;
+        public string ActiveSceneName => SceneManager.GetActiveScene().name;
 
         /// <summary>
         /// 判断指定场景是否为当前活动场景。
         /// </summary>
-        public static bool IsSceneActive(string sceneName)
+        public bool IsSceneActive(string sceneName)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {
@@ -29,7 +29,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 判断场景是否已被加载到内存。
         /// </summary>
-        public static bool IsSceneLoaded(string sceneName)
+        public bool IsSceneLoaded(string sceneName)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {
@@ -43,7 +43,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 同步加载场景。
         /// </summary>
-        public static void Load(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
+        public void Load(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {
@@ -56,7 +56,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 异步加载场景。
         /// </summary>
-        public static async UniTask LoadAsync(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
+        public async UniTask LoadAsync(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {
@@ -75,7 +75,7 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 卸载已加载的附加场景。
         /// </summary>
-        public static async UniTask UnloadAsync(string sceneName)
+        public async UniTask UnloadAsync(string sceneName)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {
@@ -100,9 +100,14 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 重新加载当前活动场景。
         /// </summary>
-        public static UniTask ReloadActiveAsync()
+        public UniTask ReloadActiveAsync()
         {
             return LoadAsync(ActiveSceneName, LoadSceneMode.Single);
+        }
+
+        public void OnShutdown()
+        {
+            // 无所事事
         }
     }
 }

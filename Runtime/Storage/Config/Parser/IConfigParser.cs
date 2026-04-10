@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 配置解析器接口。

@@ -1,45 +1,31 @@
-using System.Collections.Generic;
 
-namespace GoveKits.Runtime.Util.ECS
+
+namespace GoveKits.Runtime.Architecture
 {
     public abstract class System
     {
         protected World World { get; private set; }
         
-        public void Bind(World world)
-        {
-            World = world;
-            OnInitialize();
-        }
-
-        public virtual void OnInitialize() { }
+        public void Bind(World world) => World = world;
+        public virtual void OnInit() { }
         public virtual void OnUpdate(float dt) { }
         public virtual void OnDestroy() { }
     }
-    
-    // 可选：系统组，用于批量管理 System
-    public class SystemGroup
-    {
-        private readonly List<System> _systems = new();
-        
-        public void Add(System system, World world)
-        {
-            system.Bind(world);
-            _systems.Add(system);
-        }
 
-        public void Update(float dt)
+    // 辅助：自动创建Query的System基类
+    public abstract class QuerySystem : System
+    {
+        private Query _query;
+        
+        public sealed override void OnInit()
         {
-            foreach (var sys in _systems)
-            {
-                sys.OnUpdate(dt);
-            }
+            _query = BuildQuery(World.Query);
+            OnSystemInit();
         }
         
-        public void Destroy()
-        {
-             foreach (var sys in _systems) sys.OnDestroy();
-             _systems.Clear();
-        }
+        protected abstract Query BuildQuery(QueryBuilder builder);
+        protected virtual void OnSystemInit() { }
+        
+        protected Query Query => _query;
     }
 }

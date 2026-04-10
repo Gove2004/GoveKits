@@ -1,140 +1,230 @@
-
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
-namespace GoveKits.Runtime.Storage.Res
+namespace GoveKits.Runtime.Storage
 {
-    /// <summary>
-    /// 资源加载类型枚举。
-    /// </summary>
-    public enum ResLoadType
+    public class ResCore : ICore
     {
-        /// <summary>
-        /// Unity Resources。
-        /// </summary>
-        Resources = 1,
-
-        /// <summary>
-        /// AssetBundle。
-        /// </summary>
-        AssetBundle = 1 << 1,
-
-        /// <summary>
-        /// Addressables。
-        /// </summary>
-        Addressable = 1 << 2
-    }
-
-    /// <summary>
-    /// 资源系统核心类。
-    /// </summary>
-    /// <remarks>
-    /// 统一管理多加载源（Resources/AssetBundle/Addressables）并维护引用计数缓存。
-    /// </remarks>
-    public static class ResCore
-    {
-        private sealed class ResCacheEntry : RefCache
+        private class AssetRecord
         {
-            public UnityEngine.Object Asset;
-            public ResLoadType LoadType;
+            public string Path;
+            public Object Asset;
+            public int RefCount;
+            public bool IsLoading;
+            public float UnloadTime; // 计划卸载的时间戳 (Time.realtimeSinceStartup)
+            
+            // 挂起的异步任务聚合器
+            public List<UniTaskCompletionSource<Object>> Awaiters;
         }
 
-        private static readonly Dictionary<ResLoadType, IResLoader> Loaders = new()
-        {
-            { ResLoadType.Resources, new ResourcesResLoader() },
-            { ResLoadType.AssetBundle, new AssetBundleResLoader() },
-            { ResLoadType.Addressable, new AddressablesResLoader() },
-        };
-        private static readonly CacheContainer<ResCacheEntry> Cache = new();
+        private readonly IResLoader _loader;
+        private readonly Dictionary<string, AssetRecord> _records = new();
+        
+        // 延迟卸载时间（秒）。根据项目内存吃紧程度调节，推荐 5~15 秒。
+        public float DelayUnloadTime { get; set; } = 10f; 
 
-        static ResCore()
+        public ResCore(IResLoader loader)
         {
-            Cache.OnCacheEmpty += (_, entry) =>
+            _loader = loader ?? throw new ArgumentNullException(nameof(loader));
+        }
+
+        #region 同步与异步加载 API
+
+        public ResHandle<T> Load<T>(string path) where T : Object
+        {
+            var record = GetOrCreateRecord(path);
+
+            // 1. 命中缓存
+            if (record.Asset != null)
             {
-                if (entry?.Asset == null)
+                Retain(record);
+                return new ResHandle<T>(this, path, record.Asset as T);
+            }
+
+            if (record.IsLoading)
+            {
+                Debug.LogError($"[ResCore] 资源 '{path}' 正在异步加载中，不允许打断进行同步加载！");
+                return default;
+            }
+
+            // 2. 真实加载
+            record.Asset = _loader.Load<T>(path);
+            if (record.Asset != null)
+            {
+                Retain(record);
+            }
+            else
+            {
+                _records.Remove(path);
+            }
+
+            return new ResHandle<T>(this, path, record.Asset as T);
+        }
+
+        public async UniTask<ResHandle<T>> LoadAsync<T>(string path, CancellationToken ct = default) where T : Object
+        {
+            var record = GetOrCreateRecord(path);
+
+            // 1. 命中缓存
+            if (record.Asset != null)
+            {
+                Retain(record);
+                return new ResHandle<T>(this, path, record.Asset as T);
+            }
+
+            // 2. 防重入（挂起请求）
+            if (record.IsLoading)
+            {
+                record.Awaiters ??= new List<UniTaskCompletionSource<Object>>();
+                var tcs = new UniTaskCompletionSource<Object>();
+                record.Awaiters.Add(tcs);
+                
+                var result = await tcs.Task.AttachExternalCancellation(ct);
+                Retain(record);
+                return new ResHandle<T>(this, path, result as T);
+            }
+
+            // 3. 执行加载
+            record.IsLoading = true;
+            Object asset = null;
+            try
+            {
+                asset = await _loader.LoadAsync<T>(path, ct);
+            }
+            catch (OperationCanceledException) { /* 忽略取消异常 */ }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ResCore] 加载失败 {path}: {e}");
+            }
+            finally
+            {
+                record.IsLoading = false;
+                record.Asset = asset;
+                
+                if (asset != null) Retain(record);
+                else _records.Remove(path);
+
+                // 唤醒所有挂起的等待者
+                if (record.Awaiters != null)
                 {
-                    return;
+                    foreach (var awaiter in record.Awaiters)
+                    {
+                        awaiter.TrySetResult(asset);
+                    }
+                    record.Awaiters.Clear();
                 }
-
-                Loaders[entry.LoadType].Unload(entry.Asset);
-            };
-        }
-
-        /// <summary>
-        /// 同步加载资源。
-        /// </summary>
-        /// <param name="loadType">加载类型。</param>
-        /// <param name="path">资源路径。</param>
-        /// <param name="useCache">是否使用缓存。</param>
-        public static T Load<T>(ResLoadType loadType, string path, bool useCache = true) where T : UnityEngine.Object
-        {
-            string cacheKey = GetCacheKey<T>(loadType, path);
-            if (useCache && Cache.TryGet(cacheKey, out ResCacheEntry cached))
-            {
-                return cached.Asset as T;
             }
 
-            T asset = Loaders[loadType].Load<T>(path);
-            if (asset != null && useCache)
+            return new ResHandle<T>(this, path, asset as T);
+        }
+
+        #endregion
+
+        #region 自动化生命周期 API (Instantiate)
+
+        /// <summary>
+        /// 异步加载并实例化 GameObject，自带生命周期绑定。
+        /// </summary>
+        public async UniTask<GameObject> InstantiateAsync(string path, Transform parent = null, CancellationToken ct = default)
+        {
+            var handle = await LoadAsync<GameObject>(path, ct);
+            if (!handle.IsValid) return null;
+
+            var instance = Object.Instantiate(handle.Asset, parent);
+            
+            var binder = instance.GetComponent<ResAutoReleaseBinder>();
+            if (binder == null) binder = instance.AddComponent<ResAutoReleaseBinder>();
+            
+            // 绑定委托，当 instance 被 Destroy 时触发 Dispose
+            binder.Bind(() => handle.Dispose());
+
+            return instance;
+        }
+
+        #endregion
+
+        #region 内部管理与 GC (需要外部 Update 驱动 Tick)
+
+        private AssetRecord GetOrCreateRecord(string path)
+        {
+            if (!_records.TryGetValue(path, out var record))
             {
-                Cache.Add(cacheKey, new ResCacheEntry
+                record = new AssetRecord { Path = path };
+                _records[path] = record;
+            }
+            return record;
+        }
+
+        private void Retain(AssetRecord record)
+        {
+            record.RefCount++;
+            record.UnloadTime = 0; // 只要有人使用，就取消卸载计划
+        }
+
+        internal void ReleaseHandle(string path)
+        {
+            if (_records.TryGetValue(path, out var record))
+            {
+                record.RefCount--;
+                // 引用归零，开始倒计时
+                if (record.RefCount <= 0)
                 {
-                    Asset = asset,
-                    RefCount = 1,
-                    LoadType = loadType,
-                });
+                    record.UnloadTime = Time.realtimeSinceStartup + DelayUnloadTime;
+                }
             }
-
-            return asset;
         }
 
         /// <summary>
-        /// 异步加载资源。
+        /// 外部主循环调用（如 GameManager.Update 中）
         /// </summary>
-        /// <param name="loadType">加载类型。</param>
-        /// <param name="path">资源路径。</param>
-        /// <param name="useCache">是否使用缓存。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
-        public static async UniTask<T> LoadAsync<T>(ResLoadType loadType, string path, bool useCache = true, CancellationToken cancellationToken = default) where T : UnityEngine.Object
+        public void Update()
         {
-            string cacheKey = GetCacheKey<T>(loadType, path);
-            if (useCache && Cache.TryGet(cacheKey, out ResCacheEntry cached))
-            {
-                return cached.Asset as T;
-            }
+            if (_records.Count == 0) return;
 
-            T asset = await Loaders[loadType].LoadAsync<T>(path, cancellationToken);
-            if (asset != null && useCache)
+            float currentTime = Time.realtimeSinceStartup;
+            List<string> toRemove = null;
+
+            foreach (var kvp in _records)
             {
-                Cache.Add(cacheKey, new ResCacheEntry
+                var record = kvp.Value;
+                // 1. 引用为 0
+                // 2. 没有在加载中
+                // 3. 被标记为需要卸载 (UnloadTime > 0)
+                // 4. 已达到卸载时间
+                if (record.RefCount <= 0 && !record.IsLoading && record.UnloadTime > 0 && currentTime >= record.UnloadTime)
                 {
-                    Asset = asset,
-                    RefCount = 1,
-                    LoadType = loadType,
-                });
+                    toRemove ??= new List<string>();
+                    toRemove.Add(kvp.Key);
+                }
             }
 
-            return asset;
+            if (toRemove != null)
+            {
+                foreach (var path in toRemove)
+                {
+                    var record = _records[path];
+                    _loader.Unload(path, record.Asset);
+                    _records.Remove(path);
+                }
+            }
         }
 
-        /// <summary>
-        /// 释放指定路径资源（减少引用计数，计数归零时执行卸载）。
-        /// </summary>
-        /// <param name="loadType">加载类型。</param>
-        /// <param name="path">资源路径。</param>
-        public static void Release<T>(ResLoadType loadType, string path) where T : UnityEngine.Object
+        public void OnShutdown()
         {
-            string cacheKey = GetCacheKey<T>(loadType, path);
-            Cache.TryRemove(cacheKey, out _);
+            foreach (var record in _records.Values)
+            {
+                if (record.Asset != null)
+                    _loader.Unload(record.Path, record.Asset);
+            }
+            _records.Clear();
+            _loader.Clear();
         }
-
-        private static string GetCacheKey<T>(ResLoadType loadType, string path)
-        {
-            // 将加载源、类型和路径合并，避免同路径不同来源的缓存冲突。
-            return $"{loadType}:{typeof(T).FullName}:{path}";
-        }
+        
+        #endregion
     }
 }

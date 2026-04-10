@@ -1,4 +1,4 @@
-namespace GoveKits.Runtime.Storage.Config
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 配置数据标记接口。

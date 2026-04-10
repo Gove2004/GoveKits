@@ -2,13 +2,15 @@ using System;
 using System.Text;
 using Newtonsoft.Json;
 
-namespace GoveKits.Runtime.Storage.Save
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 基于 Newtonsoft.Json 的序列化器。
     /// </summary>
     public sealed class JsonSerializer : ISerializer
     {
+        public string FileExtension => ".json";
+
         public byte[] Serialize(object data, Type dataType)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));

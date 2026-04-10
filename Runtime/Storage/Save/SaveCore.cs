@@ -1,254 +1,202 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
-namespace GoveKits.Runtime.Storage.Save
+namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// 存档序列化格式。
+    /// 存档管理器：无侵入式，直接存取 POCO 对象。
     /// </summary>
-    public enum SerializerType
+    public class SaveCore : ICore
     {
-        /// <summary>
-        /// 使用 Json 序列化。
-        /// </summary>
-        Json = 0,
+        private readonly string _rootPath;
+        private readonly ISerializer _serializer;
 
-        /// <summary>
-        /// 使用 Protobuf 序列化。
-        /// </summary>
-        Protobuf = 1,
-    }
-
-    /// <summary>
-    /// 存档核心入口。
-    /// <para>提供序列化器注册、格式切换、同步与异步存取能力。</para>
-    /// </summary>
-    public static class SaveCore
-    {
-        private const string SaveRootFolder = "Saves";
-        private const string SaveFileExtension = ".save";
-        private const string TempFileExtension = ".temp";
-        public static SerializerType CurrentFormat { get; set; } = SerializerType.Json;
-        private static readonly Dictionary<SerializerType, ISerializer> _serializers = new();
-        private static string RootPath => Path.Combine(Application.persistentDataPath, SaveRootFolder);
-        
-        static SaveCore()
+        public SaveCore(ISerializer serializer, string rootFolder = "Saves")
         {
-            RegisterSerializer(SerializerType.Json, new JsonSerializer());
-            RegisterSerializer(SerializerType.Protobuf, new ProtobufSerializer());
-
-            if (!Directory.Exists(RootPath)) Directory.CreateDirectory(RootPath);
-        }
-
-        /// <summary>
-        /// 注册序列化器实现。
-        /// </summary>
-        /// <param name="format">对应格式枚举。</param>
-        /// <param name="serializer">序列化器实例。</param>
-        public static void RegisterSerializer(SerializerType format, ISerializer serializer)
-            => _serializers[format] = serializer;
-
-        /// <summary>
-        /// 获取指定格式的序列化器。
-        /// </summary>
-        /// <param name="format">目标格式。</param>
-        /// <returns>序列化器实例。</returns>
-        public static ISerializer GetSerializer(SerializerType format)
-        {
-            if (_serializers.TryGetValue(format, out var serializer))
-            {
-                return serializer;
-            }
-
-            throw new InvalidOperationException($"No serializer registered for format {format}");
-        }
-
-        /// <summary>
-        /// 同步保存。
-        /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        public static void Save<T>(ISaveData<T> saveable)
-        {
-            var data = saveable.Save();
-            var serializer = GetSerializer(CurrentFormat);
-            byte[] bytes = serializer.Serialize(data, typeof(T));
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+            _rootPath = Path.Combine(Application.persistentDataPath, rootFolder);
             
-            string fullPath = GetFullPath(saveable.RelativePath);
-            string tempPath = fullPath + TempFileExtension;
+            if (!Directory.Exists(_rootPath))
+                Directory.CreateDirectory(_rootPath);
+        }
 
-            // 原子写入：先写入临时文件，再覆盖
+        #region 同步 API
+
+        /// <summary>
+        /// 保存数据到指定路径。
+        /// </summary>
+        /// <param name="relativePath">相对路径（如 "player.data" 或 "slot1/player.json"）</param>
+        /// <param name="data">要保存的数据对象</param>
+        public void Save<T>(string relativePath, T data)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            
+            string fullPath = GetFullPath(relativePath);
+            byte[] bytes = _serializer.Serialize(data, typeof(T));
+            
+            // 原子写入
+            string tempPath = fullPath + ".tmp";
             File.WriteAllBytes(tempPath, bytes);
-            ReplaceFileAtomic(tempPath, fullPath);
+            ReplaceAtomic(tempPath, fullPath);
         }
 
         /// <summary>
-        /// 同步加载。
+        /// 从指定路径加载数据。
         /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        public static void Load<T>(ISaveData<T> saveable)
+        /// <param name="relativePath">相对路径</param>
+        /// <returns>反序列化后的对象，文件不存在则返回 null</returns>
+        public T Load<T>(string relativePath)
         {
-            string fullPath = GetFullPath(saveable.RelativePath);
-            if (!File.Exists(fullPath)) return;
+            string fullPath = GetFullPath(relativePath);
+            if (!File.Exists(fullPath)) return default;
 
             byte[] bytes = File.ReadAllBytes(fullPath);
-            T data = (T)GetSerializer(CurrentFormat).Deserialize(bytes, typeof(T));
-            saveable.Load(data);
+            return (T)_serializer.Deserialize(bytes, typeof(T));
         }
 
         /// <summary>
-        /// 异步保存。
+        /// 加载数据，不存在则返回默认值。
         /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
-        public static async UniTask SaveAsync<T>(ISaveData<T> saveable, CancellationToken cancellationToken = default)
+        public T LoadOrDefault<T>(string relativePath, T defaultValue = default)
         {
-            var data = saveable.Save();
-            var serializer = GetSerializer(CurrentFormat);
-            byte[] bytes = serializer.Serialize(data, typeof(T));
+            string fullPath = GetFullPath(relativePath);
+            if (!File.Exists(fullPath)) return defaultValue;
 
-            string fullPath = GetFullPath(saveable.RelativePath);
-            string tempPath = fullPath + TempFileExtension;
+            byte[] bytes = File.ReadAllBytes(fullPath);
+            return (T)_serializer.Deserialize(bytes, typeof(T));
+        }
 
+        #endregion
+
+        #region 异步 API
+
+        public async UniTask SaveAsync<T>(string relativePath, T data, CancellationToken cancellationToken = default)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            
+            string fullPath = GetFullPath(relativePath);
+            byte[] bytes = _serializer.Serialize(data, typeof(T));
+            
+            string tempPath = fullPath + ".tmp";
             await WriteAllBytesAsync(tempPath, bytes, cancellationToken);
-            ReplaceFileAtomic(tempPath, fullPath);
+            ReplaceAtomic(tempPath, fullPath);
         }
 
-        /// <summary>
-        /// 异步加载。
-        /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
-        public static async UniTask LoadAsync<T>(ISaveData<T> saveable, CancellationToken cancellationToken = default)
+        public async UniTask<T> LoadAsync<T>(string relativePath, CancellationToken cancellationToken = default)
         {
-            string fullPath = GetFullPath(saveable.RelativePath);
-            if (!File.Exists(fullPath)) return;
+            string fullPath = GetFullPath(relativePath);
+            if (!File.Exists(fullPath)) return default;
 
             byte[] bytes = await ReadAllBytesAsync(fullPath, cancellationToken);
-            T data = (T)GetSerializer(CurrentFormat).Deserialize(bytes, typeof(T));
-            saveable.Load(data);
+            return (T)_serializer.Deserialize(bytes, typeof(T));
         }
 
-        /// <summary>
-        /// 异步加载或默认。
-        /// <para>当存档文件不存在时，使用提供的默认数据恢复存档对象状态。</para>
-        /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        /// <param name="defaultData">默认数据。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
-        /// <returns></returns>
-        public static async UniTask LoadOrDefaultAsync<T>(ISaveData<T> saveable, T defaultData, CancellationToken cancellationToken = default)
+        public async UniTask<T> LoadOrDefaultAsync<T>(string relativePath, T defaultValue = default, CancellationToken cancellationToken = default)
         {
-            string fullPath = GetFullPath(saveable.RelativePath);
-            if (!File.Exists(fullPath))
-            {
-                saveable.Load(defaultData);
-                return;
-            }
+            string fullPath = GetFullPath(relativePath);
+            if (!File.Exists(fullPath)) return defaultValue;
 
             byte[] bytes = await ReadAllBytesAsync(fullPath, cancellationToken);
-            T data = (T)GetSerializer(CurrentFormat).Deserialize(bytes, typeof(T));
-            saveable.Load(data);
+            return (T)_serializer.Deserialize(bytes, typeof(T));
         }
 
-        /// <summary>
-        /// 删除存档。
-        /// <para>仅删除对应路径的存档文件，不修改 ISaveData 对象状态。</para>
-        /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        public static void Delete<T>(ISaveData<T> saveable)
-        {
-            string fullPath = GetFullPath(saveable.RelativePath);
-            if (File.Exists(fullPath))
-            {
-                File.Delete(fullPath);
-            }
-        }
+        #endregion
+
+        #region 文件操作
 
         /// <summary>
         /// 检查存档是否存在。
         /// </summary>
-        /// <typeparam name="T">存档数据类型。</typeparam>
-        /// <param name="saveable">存档对象。</param>
-        public static bool Exists<T>(ISaveData<T> saveable)
+        public bool Exists(string relativePath)
         {
-            string fullPath = GetFullPath(saveable.RelativePath);
-            return File.Exists(fullPath);
+            return File.Exists(GetFullPath(relativePath));
         }
 
-        #region Tools
-
-        private static string GetFullPath(string relative)
+        /// <summary>
+        /// 删除存档。
+        /// </summary>
+        public void Delete(string relativePath)
         {
-            string dir = Path.Combine(RootPath, Path.GetDirectoryName(relative) ?? "");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            return Path.Combine(RootPath, Path.ChangeExtension(relative, SaveFileExtension));
+            string fullPath = GetFullPath(relativePath);
+            if (File.Exists(fullPath))
+                File.Delete(fullPath);
         }
 
-        private static async UniTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken)
+        /// <summary>
+        /// 获取所有存档文件名（含子目录）。
+        /// </summary>
+        public string[] GetAllFiles(string searchPattern = "*")
         {
-            await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-            await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            return Directory.GetFiles(_rootPath, searchPattern, SearchOption.AllDirectories);
         }
 
-        private static async UniTask<byte[]> ReadAllBytesAsync(string path, CancellationToken cancellationToken)
+        #endregion
+
+        #region 工具方法
+
+        private string GetFullPath(string relativePath)
         {
-            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-            if (stream.Length > int.MaxValue)
-            {
-                throw new IOException($"Save file too large: {stream.Length} bytes.");
-            }
-
-            byte[] bytes = new byte[(int)stream.Length];
-            int offset = 0;
-            while (offset < bytes.Length)
-            {
-                int read = await stream.ReadAsync(bytes, offset, bytes.Length - offset, cancellationToken);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                offset += read;
-            }
-
-            if (offset == bytes.Length)
-            {
-                return bytes;
-            }
-
-            byte[] resized = new byte[offset];
-            Buffer.BlockCopy(bytes, 0, resized, 0, offset);
-            return resized;
+            // 自动处理扩展名（如果用户没加，就加上序列器推荐的）
+            if (!Path.HasExtension(relativePath))
+                relativePath = Path.ChangeExtension(relativePath, _serializer.FileExtension);
+                
+            // 安全路径拼接
+            string fullPath = Path.Combine(_rootPath, relativePath);
+            string directory = Path.GetDirectoryName(fullPath);
+            
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+                
+            return fullPath;
         }
 
-        private static void ReplaceFileAtomic(string tempPath, string fullPath)
+        private void ReplaceAtomic(string tempPath, string targetPath)
         {
-            if (!File.Exists(fullPath))
-            {
-                File.Move(tempPath, fullPath);
-                return;
-            }
-
             try
             {
-                File.Replace(tempPath, fullPath, null);
+                if (File.Exists(targetPath))
+                    File.Replace(tempPath, targetPath, null);
+                else
+                    File.Move(tempPath, targetPath);
             }
             catch (PlatformNotSupportedException)
             {
-                File.Delete(fullPath);
-                File.Move(tempPath, fullPath);
+                // 某些平台不支持 Replace，退化为删除+移动
+                if (File.Exists(targetPath))
+                    File.Delete(targetPath);
+                File.Move(tempPath, targetPath);
             }
+        }
+
+        private async UniTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct)
+        {
+            await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
+            await stream.WriteAsync(bytes, 0, bytes.Length, ct);
+        }
+
+        private async UniTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct)
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
+            
+            if (stream.Length > int.MaxValue)
+                throw new IOException($"File too large: {stream.Length} bytes");
+
+            byte[] buffer = new byte[stream.Length];
+            int read = await stream.ReadAsync(buffer, 0, (int)stream.Length, ct);
+            
+            if (read < buffer.Length)
+                Array.Resize(ref buffer, read);
+                
+            return buffer;
+        }
+
+        public void OnShutdown()
+        {
+            // 如需强制落盘可在此调用 Flush
         }
 
         #endregion

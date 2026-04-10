@@ -1,20 +1,22 @@
 using UnityEngine;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Storage
 {
-    [System.Serializable]
-    public class AudioConfig : ScriptableObject
+    [CreateAssetMenu(fileName = "AudioSO", menuName = "GoveKits/AudioSO")]
+    public class AudioSO : ScriptableObject
     {
         [SerializeField] private AudioChannel channel = AudioChannel.SFX;
         [SerializeField] private string clipPath;
         [SerializeField, Range(0f, 1f)] private float volume = 1f;
         [SerializeField, Range(0.1f, 3f)] private float pitch = 1f;
-        [SerializeField, Range(0f, 1f)] private float pitchRandomRange;
+        [SerializeField, Range(0f, 1f)] private float pitchRandomRange = 0f;
+        [SerializeField] private bool loop = false; // 扩展：是否循环播放
 
         public AudioChannel Channel => channel;
         public string ClipPath => clipPath;
         public float Volume => volume;
         public float Pitch => pitch;
         public float PitchRandomRange => pitchRandomRange;
+        public bool Loop => loop;
     }
 }

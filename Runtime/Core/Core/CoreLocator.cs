@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using GoveKits.Runtime.Network;
-using GoveKits.Runtime.Network.Protocol;
+using GoveKits.Runtime.Procedure;
+using GoveKits.Runtime.Storage;
 
 namespace GoveKits.Runtime.Core
 {
@@ -31,6 +32,7 @@ namespace GoveKits.Runtime.Core
             {
                 core.OnShutdown();
             }
+            _cores.Clear();
         }
 
         #region 内置外观 快速访问
@@ -40,8 +42,23 @@ namespace GoveKits.Runtime.Core
         public static LogCore Log => GetCore<LogCore>();
         public static PoolCore Pool => GetCore<PoolCore>();
         public static EventCore Event => GetCore<EventCore>();
+
+        // Network 外观
+
         public static HttpCore Http => GetCore<HttpCore>();
         public static FTPCore FTP => GetCore<FTPCore>();
+
+        // Procedure 外观
+        public static TimeCore Time => GetCore<TimeCore>();
+        public static SceneCore Scene => GetCore<SceneCore>();
+
+        // Storage 外观
+        public static SaveCore Save => GetCore<SaveCore>();
+        public static ResCore Res => GetCore<ResCore>();
+
+        public static AudioCore Audio => GetCore<AudioCore>();
+        public static LocalizationCore Localization => GetCore<LocalizationCore>();
+        public static ConfigCore Config => GetCore<ConfigCore>();
 
         #endregion
     }

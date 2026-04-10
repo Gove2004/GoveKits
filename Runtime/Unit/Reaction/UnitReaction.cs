@@ -68,7 +68,7 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 取消订阅动作，用于在停用时取消事件订阅
         /// </summary>
-        private DisposeAction _unsubscribeAction;
+        private IDisposable _unsubscribeAction;
 
         /// <summary>
         /// 构造函数
@@ -83,7 +83,7 @@ namespace GoveKits.Runtime.Unit
         {
             if (IsActive) return;
             // 订阅 T 类型事件，传入 this 因为当前类实现了 IEventListener<T>
-            _unsubscribeAction = EventCore.Subscribe<T>(this);
+            _unsubscribeAction = CoreLocator.Event.Subscribe<T>(this);
             IsActive = true;
         }
 
