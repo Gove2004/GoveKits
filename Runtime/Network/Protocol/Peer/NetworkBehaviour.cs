@@ -6,7 +6,7 @@
 // using System.Reflection;
 // using UnityEngine;
 
-// namespace GoveKits.Runtime.Network.Protocol
+// namespace GoveKits.Runtime.Network
 // {
 //     public class NetworkBehaviour : MonoBehaviour
 //     {

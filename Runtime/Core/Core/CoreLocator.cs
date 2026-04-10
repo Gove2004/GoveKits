@@ -44,9 +44,10 @@ namespace GoveKits.Runtime.Core
         public static EventCore Event => GetCore<EventCore>();
 
         // Network 外观
-
         public static HttpCore Http => GetCore<HttpCore>();
         public static FTPCore FTP => GetCore<FTPCore>();
+        public static ClientCore Client => GetCore<ClientCore>();
+        public static ServerCore Server => GetCore<ServerCore>();
 
         // Procedure 外观
         public static TimeCore Time => GetCore<TimeCore>();

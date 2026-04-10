@@ -7,7 +7,7 @@
 // using GoveKits.Singleton;
 // using UnityEngine;
 
-// namespace GoveKits.Runtime.Network.Protocol
+// namespace GoveKits.Runtime.Network
 // {
 //     public class SpawnerManager : MonoSingleton<SpawnerManager>
 //     {

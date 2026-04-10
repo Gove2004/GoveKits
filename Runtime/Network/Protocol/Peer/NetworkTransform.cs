@@ -2,7 +2,7 @@
 // using UnityEngine;
 // using DG.Tweening;
 
-// namespace GoveKits.Runtime.Network.Protocol 
+// namespace GoveKits.Runtime.Network 
 // {
 //     [RequireComponent(typeof(NetworkIdentity))]
 //     public class NetworkTransform : NetworkBehaviour   

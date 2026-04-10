@@ -1,63 +1,64 @@
-// === MessageFramer.cs ===
+// Transport/FrameCodec.cs
 using System;
-using UnityEngine;
+using System.Buffers.Binary;
+using System.IO;
 
-namespace GoveKits.Runtime.Network.Core
+namespace GoveKits.Runtime.Network
 {
-    public static class MessageFramer
+    /// <summary>
+    /// 网络帧编解码器
+    /// 帧结构: [Length:4] + [ProtocolId:2] + [Payload:N]
+    /// </summary>
+    public static class FrameCodec
     {
-        // 打包：将 MsgId 和 Protobuf的字节数组，打包成最终要在网线上跑的包
-        public static byte[] Pack(int msgId, byte[] payload)
+        public const int HeaderSize = 6;  // 4 + 2
+        public const int MaxPayloadSize = 1024 * 1024; // 1MB 保护
+
+        /// <summary>
+        /// 编码消息为帧
+        /// </summary>
+        public static byte[] Encode(ushort protocolId, ReadOnlySpan<byte> payload)
         {
-            int payloadLen = payload != null ? payload.Length : 0;
-            int totalLen = 4 + 4 + payloadLen; // 长度(4) + MsgId(4) + 载荷(N)
+            int payloadLen = payload.Length;
+            int totalLen = HeaderSize + payloadLen;
             
-            byte[] packet = new byte[totalLen];
+            byte[] frame = new byte[totalLen];
             
-            // 1. 写入总长度 (除去表示长度的这4个字节外，剩余数据的长度)
-            int contentLen = 4 + payloadLen; 
-            Buffer.BlockCopy(BitConverter.GetBytes(contentLen), 0, packet, 0, 4);
+            // 长度字段（不包含自身4字节）
+            BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(0, 4), HeaderSize - 4 + payloadLen);
             
-            // 2. 写入 MsgId
-            Buffer.BlockCopy(BitConverter.GetBytes(msgId), 0, packet, 4, 4);
+            // 协议ID
+            BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(4, 2), protocolId);
             
-            // 3. 写入 Payload
+            // 负载
             if (payloadLen > 0)
-            {
-                Buffer.BlockCopy(payload, 0, packet, 8, payloadLen);
-            }
+                payload.CopyTo(frame.AsSpan(HeaderSize));
             
-            return packet;
+            return frame;
         }
 
-        // 解包：处理收到的字节流，把完整的包切出来
-        // 返回：读取消耗的字节数。如果返回0，说明包还没收全。
-        public static int TryParse(byte[] buffer, int bytesAvailable, out int msgId, out byte[] payload)
+        /// <summary>
+        /// 尝试解析帧，返回已消费的字节数
+        /// </summary>
+        public static int TryDecode(ReadOnlySpan<byte> buffer, out ushort protocolId, out ReadOnlySpan<byte> payload)
         {
-            msgId = 0;
-            payload = null;
+            protocolId = 0;
+            payload = default;
 
-            if (bytesAvailable < 4) return 0; // 连长度头都没收齐
+            if (buffer.Length < 4) return 0; // 长度头不足
 
-            int contentLen = BitConverter.ToInt32(buffer, 0);
-            int totalLen = 4 + contentLen;
-
-            // 防御性保护：防止收到脏数据导致内存爆炸
-            if (contentLen < 0 || contentLen > 10 * 1024 * 1024) 
-                throw new Exception("Invalid packet length!");
-
-            if (bytesAvailable < totalLen) return 0; // 半包，等下次数据
-
-            msgId = BitConverter.ToInt32(buffer, 4);
+            int contentLen = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(0, 4));
             
-            int payloadLen = contentLen - 4;
-            payload = new byte[payloadLen];
-            if (payloadLen > 0)
-            {
-                Buffer.BlockCopy(buffer, 8, payload, 0, payloadLen);
-            }
+            if (contentLen < 2 || contentLen > MaxPayloadSize)
+                throw new InvalidDataException($"非法帧长度: {contentLen}");
 
-            return totalLen; // 返回这个完整包占据的总字节数
+            int totalLen = 4 + contentLen;
+            if (buffer.Length < totalLen) return 0; // 半包
+
+            protocolId = BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4, 2));
+            payload = buffer.Slice(HeaderSize, contentLen - 2);
+
+            return totalLen;
         }
     }
 }

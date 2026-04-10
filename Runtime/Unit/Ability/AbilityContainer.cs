@@ -75,7 +75,7 @@ namespace GoveKits.Runtime.Unit
             if (_abilitys.TryGetValue(tag, out var ability))
             {
                 if (ability is T result) return result;
-                LogCore.Error(nameof(AbilityContainer), $"技能 {tag} 类型不匹配，期望 {typeof(T).Name}");
+                CoreLocator.Log.Error(nameof(AbilityContainer), $"技能 {tag} 类型不匹配，期望 {typeof(T).Name}");
             }
             return null;
         }

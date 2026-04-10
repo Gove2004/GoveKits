@@ -1,64 +1,49 @@
+// Protocol/ProtocolRegistry.cs
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
-using Google.Protobuf;
-using GoveKits.Runtime.Core;
-using UnityEngine;
 
-namespace GoveKits.Runtime.Network.Protocol
+namespace GoveKits.Runtime.Network
 {
-    public static class MessageRegistry
+    public static class ProtocolRegistry
     {
-        private static readonly Dictionary<int, MessageParser> _parsers = new Dictionary<int, MessageParser>();
-        private static readonly Dictionary<Type, int> _ids = new Dictionary<Type, int>();
+        private static readonly Dictionary<ushort, Type> _idToType = new();
+        private static readonly Dictionary<Type, ushort> _typeToId = new();
+        private static bool _initialized;
 
-        public static void Register(int id, Type type, MessageParser parser)
+        public static void Initialize()
         {
-            if (_parsers.ContainsKey(id)) return;
-            _parsers[id] = parser;
-            _ids[type] = id;
-        }
+            if (_initialized) return;
 
-        public static MessageParser GetParser(int id) => _parsers.TryGetValue(id, out var p) ? p : null;
-        public static int GetId(Type type) => _ids.TryGetValue(type, out var id) ? id : -1;
+            var msgTypes = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a => a.GetTypes())
+                .Where(t => typeof(IProtocolMessage).IsAssignableFrom(t) 
+                           && t.GetCustomAttribute<ProtocolIdAttribute>() != null);
 
-        public static void ScanAndRegister<TEnum>() where TEnum : Enum
-        {
-            Type enumType = typeof(TEnum);
-            string namespaceName = enumType.Namespace; 
-            Assembly assembly = enumType.Assembly;
-
-            string[] names = Enum.GetNames(enumType);
-            Array values = Enum.GetValues(enumType);
-
-            int count = 0;
-
-            for (int i = 0; i < names.Length; i++)
+            foreach (var type in msgTypes)
             {
-                string enumName = names[i];
-                int msgId = (int)values.GetValue(i);
-                if (msgId <= 0) continue;
+                var attr = type.GetCustomAttribute<ProtocolIdAttribute>();
+                if (_idToType.ContainsKey(attr.Id))
+                    throw new InvalidOperationException($"消息ID冲突: {attr.Id} 已被 {_idToType[attr.Id].Name} 使用");
 
-                string className = enumName;
-                if (className.EndsWith("Id")) className = className.Substring(0, className.Length - 2); 
-
-                string fullClassName = string.IsNullOrEmpty(namespaceName) ? className : $"{namespaceName}.{className}";
-                Type msgType = assembly.GetType(fullClassName);
-
-                if (msgType == null)
-                {
-                    LogCore.Error("Registry", $"Class '{fullClassName}' not found for Enum '{enumName}'");
-                    continue;
-                }
-
-                PropertyInfo parserProp = msgType.GetProperty("Parser", BindingFlags.Static | BindingFlags.Public);
-                if (parserProp == null) continue;
-
-                var parser = parserProp.GetValue(null) as MessageParser;
-                Register(msgId, msgType, parser);
-                count++;
+                _idToType[attr.Id] = type;
+                _typeToId[type] = attr.Id;
             }
-            LogCore.Info("Registry", $"Registered {count} messages from {enumType.Name}");
+
+            _initialized = true;
+            UnityEngine.Debug.Log($"[ProtocolRegistry] 注册 {_idToType.Count} 个消息类型");
         }
+
+        public static ushort GetId<T>() where T : IProtocolMessage
+            => _typeToId.GetValueOrDefault(typeof(T), (ushort)0);
+
+        public static ushort GetId(Type type)
+            => _typeToId.GetValueOrDefault(type, (ushort)0);
+
+        public static Type GetType(ushort id)
+            => _idToType.GetValueOrDefault(id);
+
+        public static bool IsRegistered(ushort id) => _idToType.ContainsKey(id);
     }
 }

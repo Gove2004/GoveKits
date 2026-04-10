@@ -1,17 +1,21 @@
-// === IConnection.cs ===
+// Transport/INetChannel.cs
 using System;
-using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace GoveKits.Runtime.Network
 {
-    public interface IConnection
+    /// <summary>
+    /// 网络通道抽象（替代 IConnection，语义更准确）
+    /// </summary>
+    public interface INetChannel : IDisposable
     {
-        int ConnectionId { get; set; }
-        bool IsConnected { get; }
+        int ChannelId { get; }
+        bool IsActive { get; }
         
-        // 发送消息：MsgId + 序列化后的 Protobuf byte[]
-        void Send(int msgId, byte[] payload);
+        event Action<int, ushort, byte[]> OnFrameReceived; // channelId, protocolId, payload
+        event Action<int, string> OnError; // channelId, reason
         
-        void Disconnect();
+        void Send(ushort protocolId, byte[] payload);
+        Task CloseAsync();
     }
 }

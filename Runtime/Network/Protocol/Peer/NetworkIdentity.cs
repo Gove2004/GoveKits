@@ -5,7 +5,7 @@
 // using System.Collections.Generic;
 // using UnityEngine;
 
-// namespace GoveKits.Runtime.Network.Protocol
+// namespace GoveKits.Runtime.Network
 // {
 //     public class NetworkIdentity : MonoBehaviour
 //     {

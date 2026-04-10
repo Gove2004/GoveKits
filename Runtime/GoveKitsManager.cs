@@ -29,6 +29,8 @@ namespace GoveKits.Runtime
             {
                 CoreLocator.InfuseCore(new HttpCore());
                 CoreLocator.InfuseCore(new FTPCore());
+                CoreLocator.InfuseCore(new ClientCore());
+                // CoreLocator.InfuseCore(new ServerCore());
             }
 
             if (ProcedureEnabled)
@@ -41,7 +43,7 @@ namespace GoveKits.Runtime
             {
                 CoreLocator.InfuseCore(new PrefsCore());
                 CoreLocator.InfuseCore(new SaveCore(new JsonSerializer()));  // new ProtobufSerializer()
-                CoreLocator.InfuseCore(new ResCore(new ResourcesResLoader()));
+                CoreLocator.InfuseCore(new ResCore(new ResourcesResLoader()));  // new AssetBundleResLoader()
                 
                 CoreLocator.InfuseCore(new AudioCore());
                 CoreLocator.InfuseCore(new LocalizationCore());
