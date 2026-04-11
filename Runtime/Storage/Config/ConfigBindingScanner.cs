@@ -8,34 +8,17 @@ namespace GoveKits.Runtime.Storage
     /// 标记配置类型对应的文件路径、来源和解析器。
     /// </summary>
     /// <example>
-    /// [Config("Configs/Enemy", ConfigFileType.Json, ConfigSourceType.Resources)]
+    /// [ConfigPath("Configs/Enemy")]
     /// </example>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-    public sealed class ConfigAttribute : Attribute
+    public sealed class ConfigPathAttribute : Attribute
     {
-        public ConfigAttribute(string filePath, ConfigFileType parseType, ConfigSourceType sourceType = ConfigSourceType.Resources)
-        {
-            FilePath = filePath;
-            ParseType = parseType;
-            SourceType = sourceType;
-        }
+        public ConfigPathAttribute(string filePath) { FilePath = filePath; }
 
         /// <summary>
-        /// 配置文件相对路径。
-        /// Resources 来源可写带扩展名或不带扩展名。
-        /// StreamingAssets 来源建议带扩展名。
+        /// 配置文件相对路径
         /// </summary>
         public string FilePath { get; }
-
-        /// <summary>
-        /// 解析类型。
-        /// </summary>
-        public ConfigFileType ParseType { get; }
-
-        /// <summary>
-        /// 配置来源。
-        /// </summary>
-        public ConfigSourceType SourceType { get; }
     }
 
 
@@ -44,7 +27,7 @@ namespace GoveKits.Runtime.Storage
     /// </summary>
     internal readonly struct ConfigBinding
     {
-        public ConfigBinding(Type configType, ConfigAttribute attribute)
+        public ConfigBinding(Type configType, ConfigPathAttribute attribute)
         {
             ConfigType = configType;
             Attribute = attribute;
@@ -52,7 +35,7 @@ namespace GoveKits.Runtime.Storage
 
         public Type ConfigType { get; }
 
-        public ConfigAttribute Attribute { get; }
+        public ConfigPathAttribute Attribute { get; }
     }
 
     /// <summary>
@@ -104,7 +87,7 @@ namespace GoveKits.Runtime.Storage
                         continue;
                     }
 
-                    ConfigAttribute attribute = type.GetCustomAttribute<ConfigAttribute>(false);
+                    ConfigPathAttribute attribute = type.GetCustomAttribute<ConfigPathAttribute>(false);
                     if (attribute == null || string.IsNullOrWhiteSpace(attribute.FilePath))
                     {
                         continue;

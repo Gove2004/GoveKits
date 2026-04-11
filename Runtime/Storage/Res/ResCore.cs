@@ -48,7 +48,7 @@ namespace GoveKits.Runtime.Storage
 
             if (record.IsLoading)
             {
-                Debug.LogError($"[ResCore] 资源 '{path}' 正在异步加载中，不允许打断进行同步加载！");
+                CoreLocator.Log.Warn(nameof(ResCore), $"资源正在加载中: {path}");
                 return default;
             }
 
@@ -99,7 +99,7 @@ namespace GoveKits.Runtime.Storage
             catch (OperationCanceledException) { /* 忽略取消异常 */ }
             catch (Exception e)
             {
-                Debug.LogError($"[ResCore] 加载失败 {path}: {e}");
+                CoreLocator.Log.Error(nameof(ResCore), $"资源加载失败: {path}\n{e}");
             }
             finally
             {

@@ -1,17 +1,17 @@
 using GoveKits.Runtime.Core;
 using UnityEngine;
 
-
 namespace GoveKits.Runtime.Network
 {
     public class HeartbeatComponent : MonoBehaviour
     {
         [Header("Config")]
-        public float Interval = 5f;    // 发送间隔
-        public float Timeout = 15f;    // 超时判定
+        public float Interval = 5f;
+        public float Timeout = 15f;
 
         [Header("Stats")]
-        public float RTT = 0f;         // 往返时延
+        public float RTT = 0f;
+
         public ClientCore Client => CoreLocator.Client;
 
         private float _lastSendTime;
@@ -19,7 +19,6 @@ namespace GoveKits.Runtime.Network
 
         private void Start()
         {
-            // 监听连接事件
             Client.OnConnected += OnConnected;
             Client.OnDisconnected += OnDisconnected;
         }
@@ -33,7 +32,6 @@ namespace GoveKits.Runtime.Network
         private void OnConnected()
         {
             _lastRecvTime = Time.unscaledTime;
-            _lastSendTime = Time.unscaledTime;
             CoreLocator.Log.Success(nameof(HeartbeatComponent), "Connected. Starting Heartbeat.");
         }
 
@@ -48,15 +46,15 @@ namespace GoveKits.Runtime.Network
 
             float now = Time.unscaledTime;
 
-            // 1. 超时检测
+            // 超时检测
             if (now - _lastRecvTime > Timeout)
             {
-                CoreLocator.Log.Error(nameof(HeartbeatComponent), $"Server Timeout! ({now - _lastRecvTime:F1}s > {Timeout}s)");
+                CoreLocator.Log.Error(nameof(HeartbeatComponent), "Server Timeout!");
                 Client.Shutdown();
                 return;
             }
 
-            // 2. 定时发送 Ping
+            // 定时发送
             if (now - _lastSendTime >= Interval)
             {
                 SendHeartbeat(now);
@@ -66,24 +64,26 @@ namespace GoveKits.Runtime.Network
 
         private void SendHeartbeat(float time)
         {
-            var msg = new PingPongHeartbeatMsg { ClientSendTime = time };
+            var msg = new PingPongHeartbeatMsg
+            {
+                ClientSendTime = time,
+                ServerRecvTime = 0
+            };
             Client.Send(msg);
         }
 
-        // 收到服务器回包 (Pong)
         [MessageHandler]
         private void OnHeartbeatResponse(PingPongHeartbeatMsg msg)
         {
             float now = Time.unscaledTime;
             _lastRecvTime = now;
 
-            // 计算 RTT (当前时间 - 消息里的发送时间)
-            float rtt = (now - msg.ClientSendTime) * 1000f; // 毫秒
-            
-            // 平滑处理 RTT
-            if (RTT < 0) RTT = rtt;
-            else RTT = Mathf.Lerp(RTT, rtt, 0.2f); // 简单平滑
-            
+            // ✅ 纯客户端时间差
+            float rttMs = (now - msg.ClientSendTime) * 1000f;
+
+            if (RTT < 0) RTT = rttMs;
+            else RTT = Mathf.Lerp(RTT, rttMs, 0.2f);
+
             CoreLocator.Log.Debug("Heartbeat", $"Pong. RTT: {RTT:F1}ms");
         }
     }

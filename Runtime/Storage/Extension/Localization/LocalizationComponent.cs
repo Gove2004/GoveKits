@@ -28,11 +28,6 @@ namespace GoveKits.Runtime.Storage
 
         private void Start()
         {
-            if (!LocalizationCore.IsInitialized)
-            {
-                LocalizationCore.Initialize();
-            }
-
             UpdateContent();
         }
 

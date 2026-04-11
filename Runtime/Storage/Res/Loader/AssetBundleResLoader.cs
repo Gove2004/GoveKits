@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -47,7 +48,7 @@ namespace GoveKits.Runtime.Storage
             }
             else
             {
-                Debug.LogError("Failed to load AssetBundleManifest");
+                CoreLocator.Log.Error(nameof(AssetBundleResLoader), "Unable to load AssetBundleManifest");
             }
         }
 

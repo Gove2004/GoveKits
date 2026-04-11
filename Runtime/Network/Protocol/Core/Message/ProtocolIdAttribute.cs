@@ -3,6 +3,7 @@ using System;
 namespace GoveKits.Runtime.Network
 {
     public interface IProtocolMessage { }
+    
 
     [AttributeUsage(AttributeTargets.Class, Inherited = false)]
     public class ProtocolIdAttribute : Attribute

@@ -1,5 +1,6 @@
 using System;
 using MessagePack;
+using MessagePack.Resolvers;
 
 namespace GoveKits.Runtime.Network
 {
@@ -10,14 +11,14 @@ namespace GoveKits.Runtime.Network
         IProtocolMessage Deserialize(Type type, byte[] data);
     }
 
-
-    public class MessagePackSerializerAdapter : IProtocolMessageSerializer
+    public abstract class CustomResolverMessagePackSerializer: IProtocolMessageSerializer
     {
-        private readonly MessagePackSerializerOptions _options;
+        protected readonly MessagePackSerializerOptions _options;
 
-        public MessagePackSerializerAdapter(MessagePackSerializerOptions options = null)
+        protected CustomResolverMessagePackSerializer(IFormatterResolver resolver)
         {
-            _options = options ?? MessagePackSerializerOptions.Standard;
+            _options = MessagePackSerializerOptions.Standard
+                .WithResolver(resolver);
         }
 
         public byte[] Serialize<T>(T obj) where T : IProtocolMessage
@@ -28,5 +29,14 @@ namespace GoveKits.Runtime.Network
 
         public IProtocolMessage Deserialize(Type type, byte[] data)
             => (IProtocolMessage)MessagePackSerializer.Deserialize(type, data, _options);
+    }
+
+
+    public class StandardMessagePackSerializer : CustomResolverMessagePackSerializer
+    {
+        public StandardMessagePackSerializer()
+            : base(StandardResolver.Instance)
+        {
+        }
     }
 }

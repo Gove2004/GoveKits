@@ -17,12 +17,6 @@ namespace GoveKits.Runtime.Network
         public event Action<ushort, IProtocolMessage> OnMessageReceived;
 
         private INetChannel _channel;
-        private readonly IProtocolMessageSerializer _serializer;
-
-        public ClientCore(IProtocolMessageSerializer serializer = null)
-        {
-            _serializer = serializer ?? new MessagePackSerializerAdapter();
-        }
 
         public async UniTask ConnectAsync(string host, int port)
         {
@@ -53,30 +47,27 @@ namespace GoveKits.Runtime.Network
         {
             if (!IsConnected) return;
             
-            var id = ProtocolRegistry.GetId<T>();
-            if (id == 0)
-            {
-                CoreLocator.Log.Error(nameof(ClientCore), $"未注册的消息类型: {typeof(T).Name}");
-                return;
-            }
+            var protocolCore = CoreLocator.Protocol; // 通过定位器获取
+            var id = protocolCore.GetId<T>();
             
-            var payload = _serializer.Serialize(message);
+            if (id == 0) return;
+            
+            var payload = protocolCore.Serialize(message); // 统一序列化
             _channel.Send(id, payload);
         }
 
         private void OnFrameReceived(int channelId, ushort protocolId, byte[] payload)
         {
-            var type = ProtocolRegistry.GetType(protocolId);
-            if (type == null)
-            {
-                CoreLocator.Log.Warn(nameof(ClientCore), $"未注册的消息类型: {protocolId}");
-                return;
-            }
-
             try
             {
-                var msg = _serializer.Deserialize(type, payload);
-                OnMessageReceived?.Invoke(protocolId, msg);
+                var msg = CoreLocator.Protocol.Deserialize(protocolId, payload);
+                if (msg != null)
+                {
+                    OnMessageReceived?.Invoke(protocolId, msg);
+                    
+                    // 分发
+                    CoreLocator.Dispatcher.DispatchAsync(channelId, protocolId, msg).Forget();
+                }
             }
             catch (Exception ex)
             {

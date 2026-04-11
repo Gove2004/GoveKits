@@ -13,9 +13,17 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 注入核心
         /// </summary>
-        public static void InfuseCore<T>(T core) where T : ICore
+        public static void InfuseCore<T>(T core) where T : class, ICore
         {
             _cores[typeof(T)] = core;
+        }
+
+        /// <summary>
+        /// 检查核心是否存在
+        /// </summary>
+        public static bool HasCore<T>() where T : class, ICore
+        {
+            return _cores.ContainsKey(typeof(T));
         }
 
         /// <summary>
@@ -46,6 +54,8 @@ namespace GoveKits.Runtime.Core
         // Network 外观
         public static HttpCore Http => GetCore<HttpCore>();
         public static FTPCore FTP => GetCore<FTPCore>();
+        public static ProtocolCore Protocol => GetCore<ProtocolCore>();
+        public static DispatcherCore Dispatcher => GetCore<DispatcherCore>();
         public static ClientCore Client => GetCore<ClientCore>();
         public static ServerCore Server => GetCore<ServerCore>();
 
@@ -56,10 +66,11 @@ namespace GoveKits.Runtime.Core
         // Storage 外观
         public static SaveCore Save => GetCore<SaveCore>();
         public static ResCore Res => GetCore<ResCore>();
+        public static ConfigCore Config => GetCore<ConfigCore>();
 
         public static AudioCore Audio => GetCore<AudioCore>();
         public static LocalizationCore Localization => GetCore<LocalizationCore>();
-        public static ConfigCore Config => GetCore<ConfigCore>();
+        
 
         #endregion
     }

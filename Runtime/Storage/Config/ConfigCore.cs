@@ -1,275 +1,126 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// 配置来源类型。
-    /// </summary>
-    public enum ConfigSourceType
-    {
-        Resources = 0,
-        StreamingAssets = 1,
-    }
-
-    /// <summary>
-    /// 配置文件格式。
-    /// </summary>
-    public enum ConfigFileType
-    {
-        Json = 0,
-        Csv = 1,
-    }
-
-    /// <summary>
-    /// 配置读取核心。
-    /// <para>扫描所有带 ConfigAttribute 的类型并加载到内存。</para>
-    /// <para>提供 Load 系列查询接口。</para>
+    /// 配置核心 - 基于 ResCore 加载资源，支持 Resources/AB/Addressables 等任意来源
     /// </summary>
     public class ConfigCore : ICore
     {
-        private readonly Dictionary<ConfigFileType, IConfigParser> Parsers = new();
-        private readonly Dictionary<Type, List<IConfigData>> ConfigTables = new();
-        private readonly MethodInfo ParseMethodDefinition =
-            typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse))
-            ?? throw new InvalidOperationException("IConfigParser.Parse method not found.");
+        private readonly List<IConfigParser> _parsers = new();
+        private readonly Dictionary<Type, List<IConfigData>> _configTables = new();
+        private readonly MethodInfo _parseMethod;
 
-        private bool IsInitialized;
-        public bool Initialized => IsInitialized;
-
-        public ConfigCore()
+        public ConfigCore(IConfigParser[] parsers)
         {
-            Parsers[ConfigFileType.Json] = new JsonConfigParser();
-            Parsers[ConfigFileType.Csv] = new CsvConfigParser();
+            _parsers.AddRange(parsers ?? Array.Empty<IConfigParser>());
+            _parseMethod = typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse));
+
+            Init();
         }
 
         /// <summary>
-        /// 扫描并加载全部配置表。
+        /// 扫描并加载全部配置表
         /// </summary>
-        /// <remarks>
-        /// 该方法会清空已有缓存并重建内存表。
-        /// 建议在游戏启动流程中只调用一次。
-        /// </remarks>
-        public async UniTask InitAsync(CancellationToken cancellationToken = default)
+        public void Init()
         {
-            IsInitialized = false;
-            List<ConfigBinding> bindings = ConfigBindingScanner.Scan();
-            int loadedTableCount = 0;
-            var loadedTableNames = new StringBuilder(256);
+            var bindings = ConfigBindingScanner.Scan();
+            _configTables.Clear();
 
-            ConfigTables.Clear();
-
-            for (int i = 0; i < bindings.Count; i++)
+            foreach (var binding in bindings)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                Type configType = bindings[i].ConfigType;
-                ConfigAttribute binding = bindings[i].Attribute;
-                List<IConfigData> rows = await LoadTableAsync(configType, binding, cancellationToken);
-                ConfigTables[configType] = rows;
-
-                loadedTableCount++;
-                if (loadedTableNames.Length > 0)
+                try
                 {
-                    loadedTableNames.Append(" | ");
+                    var rows = LoadTable(binding);
+                    _configTables[binding.ConfigType] = rows;
+                    CoreLocator.Log.Info(nameof(ConfigCore), $"已加载 {binding.ConfigType.Name} ({rows.Count} 行)");
                 }
-
-                loadedTableNames
-                    .Append(configType.Name)
-                    .Append(" -> ")
-                    .Append(binding.FilePath)
-                    .Append(" (")
-                    .Append(rows.Count)
-                    .Append(')');
-            }
-
-            IsInitialized = true;
-            CoreLocator.Log.Success(nameof(ConfigCore), $"Init complete. Loaded {loadedTableCount} table(s). {loadedTableNames}");
-        }
-
-        /// <summary>
-        /// 使用 Lambda 条件筛选配置。
-        /// </summary>
-        public List<T> Load<T>(Func<T, bool> predicate)
-            where T : class, IConfigData
-        {
-            EnsureInitialized();
-
-            if (predicate == null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-
-            List<T> result = new();
-            List<IConfigData> table = GetTable(typeof(T));
-            for (int i = 0; i < table.Count; i++)
-            {
-                if (table[i] is T item && predicate(item))
+                catch (Exception e)
                 {
-                    result.Add(item);
+                    CoreLocator.Log.Error(nameof(ConfigCore), $"加载 {binding.ConfigType.Name} 失败: {e.Message}");
                 }
             }
 
-            return result;
+            CoreLocator.Log.Success(nameof(ConfigCore), $"配置系统初始化完成，共 {bindings.Count} 个配置表");
         }
 
-        /// <summary>
-        /// 获取单个配置表的全部数据。
-        /// </summary>
-        public List<T> LoadAll<T>()
-            where T : class, IConfigData
+        private List<IConfigData> LoadTable(ConfigBinding binding)
         {
-            EnsureInitialized();
-
-            List<IConfigData> table = GetTable(typeof(T));
-            List<T> result = new(table.Count);
-            for (int i = 0; i < table.Count; i++)
+            // 关键：通过 ResCore 加载 TextAsset，自动处理 Resources/AB/Addressables 路径
+            var handle = CoreLocator.Res.Load<TextAsset>(binding.Attribute.FilePath);
+            
+            if (!handle.IsValid || handle.Asset == null)
             {
-                if (table[i] is T item)
+                throw new FileNotFoundException($"配置资源不存在: {binding.Attribute.FilePath}");
+            }
+
+            var textAsset = handle.Asset;
+            
+            // 根据文件扩展名自动选择解析器
+            string ext = Path.GetExtension(binding.Attribute.FilePath).ToLowerInvariant();
+            var parser = _parsers.FirstOrDefault(p => p.Extensions.Contains(ext));
+            
+            if (parser == null)
+            {
+                throw new NotSupportedException($"不支持的配置文件格式: {ext}，路径: {binding.Attribute.FilePath}");
+            }
+
+            // 反射调用泛型解析
+            var method = _parseMethod.MakeGenericMethod(binding.ConfigType);
+            var result = method.Invoke(parser, new object[] { textAsset.bytes, textAsset.text });
+            
+            // 转换结果
+            var list = new List<IConfigData>();
+            if (result is System.Collections.IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
                 {
-                    result.Add(item);
+                    if (item is IConfigData data) list.Add(data);
                 }
             }
 
-            return result;
+            return list;
         }
 
-        private string BuildStreamingAssetLocation(string relativePath)
+        public List<T> Load<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
-            if (string.IsNullOrWhiteSpace(relativePath))
+            if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                throw new ArgumentException("relativePath can not be empty.", nameof(relativePath));
+                CoreLocator.Log.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                return new List<T>();
             }
 
-            string normalized = relativePath.Replace('\\', '/').TrimStart('/');
-            return Path.Combine(Application.streamingAssetsPath, normalized);
+            return table.Cast<T>().Where(predicate).ToList();
         }
 
-        private bool NeedWebRequest(string location)
-            => location.Contains("://", StringComparison.OrdinalIgnoreCase) || location.StartsWith("jar:", StringComparison.OrdinalIgnoreCase);
-
-        private async UniTask<List<IConfigData>> LoadTableAsync(Type configType, ConfigAttribute binding, CancellationToken cancellationToken)
+        public List<T> LoadAll<T>() where T : class, IConfigData
         {
-            if (!TryGetParser(binding.ParseType, out IConfigParser parser))
+            if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                throw new InvalidOperationException($"No parser registered for parseType={binding.ParseType}.");
+                CoreLocator.Log.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                return new List<T>();
             }
 
-            (byte[] bytes, string text) = await ReadRawContentAsync(binding, cancellationToken);
-            if (bytes == null || bytes.Length == 0)
-            {
-                return new List<IConfigData>();
-            }
-
-            // IConfigParser.Parse<T> 是泛型接口，这里在运行时按目标配置类型闭包调用。
-            MethodInfo parseMethod = ParseMethodDefinition.MakeGenericMethod(configType);
-            object parsed = parseMethod.Invoke(parser, new object[] { bytes, text });
-            var rows = new List<IConfigData>();
-            if (parsed is System.Collections.IEnumerable enumerable)
-            {
-                foreach (object item in enumerable)
-                {
-                    if (item is IConfigData config)
-                    {
-                        rows.Add(config);
-                    }
-                }
-            }
-
-            return rows;
+            return table.Cast<T>().ToList();
         }
 
-        private async UniTask<(byte[] bytes, string text)> ReadRawContentAsync(ConfigAttribute binding, CancellationToken cancellationToken)
+        public T LoadOne<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
-            if (binding.SourceType == ConfigSourceType.Resources)
-            {
-                await UniTask.Yield(cancellationToken);
-                TextAsset asset = Resources.Load<TextAsset>(NormalizeResourcePath(binding.FilePath));
-                return asset == null ? (null, null) : (asset.bytes, asset.text);
-            }
-
-            byte[] bytes = await LoadStreamingBytesAsync(binding.FilePath, cancellationToken);
-            string text = IsTextParse(binding.ParseType) ? Encoding.UTF8.GetString(bytes) : null;
-            return (bytes, text);
-        }
-
-        private async UniTask<byte[]> LoadStreamingBytesAsync(string relativePath, CancellationToken cancellationToken)
-        {
-            string location = BuildStreamingAssetLocation(relativePath);
-            if (NeedWebRequest(location))
-            {
-                // Android/WebGL 等平台可能是 jar/file/http URI，必须走 UnityWebRequest。
-                return await LoadBytesByWebRequest(location, cancellationToken);
-            }
-
-            return await UniTask.RunOnThreadPool(() => File.ReadAllBytes(location), cancellationToken: cancellationToken);
-        }
-
-        private List<IConfigData> GetTable(Type type)
-        {
-            if (!ConfigTables.TryGetValue(type, out List<IConfigData> table))
-            {
-                throw new InvalidOperationException($"Type {type.FullName} was not loaded. Ensure ConfigAttribute exists and InitAsync was called.");
-            }
-
-            return table;
-        }
-
-        private void EnsureInitialized()
-        {
-            if (!IsInitialized)
-            {
-                throw new InvalidOperationException("ConfigCore is not loaded. Call InitAsync first.");
-            }
-        }
-
-        private bool IsTextParse(ConfigFileType parseType)
-        {
-            return parseType == ConfigFileType.Json || parseType == ConfigFileType.Csv;
-        }
-
-        private string NormalizeResourcePath(string path)
-        {
-            string normalized = (path ?? string.Empty).Replace('\\', '/').TrimStart('/');
-            string ext = Path.GetExtension(normalized);
-            if (!string.IsNullOrEmpty(ext))
-            {
-                normalized = normalized.Substring(0, normalized.Length - ext.Length);
-            }
-
-            return normalized;
-        }
-
-        private bool TryGetParser(ConfigFileType parseType, out IConfigParser parser)
-        {
-            return Parsers.TryGetValue(parseType, out parser);
-        }
-
-        private async UniTask<byte[]> LoadBytesByWebRequest(string location, CancellationToken cancellationToken)
-        {
-            using UnityWebRequest request = UnityWebRequest.Get(location);
-            await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
-
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                throw new IOException($"Load config failed: {location}, error={request.error}");
-            }
-
-            return request.downloadHandler.data;
+            return Load(predicate).FirstOrDefault();
         }
 
         public void OnShutdown()
         {
-            Parsers.Clear();
-            ConfigTables.Clear();
+            _configTables.Clear();
+            _parsers.Clear();
         }
     }
 }

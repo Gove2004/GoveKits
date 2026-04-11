@@ -18,13 +18,7 @@ namespace GoveKits.Runtime.Network
 
         private TcpListener _listener;
         private readonly Dictionary<int, INetChannel> _channels = new();
-        private readonly IProtocolMessageSerializer _serializer;
         private int _nextChannelId = 1;
-
-        public ServerCore(IProtocolMessageSerializer serializer = null)
-        {
-            _serializer = serializer ?? new MessagePackSerializerAdapter();
-        }
 
         public void Start(int port)
         {
@@ -65,16 +59,18 @@ namespace GoveKits.Runtime.Network
 
         private void HandleFrame(int channelId, ushort protocolId, byte[] payload)
         {
-            var type = ProtocolRegistry.GetType(protocolId);
-            if (type == null) return;
+            var protocolCore = CoreLocator.Protocol;
 
             try
             {
-                var msg = _serializer.Deserialize(type, payload);
+                var msg = protocolCore.Deserialize(protocolId, payload);
                 OnMessageReceived?.Invoke(channelId, protocolId, msg);
                 
                 // 帧同步：广播给其他人（可选）
-                Broadcast(protocolId, payload, channelId);
+                // Broadcast(protocolId, payload, channelId);
+
+                // 分发
+                CoreLocator.Dispatcher.DispatchAsync(channelId, protocolId, msg).Forget();
             }
             catch (Exception ex)
             {
@@ -84,10 +80,11 @@ namespace GoveKits.Runtime.Network
 
         public void SendTo<T>(int channelId, T message) where T : IProtocolMessage
         {
+            var protocolCore = CoreLocator.Protocol;
             if (!_channels.TryGetValue(channelId, out var channel)) return;
             
-            var id = ProtocolRegistry.GetId<T>();
-            var payload = _serializer.Serialize(message);
+            var id = protocolCore.GetId<T>();
+            var payload = protocolCore.Serialize(message);
             channel.Send(id, payload);
         }
 
@@ -100,8 +97,9 @@ namespace GoveKits.Runtime.Network
 
         public void Broadcast<T>(T message, int excludeChannelId = -1) where T : IProtocolMessage
         {
-            var id = ProtocolRegistry.GetId<T>();
-            var payload = _serializer.Serialize(message);
+            var protocolCore = CoreLocator.Protocol;
+            var id = protocolCore.GetId<T>();
+            var payload = protocolCore.Serialize(message);
             Broadcast(id, payload, excludeChannelId);
         }
 
