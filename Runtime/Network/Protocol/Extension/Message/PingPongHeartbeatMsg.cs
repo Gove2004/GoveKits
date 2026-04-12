@@ -7,7 +7,7 @@ namespace GoveKits.Runtime.Network
     [ProtocolId(100)]
     public class PingPongHeartbeatMsg : IProtocolMessage
     {
-        [Key(0)] public float ClientSendTime;
-        [Key(1)] public float ServerRecvTime;  // 服务端回填
+        [Key(0)] public long ClientSendTime;
+        [Key(1)] public long ServerRecvTime;  // 服务端回填
     }
 }

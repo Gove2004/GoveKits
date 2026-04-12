@@ -18,20 +18,11 @@ namespace GoveKits.Runtime.Network
         private static MessagePackSerializerOptions _options;
 
         /// <summary>
-        /// 添加 Resolver（可多次调用）
+        /// 添加 Resolver
         /// </summary>
-        public static void AddResolver(IFormatterResolver resolver)
+        public static void SetResolver(IFormatterResolver resolver)
         {
-            // 延迟初始化 options
-            if (_options == null)
-            {
-                _options = MessagePackSerializerOptions.Standard;
-            }
-            
-            // 组合新的 Resolver
-            var currentResolver = _options.Resolver;
-            var combined = CompositeResolver.Create(resolver, currentResolver);
-            _options = _options.WithResolver(combined);
+            _options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
         }
 
         /// <summary>
@@ -91,7 +82,6 @@ namespace GoveKits.Runtime.Network
         {
             _idToType.Clear();
             _typeToId.Clear();
-            _options = null;
         }
     }
 }

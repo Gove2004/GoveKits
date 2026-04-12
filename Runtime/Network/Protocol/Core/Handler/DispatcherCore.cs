@@ -18,11 +18,12 @@ namespace GoveKits.Runtime.Network
             await UniTask.SwitchToMainThread();
 
             if (!_handlerMap.TryGetValue(protocolId, out var handlers)) return;
+            if (handlers.Count == 0) return;
 
             for (int i = handlers.Count - 1; i >= 0; i--) 
             {
                 try { await handlers[i].Handle(channelId, message); }
-                catch (Exception ex) { LogCore.Error("Dispatcher", $"执行失败: {ex}"); }
+                catch (Exception ex) { LogCore.Error(nameof(DispatcherCore), $"执行失败: {ex}"); }
             }
         }
 
@@ -55,6 +56,10 @@ namespace GoveKits.Runtime.Network
                     var actionType = typeof(Action<,>).MakeGenericType(typeof(int), msgType);
                     var del = Delegate.CreateDelegate(actionType, target, method);
                     handler = (IMessageHandler)Activator.CreateInstance(typeof(ServerProtocolHandler<>).MakeGenericType(msgType), del);
+                }
+                else
+                {
+                    LogCore.Warn(nameof(DispatcherCore), $"方法签名错误: {method.Name}");
                 }
 
                 if (handler != null && msgType != null)

@@ -13,6 +13,7 @@ namespace GoveKits.Runtime.Core
         /// </summary>
         public static LogLevel ShowLevel { get; set; } = LogLevel.Debug;
         private static readonly List<ILogger> loggers = new List<ILogger>();
+        public static event Action<string, string, LogLevel, string> OnLog;
 
         /// <summary>
         /// 注入日志器
@@ -70,6 +71,8 @@ namespace GoveKits.Runtime.Core
 
         private static void DispatchLog(string tag, string message, LogLevel level, string colorHex)
         {
+            OnLog?.Invoke(tag, message, level, colorHex);
+            
             foreach (var logger in loggers)
             {
                 try
@@ -108,6 +111,7 @@ namespace GoveKits.Runtime.Core
             {
                 logger.Dispose();
             }
+            OnLog = null;
         }
     }
 }

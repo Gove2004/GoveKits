@@ -17,7 +17,7 @@ namespace GoveKits.Runtime.Network
     }
 
     // 支持 Client 端签名: void OnMsg(TMsg msg)
-    public class ClientProtocolHandler<TMsg> : IMessageHandler where TMsg : IProtocolMessage
+    internal class ClientProtocolHandler<TMsg> : IMessageHandler where TMsg : IProtocolMessage
     {
         private readonly Action<TMsg> _action;
         public ClientProtocolHandler(Action<TMsg> action) => _action = action;
@@ -29,7 +29,7 @@ namespace GoveKits.Runtime.Network
     }
 
     // 支持 Server 端签名: void OnMsg(int channelId, TMsg msg)
-    public class ServerProtocolHandler<TMsg> : IMessageHandler where TMsg : IProtocolMessage
+    internal class ServerProtocolHandler<TMsg> : IMessageHandler where TMsg : IProtocolMessage
     {
         private readonly Action<int, TMsg> _action;
         public ServerProtocolHandler(Action<int, TMsg> action) => _action = action;

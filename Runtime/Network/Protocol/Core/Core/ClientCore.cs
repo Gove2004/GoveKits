@@ -57,6 +57,7 @@ namespace GoveKits.Runtime.Network
             try
             {
                 var msg = ProtocolCore.Deserialize(protocolId, payload);
+
                 if (msg != null)
                 {
                     OnMessageReceived?.Invoke(protocolId, msg);

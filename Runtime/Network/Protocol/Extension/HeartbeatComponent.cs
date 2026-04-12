@@ -1,3 +1,4 @@
+using System;
 using GoveKits.Runtime.Core;
 using UnityEngine;
 
@@ -16,12 +17,14 @@ namespace GoveKits.Runtime.Network
 
         private void Start()
         {
+            DispatcherCore.Bind(this);
             ClientCore.OnConnected += OnConnected;
             ClientCore.OnDisconnected += OnDisconnected;
         }
 
         private void OnDestroy()
         {
+            DispatcherCore.Unbind(this);
             ClientCore.OnConnected -= OnConnected;
             ClientCore.OnDisconnected -= OnDisconnected;
         }
@@ -63,7 +66,7 @@ namespace GoveKits.Runtime.Network
         {
             var msg = new PingPongHeartbeatMsg
             {
-                ClientSendTime = time,
+                ClientSendTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 ServerRecvTime = 0
             };
             ClientCore.Send(msg);
@@ -72,11 +75,10 @@ namespace GoveKits.Runtime.Network
         [MessageHandler]
         private void OnHeartbeatResponse(PingPongHeartbeatMsg msg)
         {
-            float now = Time.unscaledTime;
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _lastRecvTime = now;
 
-            // ✅ 纯客户端时间差
-            float rttMs = (now - msg.ClientSendTime) * 1000f;
+            long rttMs = now - msg.ClientSendTime;
 
             if (RTT < 0) RTT = rttMs;
             else RTT = Mathf.Lerp(RTT, rttMs, 0.2f);

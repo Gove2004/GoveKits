@@ -30,6 +30,10 @@ namespace GoveKits.Runtime
             // Procedure
             TimeCore.Initialize(0.05f, 512, 512, 16, 128);
 
+            // Network
+            // ProtocolCore.SetResolver(GeneratedResolver.Instance);
+            ProtocolCore.ScanProtocols();
+
             // Storage
             SaveCore.Initialize(new JsonSerializer());
             await ResCore.InitPackageAsync(new PackageConfig("DefaultPackage", EPlayMode.EditorSimulateMode));
@@ -41,10 +45,6 @@ namespace GoveKits.Runtime
             await UniTask.Yield();  // LocalizationCore 依赖 ConfigCore
             LocalizationCore.Initialize();
             AudioCore.Initialize(16);
-
-            // Network
-            ProtocolCore.AddResolver(ContractlessStandardResolver.Instance);
-            ProtocolCore.ScanProtocols();
 
             // 
             LogCore.Success(nameof(GoveKitsManager), "GoveKits initialized.");
