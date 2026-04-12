@@ -60,7 +60,7 @@
 //             catch (TimeoutException)
 //             {
 //                 _pendingRpcs.Remove(rpcId);
-//                 CoreLocator.Log.Error("RPC", $"Timeout! ID: {rpcId}, Req: {request.GetType().Name}");
+//                 LogCore.Error("RPC", $"Timeout! ID: {rpcId}, Req: {request.GetType().Name}");
 //                 return default;
 //             }
 //         }

@@ -64,11 +64,11 @@ namespace GoveKits.Runtime.Storage
                 {
                     var data = kvp.Value.Invoke();
                     var path = _paths[kvp.Key];
-                    await CoreLocator.Save.SaveAsync(path, data);  // 直接调用新API
+                    await SaveCore.SaveAsync(path, data);  // 直接调用新API
                 }
                 catch (Exception ex)
                 {
-                    CoreLocator.Log.Error(nameof(AutoSaveBehaviour), $"AutoSave failed [{kvp.Key}]: {ex}");
+                    LogCore.Error(nameof(AutoSaveBehaviour), $"AutoSave failed [{kvp.Key}]: {ex}");
                 }
             }
         }

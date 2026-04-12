@@ -7,18 +7,18 @@ namespace GoveKits.Runtime.Core
     /// <summary>
     /// 对象池系统总入口
     /// </summary>
-    public class PoolCore : ICore
+    public static class PoolCore
     {
-        private readonly Dictionary<Type, IPool> _csharpPools = new();
+        private static readonly Dictionary<Type, IPool> _csharpPools = new();
         
-        private readonly Dictionary<int, GameObjectPool> _gameObjectPools = new();
+        private static readonly Dictionary<int, GameObjectPool> _gameObjectPools = new();
 
         #region C# 对象池管理
 
         /// <summary>
         /// 创建一个C#对象池
         /// </summary>
-        public CSharpPool<T> Create<T>(int count = 8, int maxSize = 64) 
+        public static CSharpPool<T> Create<T>(int count = 8, int maxSize = 64) 
             where T : class, IPoolable, new()
         {
             var type = typeof(T);
@@ -36,7 +36,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 获取一个C#对象
         /// </summary>
-        public T Get<T>() where T : class, IPoolable, new()
+        public static T Get<T>() where T : class, IPoolable, new()
         {
             return Create<T>().Get();
         }
@@ -44,7 +44,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 归还一个C#对象
         /// </summary>
-        public void Return<T>(T item) where T : class, IPoolable, new()
+        public static void Return<T>(T item) where T : class, IPoolable, new()
         {
             if (item == null) return;
             Create<T>().Return(item);
@@ -53,7 +53,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 清空一个C#对象池
         /// </summary>
-        public void Clear<T>() where T : class, IPoolable, new()
+        public static void Clear<T>() where T : class, IPoolable, new()
         {
             var type = typeof(T);
             if (_csharpPools.TryGetValue(type, out var pool))
@@ -70,7 +70,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 创建一个GameObject对象池
         /// </summary>
-        public GameObjectPool Create(GameObject prefab, int count = 8, int maxSize = 64)
+        public static GameObjectPool Create(GameObject prefab, int count = 8, int maxSize = 64)
         {
             if (prefab == null) throw new ArgumentNullException(nameof(prefab));
             
@@ -89,7 +89,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 获取一个GameObject对象
         /// </summary>
-        public GameObject Get(GameObject prefab)
+        public static GameObject Get(GameObject prefab)
         {
             if (prefab == null) throw new ArgumentNullException(nameof(prefab));
             return Create(prefab).Get();
@@ -98,7 +98,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 归还一个GameObject对象
         /// </summary>
-        public void Return(GameObject obj)
+        public static void Return(GameObject obj)
         {
             if (obj == null) return;
             
@@ -116,7 +116,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 清空一个GameObject对象池
         /// </summary>
-        public void Clear(GameObject prefab)
+        public static void Clear(GameObject prefab)
         {
             int id = prefab.GetInstanceID();
             if (_gameObjectPools.TryGetValue(id, out var pool))
@@ -131,17 +131,12 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 清空所有对象池
         /// </summary>
-        public void ClearAll()
+        public static void Clear()
         {
             foreach (var pool in _csharpPools.Values) pool.Clear();
             foreach (var pool in _gameObjectPools.Values) pool.Clear();
             _csharpPools.Clear();
             _gameObjectPools.Clear();
-        }
-
-        public void OnShutdown()
-        {
-            ClearAll();
         }
     }
 }

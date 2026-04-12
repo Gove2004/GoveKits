@@ -201,7 +201,7 @@ namespace GoveKits.Runtime.Procedure
             }
             catch (Exception e)
             {
-                CoreLocator.Log.Error(nameof(TimeWheel), $"Timer[{timer.Id}] Callback Error: {e}");
+                LogCore.Error(nameof(TimeWheel), $"Timer[{timer.Id}] Callback Error: {e}");
             }
         }
 
@@ -254,7 +254,7 @@ namespace GoveKits.Runtime.Procedure
             while (_recycleQueue.Count > 0)
             {
                 var timer = _recycleQueue.Dequeue();
-                CoreLocator.Pool.Return(timer);
+                PoolCore.Return(timer);
             }
         }
 

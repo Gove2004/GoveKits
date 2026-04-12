@@ -10,7 +10,6 @@ namespace GoveKits.Runtime.Network
     internal static class FtpEngine
     {
         public static async UniTask<FtpResponse> ExecuteAsync(
-            FTPCore core,
             FtpRequestBuilder req, 
             string ftpMethod, 
             byte[] uploadData, 

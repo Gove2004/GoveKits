@@ -83,7 +83,7 @@ namespace GoveKits.Runtime.Unit
         {
             if (IsActive) return;
             // 订阅 T 类型事件，传入 this 因为当前类实现了 IEventListener<T>
-            _unsubscribeAction = CoreLocator.Event.Subscribe<T>(this);
+            _unsubscribeAction = EventCore.Subscribe<T>(this);
             IsActive = true;
         }
 

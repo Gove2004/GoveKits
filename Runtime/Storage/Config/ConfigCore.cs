@@ -3,35 +3,30 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
-using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
 using UnityEngine;
+
 
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// 配置核心 - 基于 ResCore 加载资源，支持 Resources/AB/Addressables 等任意来源
+    /// 配置核心 - 基于 ResCore 加载资源
     /// </summary>
-    public class ConfigCore : ICore
+    public static class ConfigCore
     {
-        private readonly List<IConfigParser> _parsers = new();
-        private readonly Dictionary<Type, List<IConfigData>> _configTables = new();
-        private readonly MethodInfo _parseMethod;
+        private static List<IConfigParser> _parsers = new();
+        private static Dictionary<Type, List<IConfigData>> _configTables = new();
+        private static MethodInfo _parseMethod;
 
-        public ConfigCore(IConfigParser[] parsers)
-        {
-            _parsers.AddRange(parsers ?? Array.Empty<IConfigParser>());
-            _parseMethod = typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse));
-
-            Init();
-        }
+        public static void InfuseParser(IConfigParser parser) => _parsers.Add(parser);
 
         /// <summary>
-        /// 扫描并加载全部配置表
+        /// 注入足够 IParser 再初始化
         /// </summary>
-        public void Init()
+        public static void Initialize()
         {
+            _parseMethod = typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse));
+
             var bindings = ConfigBindingScanner.Scan();
             _configTables.Clear();
 
@@ -41,28 +36,22 @@ namespace GoveKits.Runtime.Storage
                 {
                     var rows = LoadTable(binding);
                     _configTables[binding.ConfigType] = rows;
-                    CoreLocator.Log.Info(nameof(ConfigCore), $"已加载 {binding.ConfigType.Name} ({rows.Count} 行)");
+                    LogCore.Info(nameof(ConfigCore), $"已加载 {binding.ConfigType.Name} ({rows.Count} 行)");
                 }
                 catch (Exception e)
                 {
-                    CoreLocator.Log.Error(nameof(ConfigCore), $"加载 {binding.ConfigType.Name} 失败: {e.Message}");
+                    LogCore.Error(nameof(ConfigCore), $"加载 {binding.ConfigType.Name} 失败: {e.Message}");
                 }
             }
 
-            CoreLocator.Log.Success(nameof(ConfigCore), $"配置系统初始化完成，共 {bindings.Count} 个配置表");
+            LogCore.Success(nameof(ConfigCore), $"配置系统初始化完成，共 {bindings.Count} 个配置表");
         }
+        
 
-        private List<IConfigData> LoadTable(ConfigBinding binding)
+        private static List<IConfigData> LoadTable(ConfigBinding binding)
         {
-            // 关键：通过 ResCore 加载 TextAsset，自动处理 Resources/AB/Addressables 路径
-            var handle = CoreLocator.Res.Load<TextAsset>(binding.Attribute.FilePath);
-            
-            if (!handle.IsValid || handle.Asset == null)
-            {
-                throw new FileNotFoundException($"配置资源不存在: {binding.Attribute.FilePath}");
-            }
-
-            var textAsset = handle.Asset;
+            var handle = ResCore.LoadAssetSync<TextAsset>(binding.Attribute.FilePath);
+            var textAsset = handle.AssetObject as TextAsset;
             
             // 根据文件扩展名自动选择解析器
             string ext = Path.GetExtension(binding.Attribute.FilePath).ToLowerInvariant();
@@ -87,37 +76,38 @@ namespace GoveKits.Runtime.Storage
                 }
             }
 
+            handle.Release();
             return list;
         }
 
-        public List<T> Load<T>(Func<T, bool> predicate) where T : class, IConfigData
+        public static List<T> Load<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
             if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                CoreLocator.Log.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                LogCore.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
                 return new List<T>();
             }
 
             return table.Cast<T>().Where(predicate).ToList();
         }
 
-        public List<T> LoadAll<T>() where T : class, IConfigData
+        public static List<T> LoadAll<T>() where T : class, IConfigData
         {
             if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                CoreLocator.Log.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                LogCore.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
                 return new List<T>();
             }
 
             return table.Cast<T>().ToList();
         }
 
-        public T LoadOne<T>(Func<T, bool> predicate) where T : class, IConfigData
+        public static T LoadOne<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
             return Load(predicate).FirstOrDefault();
         }
 
-        public void OnShutdown()
+        public static void Clear()
         {
             _configTables.Clear();
             _parsers.Clear();

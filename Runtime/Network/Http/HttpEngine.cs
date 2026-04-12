@@ -9,30 +9,30 @@ namespace GoveKits.Runtime.Network
 {
     internal static class HttpEngine
     {
-        public static async UniTask<HttpResponse> ExecuteAsync(HttpCore core, HttpRequestBuilder req, CancellationToken ct)
+        public static async UniTask<HttpResponse> ExecuteAsync(HttpRequestBuilder req, CancellationToken ct)
         {
             string finalUrl = BuildFinalUrl(req);
 
             // 管线 1：检查缓存
-            if (req.UseCache && req.Method == HttpMethod.GET && core.Cache.TryGet(finalUrl, out string cachedText))
+            if (req.UseCache && req.Method == HttpMethod.GET && HttpCore.Cache.TryGet(finalUrl, out string cachedText))
             {
                 return HttpResponse.Cached(cachedText);
             }
 
             // 管线 2：并发控制 (使用该 Core 实例的锁)
-            await core.Throttle.WaitAsync(ct);
+            await HttpCore.Throttle.WaitAsync(ct);
             try
             {
                 // 管线 3：执行请求
-                return await ExecuteWithRetryAsync(core, finalUrl, req, ct);
+                return await ExecuteWithRetryAsync(finalUrl, req, ct);
             }
             finally
             {
-                core.Throttle.Release();
+                HttpCore.Throttle.Release();
             }
         }
 
-        private static async UniTask<HttpResponse> ExecuteWithRetryAsync(HttpCore core, string url, HttpRequestBuilder req, CancellationToken ct)
+        private static async UniTask<HttpResponse> ExecuteWithRetryAsync(string url, HttpRequestBuilder req, CancellationToken ct)
         {
             int attempts = 0;
             int maxAttempts = 1 + req.RetryCount;
@@ -50,7 +50,7 @@ namespace GoveKits.Runtime.Network
                     {
                         var response = HttpResponse.Success(uwr);
                         if (req.UseCache && req.Method == HttpMethod.GET && !string.IsNullOrEmpty(response.Text))
-                            core.Cache.Set(url, response.Text);
+                            HttpCore.Cache.Set(url, response.Text);
 
                         return response;
                     }

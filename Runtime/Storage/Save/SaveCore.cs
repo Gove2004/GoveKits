@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Threading;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
 using UnityEngine;
 
 namespace GoveKits.Runtime.Storage
@@ -10,12 +9,12 @@ namespace GoveKits.Runtime.Storage
     /// <summary>
     /// 存档管理器：无侵入式，直接存取 POCO 对象。
     /// </summary>
-    public class SaveCore : ICore
+    public static class SaveCore
     {
-        private readonly string _rootPath;
-        private readonly ISerializer _serializer;
+        private static string _rootPath;
+        private static ISerializer _serializer;
 
-        public SaveCore(ISerializer serializer, string rootFolder = "Saves")
+        public static void Initialize(ISerializer serializer, string rootFolder = "Saves")
         {
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _rootPath = Path.Combine(Application.persistentDataPath, rootFolder);
@@ -31,7 +30,7 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         /// <param name="relativePath">相对路径（如 "player.data" 或 "slot1/player.json"）</param>
         /// <param name="data">要保存的数据对象</param>
-        public void Save<T>(string relativePath, T data)
+        public static void Save<T>(string relativePath, T data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
             
@@ -49,7 +48,7 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         /// <param name="relativePath">相对路径</param>
         /// <returns>反序列化后的对象，文件不存在则返回 null</returns>
-        public T Load<T>(string relativePath)
+        public static T Load<T>(string relativePath)
         {
             string fullPath = GetFullPath(relativePath);
             if (!File.Exists(fullPath)) return default;
@@ -61,7 +60,7 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 加载数据，不存在则返回默认值。
         /// </summary>
-        public T LoadOrDefault<T>(string relativePath, T defaultValue = default)
+        public static T LoadOrDefault<T>(string relativePath, T defaultValue = default)
         {
             string fullPath = GetFullPath(relativePath);
             if (!File.Exists(fullPath)) return defaultValue;
@@ -74,7 +73,7 @@ namespace GoveKits.Runtime.Storage
 
         #region 异步 API
 
-        public async UniTask SaveAsync<T>(string relativePath, T data, CancellationToken cancellationToken = default)
+        public static async UniTask SaveAsync<T>(string relativePath, T data, CancellationToken cancellationToken = default)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
             
@@ -86,7 +85,7 @@ namespace GoveKits.Runtime.Storage
             ReplaceAtomic(tempPath, fullPath);
         }
 
-        public async UniTask<T> LoadAsync<T>(string relativePath, CancellationToken cancellationToken = default)
+        public static async UniTask<T> LoadAsync<T>(string relativePath, CancellationToken cancellationToken = default)
         {
             string fullPath = GetFullPath(relativePath);
             if (!File.Exists(fullPath)) return default;
@@ -95,7 +94,7 @@ namespace GoveKits.Runtime.Storage
             return (T)_serializer.Deserialize(bytes, typeof(T));
         }
 
-        public async UniTask<T> LoadOrDefaultAsync<T>(string relativePath, T defaultValue = default, CancellationToken cancellationToken = default)
+        public static async UniTask<T> LoadOrDefaultAsync<T>(string relativePath, T defaultValue = default, CancellationToken cancellationToken = default)
         {
             string fullPath = GetFullPath(relativePath);
             if (!File.Exists(fullPath)) return defaultValue;
@@ -111,7 +110,7 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 检查存档是否存在。
         /// </summary>
-        public bool Exists(string relativePath)
+        public static bool Exists(string relativePath)
         {
             return File.Exists(GetFullPath(relativePath));
         }
@@ -119,7 +118,7 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 删除存档。
         /// </summary>
-        public void Delete(string relativePath)
+        public static void Delete(string relativePath)
         {
             string fullPath = GetFullPath(relativePath);
             if (File.Exists(fullPath))
@@ -129,7 +128,7 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 获取所有存档文件名（含子目录）。
         /// </summary>
-        public string[] GetAllFiles(string searchPattern = "*")
+        public static string[] GetAllFiles(string searchPattern = "*")
         {
             return Directory.GetFiles(_rootPath, searchPattern, SearchOption.AllDirectories);
         }
@@ -138,7 +137,7 @@ namespace GoveKits.Runtime.Storage
 
         #region 工具方法
 
-        private string GetFullPath(string relativePath)
+        private static string GetFullPath(string relativePath)
         {
             // 自动处理扩展名（如果用户没加，就加上序列器推荐的）
             if (!Path.HasExtension(relativePath))
@@ -154,7 +153,7 @@ namespace GoveKits.Runtime.Storage
             return fullPath;
         }
 
-        private void ReplaceAtomic(string tempPath, string targetPath)
+        private static void ReplaceAtomic(string tempPath, string targetPath)
         {
             try
             {
@@ -172,13 +171,13 @@ namespace GoveKits.Runtime.Storage
             }
         }
 
-        private async UniTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct)
+        private static async UniTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct)
         {
             await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
             await stream.WriteAsync(bytes, 0, bytes.Length, ct);
         }
 
-        private async UniTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct)
+        private static async UniTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct)
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
             
@@ -192,11 +191,6 @@ namespace GoveKits.Runtime.Storage
                 Array.Resize(ref buffer, read);
                 
             return buffer;
-        }
-
-        public void OnShutdown()
-        {
-            // 如需强制落盘可在此调用 Flush
         }
 
         #endregion

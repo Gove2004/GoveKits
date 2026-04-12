@@ -6,21 +6,19 @@ namespace GoveKits.Runtime.Core
     /// <summary>
     /// 日志核心管理类
     /// </summary>
-    public class LogCore : ICore
+    public static class LogCore
     {
         /// <summary>
         /// 日志显示等级
         /// </summary>
-        public LogLevel ShowLevel { get; set; } = LogLevel.Debug;
-        private readonly List<ILogger> loggers = new List<ILogger>();
-
-        public LogCore(params ILogger[] loggers) => this.loggers.AddRange(loggers);
+        public static LogLevel ShowLevel { get; set; } = LogLevel.Debug;
+        private static readonly List<ILogger> loggers = new List<ILogger>();
 
         /// <summary>
         /// 注入日志器
         /// </summary>
         /// <param name="logger"></param>
-        public void InfuseLogger(ILogger logger)
+        public static void InfuseLogger(ILogger logger)
         {
             if (logger == null) return;
             
@@ -35,7 +33,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 调试
         /// </summary>
-        public void Debug(string tag, string message, string colorHex = "#797979")
+        public static void Debug(string tag, string message, string colorHex = "#797979")
         {
             if (ShowLevel > LogLevel.Debug) return;
             DispatchLog(tag, message, LogLevel.Debug, colorHex);
@@ -44,7 +42,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 信息
         /// </summary>
-        public void Info(string tag, string message, string colorHex = "#ffffff")
+        public static void Info(string tag, string message, string colorHex = "#ffffff")
         {
             if (ShowLevel > LogLevel.Info) return;
             DispatchLog(tag, message, LogLevel.Info, colorHex);
@@ -53,7 +51,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 警告
         /// </summary>
-        public void Warn(string tag, string message)
+        public static void Warn(string tag, string message)
         {
             if (ShowLevel > LogLevel.Warning) return;
             DispatchLog(tag, message, LogLevel.Warning, "#ffa500");
@@ -62,7 +60,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 错误
         /// </summary>
-        public void Error(string tag, string message)
+        public static void Error(string tag, string message)
         {
             if (ShowLevel > LogLevel.Error) return;
             DispatchLog(tag, message, LogLevel.Error, "#ff0000");
@@ -70,7 +68,7 @@ namespace GoveKits.Runtime.Core
 
         #endregion
 
-        private void DispatchLog(string tag, string message, LogLevel level, string colorHex)
+        private static void DispatchLog(string tag, string message, LogLevel level, string colorHex)
         {
             foreach (var logger in loggers)
             {
@@ -90,21 +88,21 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 成功
         /// </summary>
-        public void Success(string tag, string message) => Info(tag, message, "#00ff00");
+        public static void Success(string tag, string message) => Info(tag, message, "#00ff00");
 
         /// <summary>
         /// 高亮
         /// </summary>
-        public void Highlight(string tag, string message) => Info(tag, message, "#00d9ff");
+        public static void Highlight(string tag, string message) => Info(tag, message, "#00d9ff");
 
         /// <summary>
         /// 临时
         /// </summary>
-        public void Temp(string tag, string message) => Info(tag, message, "#a500ff");
+        public static void Temp(string tag, string message) => Info(tag, message, "#a500ff");
 
         #endregion
 
-        public void OnShutdown()
+        public static void Clear()
         {
             foreach (var logger in loggers)
             {

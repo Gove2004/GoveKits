@@ -10,17 +10,14 @@ namespace GoveKits.Runtime.Network
 {
         public class FtpRequestBuilder
     {
-        private readonly FTPCore _core;
-
         internal string Url { get; }
         internal NetworkCredential Credentials { get; private set; }
         internal float Timeout { get; private set; }
         internal int RetryCount { get; private set; }
         internal bool UsePassiveMode { get; private set; } = true;
 
-        public FtpRequestBuilder(FTPCore core, string url, NetworkCredential credential)
+        public FtpRequestBuilder(string url, NetworkCredential credential)
         {
-            _core = core;
             Url = url;
         }
 
@@ -37,25 +34,25 @@ namespace GoveKits.Runtime.Network
 
         #region Terminal Methods
         public UniTask<FtpResponse> DownloadAsync(CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.DownloadFile, null, null, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.DownloadFile, null, null, ct);
 
         public UniTask<FtpResponse> DownloadToFileAsync(string savePath, CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.DownloadFile, null, savePath, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.DownloadFile, null, savePath, ct);
 
         public UniTask<FtpResponse> UploadAsync(byte[] fileData, CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.UploadFile, fileData, null, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.UploadFile, fileData, null, ct);
 
         public UniTask<FtpResponse> UploadTextAsync(string text, CancellationToken ct = default)
             => UploadAsync(Encoding.UTF8.GetBytes(text), ct);
 
         public UniTask<FtpResponse> DeleteFileAsync(CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.DeleteFile, null, null, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.DeleteFile, null, null, ct);
 
         public UniTask<FtpResponse> ListDirectoryDetailsAsync(CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.ListDirectoryDetails, null, null, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.ListDirectoryDetails, null, null, ct);
 
         public UniTask<FtpResponse> MakeDirectoryAsync(CancellationToken ct = default)
-            => FtpEngine.ExecuteAsync(_core, this, WebRequestMethods.Ftp.MakeDirectory, null, null, ct);
+            => FtpEngine.ExecuteAsync(this, WebRequestMethods.Ftp.MakeDirectory, null, null, ct);
         #endregion
     }
 }

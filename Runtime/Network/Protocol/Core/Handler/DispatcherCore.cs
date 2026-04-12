@@ -7,13 +7,13 @@ using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Network
 {
-    public class DispatcherCore : ICore
+    public static class DispatcherCore
     {
-        private readonly Dictionary<ushort, List<IMessageHandler>> _handlerMap = new();
-        private readonly Dictionary<object, List<(ushort, IMessageHandler)>> _instanceBindings = new();
+        private static Dictionary<ushort, List<IMessageHandler>> _handlerMap = new();
+        private static Dictionary<object, List<(ushort, IMessageHandler)>> _instanceBindings = new();
 
 
-        public async UniTask DispatchAsync(int channelId, ushort protocolId, IProtocolMessage message)
+        public static async UniTask DispatchAsync(int channelId, ushort protocolId, IProtocolMessage message)
         {
             await UniTask.SwitchToMainThread();
 
@@ -22,16 +22,15 @@ namespace GoveKits.Runtime.Network
             for (int i = handlers.Count - 1; i >= 0; i--) 
             {
                 try { await handlers[i].Handle(channelId, message); }
-                catch (Exception ex) { CoreLocator.Log.Error("Dispatcher", $"执行失败: {ex}"); }
+                catch (Exception ex) { LogCore.Error("Dispatcher", $"执行失败: {ex}"); }
             }
         }
 
-        public void Bind(object target)
+        public static void Bind(object target)
         {
             if (_instanceBindings.ContainsKey(target)) return;
 
             var bindings = new List<(ushort, IMessageHandler)>();
-            var protocolCore = CoreLocator.GetCore<ProtocolCore>();
 
             foreach (var method in target.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -60,7 +59,7 @@ namespace GoveKits.Runtime.Network
 
                 if (handler != null && msgType != null)
                 {
-                    var protocolId = protocolCore.GetId(msgType);
+                    var protocolId = ProtocolCore.GetId(msgType);
                     if (protocolId == 0) continue;
 
                     if (!_handlerMap.ContainsKey(protocolId)) _handlerMap[protocolId] = new();
@@ -72,7 +71,7 @@ namespace GoveKits.Runtime.Network
             if (bindings.Count > 0) _instanceBindings[target] = bindings;
         }
 
-        public void Unbind(object target)
+        public static void Unbind(object target)
         {
             if (_instanceBindings.TryGetValue(target, out var list))
             {
@@ -81,6 +80,6 @@ namespace GoveKits.Runtime.Network
                 _instanceBindings.Remove(target);
             }
         }
-        public void OnShutdown() { _handlerMap.Clear(); _instanceBindings.Clear(); }
+        public static void Clear() { _handlerMap.Clear(); _instanceBindings.Clear(); }
     }
 }

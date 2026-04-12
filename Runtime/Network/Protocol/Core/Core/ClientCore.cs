@@ -1,24 +1,22 @@
 // Client/NetClient.cs
 using System;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
-using UnityEngine;
 
 namespace GoveKits.Runtime.Network
 {
-    public class ClientCore : ICore
+    public static class ClientCore
     {
-        public bool IsConnected => _channel?.IsActive ?? false;
+        public static bool IsConnected => _channel?.IsActive ?? false;
         
-        public event Action OnConnected;
-        public event Action<string> OnDisconnected;
-        public event Action<ushort, IProtocolMessage> OnMessageReceived;
+        public static event Action OnConnected;
+        public static event Action<string> OnDisconnected;
+        public static event Action<ushort, IProtocolMessage> OnMessageReceived;
 
-        private INetChannel _channel;
+        private static INetChannel _channel;
 
-        public async UniTask ConnectAsync(string host, int port)
+        public static async UniTask ConnectAsync(string host, int port)
         {
             Shutdown();
 
@@ -32,7 +30,6 @@ namespace GoveKits.Runtime.Network
                 _channel.OnError += (id, reason) => 
                 {
                     OnDisconnected?.Invoke(reason);
-                    OnShutdown();
                 };
                 
                 OnConnected?.Invoke();
@@ -43,45 +40,42 @@ namespace GoveKits.Runtime.Network
             }
         }
 
-        public void Send<T>(T message) where T : IProtocolMessage
+        public static void Send<T>(T message) where T : IProtocolMessage
         {
             if (!IsConnected) return;
             
-            var protocolCore = CoreLocator.Protocol; // 通过定位器获取
-            var id = protocolCore.GetId<T>();
+            var id = ProtocolCore.GetId<T>();
             
             if (id == 0) return;
             
-            var payload = protocolCore.Serialize(message); // 统一序列化
+            var payload = ProtocolCore.Serialize(message); // 统一序列化
             _channel.Send(id, payload);
         }
 
-        private void OnFrameReceived(int channelId, ushort protocolId, byte[] payload)
+        private static void OnFrameReceived(int channelId, ushort protocolId, byte[] payload)
         {
             try
             {
-                var msg = CoreLocator.Protocol.Deserialize(protocolId, payload);
+                var msg = ProtocolCore.Deserialize(protocolId, payload);
                 if (msg != null)
                 {
                     OnMessageReceived?.Invoke(protocolId, msg);
                     
                     // 分发
-                    CoreLocator.Dispatcher.DispatchAsync(channelId, protocolId, msg).Forget();
+                    DispatcherCore.DispatchAsync(channelId, protocolId, msg).Forget();
                 }
             }
             catch (Exception ex)
             {
-                CoreLocator.Log.Error(nameof(ClientCore), $"处理消息失败: {ex.Message}");
+                LogCore.Error(nameof(ClientCore), $"处理消息失败: {ex.Message}");
             }
         }
 
 
-        public void Shutdown()
+        public static void Shutdown()
         {
             _channel?.Dispose();
             _channel = null;
         }
-
-        public void OnShutdown() => Shutdown();
     }
 }

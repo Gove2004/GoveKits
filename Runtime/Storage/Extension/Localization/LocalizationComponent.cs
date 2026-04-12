@@ -16,8 +16,6 @@ namespace GoveKits.Runtime.Storage
         private TMP_Text _tmpText;
 #endif
         private Text _uiText;
-        private LocalizationCore LocalizationCore => CoreLocator.Localization;
-
         private void Awake()
         {
 #if TMP_PRESENT

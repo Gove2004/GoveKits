@@ -36,7 +36,7 @@ namespace GoveKits.Runtime.Storage
             }
             catch
             {
-                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
+                LogCore.Warn(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
             }
 
             try
@@ -49,7 +49,7 @@ namespace GoveKits.Runtime.Storage
             }
             catch
             {
-                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
+                LogCore.Warn(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
             }
 
             try
@@ -62,7 +62,7 @@ namespace GoveKits.Runtime.Storage
             }
             catch
             {
-                CoreLocator.Log.Warn(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
+                LogCore.Warn(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
             }
 
             T one = JsonConvert.DeserializeObject<T>(json);

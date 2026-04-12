@@ -51,7 +51,7 @@ namespace GoveKits.Runtime.Unit
         /// <returns>初始化后的具体 Effect 实例。</returns>
         public static TEffect Create()
         {
-            return CoreLocator.Pool.Get<TEffect>();
+            return PoolCore.Get<TEffect>();
         }
 
         /// <summary>
@@ -68,7 +68,7 @@ namespace GoveKits.Runtime.Unit
             finally
             {
                 // 强转回 TEffect 并交还给全局对象池
-                CoreLocator.Pool.Return<TEffect>((TEffect)this);
+                PoolCore.Return<TEffect>((TEffect)this);
             }
         }
 

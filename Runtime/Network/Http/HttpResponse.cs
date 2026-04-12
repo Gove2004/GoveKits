@@ -29,7 +29,7 @@ namespace GoveKits.Runtime.Network
             }
             catch (Exception ex)
             {
-                CoreLocator.Log.Error(nameof(HttpResponse), $"JSON Parsing Error: {ex.Message}");
+                LogCore.Error(nameof(HttpResponse), $"JSON Parsing Error: {ex.Message}");
                 return default;
             }
         }

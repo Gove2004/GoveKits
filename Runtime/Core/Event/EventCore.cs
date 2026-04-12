@@ -3,15 +3,15 @@ using System.Collections.Generic;
 
 namespace GoveKits.Runtime.Core
 {
-    public class EventCore : ICore
+    public static class EventCore
     {
         public const string DefaultBusName = "Global";
-        private readonly Dictionary<string, EventBus> _buses = new();
+        private static readonly Dictionary<string, EventBus> _buses = new();
 
         /// <summary>
         /// 获取或创建指定通道的总线
         /// </summary>
-        public EventBus GetOrCreateBus(string channel = DefaultBusName)
+        public static EventBus GetOrCreateBus(string channel = DefaultBusName)
         {
             if (!_buses.TryGetValue(channel, out var bus))
             {
@@ -24,7 +24,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 一键清空某个通道
         /// </summary>
-        public void ClearBus(string channel)
+        public static void ClearBus(string channel)
         {
             if (_buses.TryGetValue(channel, out var bus))
             {
@@ -33,9 +33,9 @@ namespace GoveKits.Runtime.Core
             }
         }
 
-        public void Publish<TEvent>(Action<TEvent> initer, string busName = DefaultBusName) where TEvent : EventData, new()
+        public static void Publish<TEvent>(Action<TEvent> initer, string busName = DefaultBusName) where TEvent : EventData, new()
         {
-            TEvent evt = CoreLocator.Pool.Get<TEvent>();
+            TEvent evt = PoolCore.Get<TEvent>();
             initer?.Invoke(evt);
             try
             {
@@ -44,19 +44,19 @@ namespace GoveKits.Runtime.Core
             }
             finally
             {
-                CoreLocator.Pool.Return(evt);
+                PoolCore.Return(evt);
             }
         }
 
         /// <summary>
         /// 订阅事件，务必保存返回的 IDisposable 用于取消订阅
         /// </summary>
-        public IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener, string busName = DefaultBusName) where TEvent : EventData
+        public static IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener, string busName = DefaultBusName) where TEvent : EventData
         {
             return GetOrCreateBus(busName).Subscribe(listener);
         }
 
-        public void OnShutdown()
+        public static void Clear()
         {
             foreach (var bus in _buses.Values)
             {

@@ -11,28 +11,25 @@ namespace GoveKits.Runtime.Network
 
         [Header("Stats")]
         public float RTT = 0f;
-
-        public ClientCore Client => CoreLocator.Client;
-
         private float _lastSendTime;
         private float _lastRecvTime;
 
         private void Start()
         {
-            Client.OnConnected += OnConnected;
-            Client.OnDisconnected += OnDisconnected;
+            ClientCore.OnConnected += OnConnected;
+            ClientCore.OnDisconnected += OnDisconnected;
         }
 
         private void OnDestroy()
         {
-            Client.OnConnected -= OnConnected;
-            Client.OnDisconnected -= OnDisconnected;
+            ClientCore.OnConnected -= OnConnected;
+            ClientCore.OnDisconnected -= OnDisconnected;
         }
 
         private void OnConnected()
         {
             _lastRecvTime = Time.unscaledTime;
-            CoreLocator.Log.Success(nameof(HeartbeatComponent), "Connected. Starting Heartbeat.");
+            LogCore.Success(nameof(HeartbeatComponent), "Connected. Starting Heartbeat.");
         }
 
         private void OnDisconnected(string reason)
@@ -42,15 +39,15 @@ namespace GoveKits.Runtime.Network
 
         private void Update()
         {
-            if (!Client.IsConnected) return;
+            if (!ClientCore.IsConnected) return;
 
             float now = Time.unscaledTime;
 
             // 超时检测
             if (now - _lastRecvTime > Timeout)
             {
-                CoreLocator.Log.Error(nameof(HeartbeatComponent), "Server Timeout!");
-                Client.Shutdown();
+                LogCore.Error(nameof(HeartbeatComponent), "Server Timeout!");
+                ClientCore.Shutdown();
                 return;
             }
 
@@ -69,7 +66,7 @@ namespace GoveKits.Runtime.Network
                 ClientSendTime = time,
                 ServerRecvTime = 0
             };
-            Client.Send(msg);
+            ClientCore.Send(msg);
         }
 
         [MessageHandler]
@@ -84,7 +81,7 @@ namespace GoveKits.Runtime.Network
             if (RTT < 0) RTT = rttMs;
             else RTT = Mathf.Lerp(RTT, rttMs, 0.2f);
 
-            CoreLocator.Log.Debug("Heartbeat", $"Pong. RTT: {RTT:F1}ms");
+            LogCore.Debug("Heartbeat", $"Pong. RTT: {RTT:F1}ms");
         }
     }
 }

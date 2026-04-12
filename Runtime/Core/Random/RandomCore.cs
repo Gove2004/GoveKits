@@ -6,63 +6,63 @@ namespace GoveKits.Runtime.Core
     /// <summary>
     /// 随机系统静态入口
     /// </summary>
-    public class RandomCore : ICore
+    public class RandomCore
     {
-        private IRNG rng;
+        private static IRNG rng;
 
-        public RandomCore(IRNG rng) => this.rng = rng;
+        public static void Initialize(IRNG r) => rng = r;
 
         #region 代理方法
 
         /// <summary>
         /// 当前种子值（只读）
         /// </summary>
-        public int Seed => rng.Seed;
+        public static int Seed => rng.Seed;
         
         /// <summary>
         /// 重新设置种子，重置随机序列
         /// </summary>
-        public void Reseed(int seed) => rng.Reseed(seed);
+        public static void Reseed(int seed) => rng.Reseed(seed);
         
         /// <summary>
         /// 生成 0 到 int.MaxValue 之间的随机整数
         /// </summary>
-        public int NextInt() => rng.NextInt();
+        public static int NextInt() => rng.NextInt();
         
         /// <summary>
         /// 生成 0 到 maxExclusive-1 之间的随机整数
         /// </summary>
-        public int NextInt(int maxExclusive) => rng.NextInt(maxExclusive);
+        public static int NextInt(int maxExclusive) => rng.NextInt(maxExclusive);
         
         /// <summary>
         /// 生成 minInclusive 到 maxExclusive-1 之间的随机整数
         /// </summary>
-        public int Range(int minInclusive, int maxExclusive) => rng.Range(minInclusive, maxExclusive);
+        public static int Range(int minInclusive, int maxExclusive) => rng.Range(minInclusive, maxExclusive);
         
         /// <summary>
         /// 生成 0.0 到 1.0 之间的随机浮点数
         /// </summary>
-        public float NextFloat() => rng.NextFloat();
+        public static float NextFloat() => rng.NextFloat();
         
         /// <summary>
         /// 生成 minInclusive 到 maxInclusive 之间的随机浮点数
         /// </summary>
-        public float Range(float minInclusive, float maxInclusive) => rng.Range(minInclusive, maxInclusive);
+        public static float Range(float minInclusive, float maxInclusive) => rng.Range(minInclusive, maxInclusive);
         
         /// <summary>
         /// 概率判定（传入 0.0~1.0 的概率，返回是否命中）
         /// </summary>
-        public bool Chance(float probability) => rng.Chance(probability);
+        public static bool Chance(float probability) => rng.Chance(probability);
 
         /// <summary>
         /// 生成随机布尔值（50% 为 true，50% 为 false）
         /// </summary>
-        public bool NextBool() => rng.NextBool();
+        public static bool NextBool() => rng.NextBool();
 
         /// <summary>
         /// 生成随机符号（返回 1 或 -1）
         /// </summary>
-        public int NextSign() => rng.NextSign();
+        public static int NextSign() => rng.NextSign();
 
         /// <summary>
         /// 正态分布（高斯分布）随机数
@@ -70,29 +70,29 @@ namespace GoveKits.Runtime.Core
         /// </summary>
         /// <param name="mean">均值（中心点）</param>
         /// <param name="stdDev">标准差（离散程度，值越大越分散）</param>
-        public float NextGaussian(float mean = 0f, float stdDev = 1f) => rng.NextGaussian(mean, stdDev);
+        public static float NextGaussian(float mean = 0f, float stdDev = 1f) => rng.NextGaussian(mean, stdDev);
         
         /// <summary>
         /// 从列表中随机等概率选择一个元素
         /// </summary>
-        public T Pick<T>(IReadOnlyList<T> list) => rng.Pick(list);
+        public static T Pick<T>(IReadOnlyList<T> list) => rng.Pick(list);
 
         /// <summary>
         /// 从列表中随机不重复地抽取指定数量的元素
         /// </summary>
-        public List<T> PickMultiple<T>(IEnumerable<T> source, int count) => rng.PickMultiple(source, count);
+        public static List<T> PickMultiple<T>(IEnumerable<T> source, int count) => rng.PickMultiple(source, count);
 
         /// <summary>
         /// 权重随机抽取（如：抽卡、物品掉落）
         /// </summary>
         /// <param name="items">候选列表</param>
         /// <param name="weightSelector">获取每个元素权重的方法</param>
-        public T PickWeighted<T>(IEnumerable<T> items, Func<T, float> weightSelector) => rng.PickWeighted(items, weightSelector);
+        public static T PickWeighted<T>(IEnumerable<T> items, Func<T, float> weightSelector) => rng.PickWeighted(items, weightSelector);
         
         /// <summary>
         /// 打乱列表顺序（Fisher-Yates 洗牌算法）
         /// </summary>
-        public void Shuffle<T>(IList<T> list) => rng.Shuffle(list);
+        public static void Shuffle<T>(IList<T> list) => rng.Shuffle(list);
 
         #endregion
 
@@ -111,7 +111,7 @@ namespace GoveKits.Runtime.Core
 
         #endregion
 
-        public void OnShutdown()
+        public void Clear()
         {
             rng = null;
         }

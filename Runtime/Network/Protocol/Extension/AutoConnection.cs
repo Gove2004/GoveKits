@@ -14,13 +14,13 @@ namespace GoveKits.Runtime.Network
 
         public void Start()
         {
-            CoreLocator.Client.ConnectAsync(Host, Port).Forget();
+            ClientCore.ConnectAsync(Host, Port).Forget();
         }
 
 
         public void OnDestroy()
         {
-            CoreLocator.Client.Shutdown();
+            ClientCore.Shutdown();
         }
     }
 }

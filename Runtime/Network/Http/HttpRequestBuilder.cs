@@ -7,8 +7,6 @@ namespace GoveKits.Runtime.Network
 {
     public class HttpRequestBuilder
     {
-        private readonly HttpCore _core; // 持有核心实例引用
-
         internal HttpMethod Method { get; }
         internal string Url { get; }
         
@@ -20,9 +18,8 @@ namespace GoveKits.Runtime.Network
         internal int RetryCount { get; private set; } = 3;
         internal bool UseCache { get; private set; } = false;
 
-        public HttpRequestBuilder(HttpCore core, HttpMethod method, string url)
+        public HttpRequestBuilder(HttpMethod method, string url)
         {
-            _core = core;
             Method = method;
             Url = url;
         }
@@ -55,7 +52,7 @@ namespace GoveKits.Runtime.Network
         /// </summary>
         public UniTask<HttpResponse> SendAsync(CancellationToken ct = default)
         {
-            return HttpEngine.ExecuteAsync(_core, this, ct);
+            return HttpEngine.ExecuteAsync(this, ct);
         }
 
         /// <summary>

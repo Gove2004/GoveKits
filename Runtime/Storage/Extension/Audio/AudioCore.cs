@@ -7,13 +7,12 @@ using Random = UnityEngine.Random;
 
 namespace GoveKits.Runtime.Storage
 {
-    public class AudioCore : ICore
+    public static class AudioCore
     {
         // ---------------- 内部类：音频播放节点 ----------------
         private class AudioNode
         {
             public AudioSource Source;
-            public string AssetPath;
             public AudioChannel Channel;
             public bool IsActive;
         }
@@ -27,24 +26,20 @@ namespace GoveKits.Runtime.Storage
 
         private const string AudioPreKey = "Audio.Vol.";
 
-        private GameObject _root;
-        private AudioCoreDriver _driver;
+        private static GameObject _root;
+        private static AudioCoreDriver _driver;
         
         // BGM 专属音轨
-        private AudioSource _bgmSource;
-        private string _currentBgmPath;
-        private Coroutine _fadeCoroutine;
-
+        private static AudioSource _bgmSource;
+        private static Coroutine _fadeCoroutine;
+ 
         // 动态音轨池 (SFX, UI, Voice 等通用)
-        private readonly List<AudioNode> _audioPool = new();
+        private static readonly List<AudioNode> _audioPool = new();
 
         // 字典化音量管理，彻底消灭 Switch case，实现高扩展
-        private readonly Dictionary<AudioChannel, float> _volumes = new();
+        private static readonly Dictionary<AudioChannel, float> _volumes = new();
 
-        private PrefsCore prefsCore => CoreLocator.GetCore<PrefsCore>();
-        private ResCore resCore => CoreLocator.GetCore<ResCore>();
-
-        public AudioCore(int initialPoolSize = 10)
+        public static void Initialize(int initialPoolSize = 16)
         {
             if (_root != null) return;
 
@@ -61,7 +56,7 @@ namespace GoveKits.Runtime.Storage
             // 2. 初始化音量字典
             foreach (AudioChannel channel in Enum.GetValues(typeof(AudioChannel)))
             {
-                float savedVol = prefsCore.GetFloat(AudioPreKey + channel.ToString(), 1f);
+                float savedVol = PrefsCore.GetFloat(AudioPreKey + channel.ToString(), 1f);
                 _volumes[channel] = savedVol;
             }
 
@@ -76,22 +71,22 @@ namespace GoveKits.Runtime.Storage
 
         // ======================== 音量管理 ========================
         
-        public float GetVolume(AudioChannel channel)
+        public static float GetVolume(AudioChannel channel)
         {
             return _volumes.TryGetValue(channel, out float vol) ? vol : 1f;
         }
 
-        public void SetVolume(AudioChannel channel, float vol)
+        public static void SetVolume(AudioChannel channel, float vol)
         {
             vol = Mathf.Clamp01(vol);
             _volumes[channel] = vol;
-            prefsCore.SetFloat(AudioPreKey + channel.ToString(), vol);
-            prefsCore.Save();
+            PrefsCore.SetFloat(AudioPreKey + channel.ToString(), vol);
+            PrefsCore.Save();
 
             ApplyAllVolumes();
         }
 
-        private void ApplyAllVolumes()
+        private static void ApplyAllVolumes()
         {
             // 刷新 BGM 音量
             _bgmSource.volume = GetVolume(AudioChannel.BGM) * GetVolume(AudioChannel.Master);
@@ -106,55 +101,39 @@ namespace GoveKits.Runtime.Storage
             }
         }
 
-        private float GetBaseVolume(AudioChannel channel)
+        private static float GetBaseVolume(AudioChannel channel)
         {
             return GetVolume(channel) * GetVolume(AudioChannel.Master);
         }
 
-        // ======================== 播放 API ========================
-
-        public void Play(AudioSO config, Vector3? position = null)
+        public static void Play(AudioSO audioSO)
         {
-            if (config == null || string.IsNullOrWhiteSpace(config.ClipPath))
+            switch (audioSO.Channel)
             {
-                CoreLocator.Log.Warn(nameof(AudioCore), "Play ignored: Config or Path is invalid.");
-                return;
-            }
-
-            float pitch = BuildPitch(config.Pitch, config.PitchRandomRange);
-            float volScale = Mathf.Clamp01(config.Volume);
-
-            if (config.Channel == AudioChannel.BGM)
-            {
-                PlayBGM(config.ClipPath, 1f, pitch);
-            }
-            else
-            {
-                // 通用播放：支持任意频道（UI, Voice, SFX等并发播放）
-                PlayDynamic(config.Channel, config.ClipPath, volScale, pitch, config.Loop, position);
+                case AudioChannel.BGM:
+                    PlayBGM(audioSO.ClipPath, audioSO.Pitch, audioSO.PitchRandomRange);
+                    break;
+                case AudioChannel.SFX:
+                case AudioChannel.UI:
+                case AudioChannel.Voice:
+                case AudioChannel.Ambient:
+                    PlayDynamic(audioSO.Channel, audioSO.ClipPath, audioSO.Volume, audioSO.Pitch, audioSO.Loop);
+                    break;
             }
         }
 
-        public void PlayBGM(string path, float fadeTime = 1f, float pitch = 1f)
+        public static void PlayBGM(AudioClip clip, float fadeTime = 1f, float pitch = 1f)
         {
-            if (string.IsNullOrWhiteSpace(path) || _currentBgmPath == path) return;
-
-            AudioClip clip = resCore.Load<AudioClip>(path);
             if (_fadeCoroutine != null) _driver.StopCoroutine(_fadeCoroutine);
-            _fadeCoroutine = _driver.StartCoroutine(FadeBGM(clip, fadeTime, path, Mathf.Clamp(pitch, 0f, 3f)));
+            _fadeCoroutine = _driver.StartCoroutine(FadeBGM(clip, fadeTime, pitch));
         }
 
-        // 通用播放方法 (替代原来的 PlaySFX, PlayUI, PlayVoice)
-        public void PlayDynamic(AudioChannel channel, string path, float volScale = 1f, float pitch = 1f, bool loop = false, Vector3? position = null)
+        // 通用播放方法
+        public static void PlayDynamic(AudioChannel channel, AudioClip clip, float volScale = 1f, float pitch = 1f, bool loop = false, Vector3? position = null)
         {
-            if (string.IsNullOrWhiteSpace(path)) return;
-            if (channel == AudioChannel.Master || channel == AudioChannel.BGM) return; // 拦截非法调用
-
-            AudioClip clip = resCore.Load<AudioClip>(path);
             AudioNode node = GetAvailableNode();
 
             node.IsActive = true;
-            node.AssetPath = path;
             node.Channel = channel;
             node.Source.clip = clip;
             node.Source.volume = GetBaseVolume(channel) * volScale;
@@ -179,7 +158,7 @@ namespace GoveKits.Runtime.Storage
         // ======================== 控制与生命周期 ========================
 
         // 核心亮点：不再使用不可靠的延时携程，而是使用 Update 状态轮询
-        private void OnUpdate()
+        private static void OnUpdate()
         {
             for (int i = 0; i < _audioPool.Count; i++)
             {
@@ -192,7 +171,7 @@ namespace GoveKits.Runtime.Storage
             }
         }
 
-        public void StopAllChannel(AudioChannel channel)
+        public static void StopAllChannel(AudioChannel channel)
         {
             foreach (var node in _audioPool)
             {
@@ -204,21 +183,21 @@ namespace GoveKits.Runtime.Storage
             }
         }
 
-        public void PauseAll()
+        public static void PauseAll()
         {
             if (_root == null) return;
             _bgmSource.Pause();
             foreach (var node in _audioPool) if (node.IsActive) node.Source.Pause();
         }
 
-        public void ResumeAll()
+        public static void ResumeAll()
         {
             if (_root == null) return;
             _bgmSource.UnPause();
             foreach (var node in _audioPool) if (node.IsActive) node.Source.UnPause();
         }
 
-        public void StopBGM(bool releaseClip = true)
+        public static void StopBGM()
         {
             if (_root == null) return;
 
@@ -230,15 +209,9 @@ namespace GoveKits.Runtime.Storage
 
             _bgmSource.Stop();
             _bgmSource.clip = null;
-
-            if (releaseClip && !string.IsNullOrEmpty(_currentBgmPath))
-            {
-                resCore.ReleaseHandle(_currentBgmPath);
-            }
-            _currentBgmPath = null;
         }
 
-        public void OnShutdown()
+        public static void OnShutdown()
         {
             StopBGM();
             _driver.OnUpdate -= OnUpdate;
@@ -251,7 +224,7 @@ namespace GoveKits.Runtime.Storage
 
         // ======================== 内部方法 ========================
 
-        private AudioNode GetAvailableNode()
+        private static AudioNode GetAvailableNode()
         {
             foreach (var node in _audioPool)
             {
@@ -261,7 +234,7 @@ namespace GoveKits.Runtime.Storage
             return CreateNewAudioNode();
         }
 
-        private AudioNode CreateNewAudioNode()
+        private static AudioNode CreateNewAudioNode()
         {
             var src = _root.AddComponent<AudioSource>();
             src.playOnAwake = false;
@@ -270,18 +243,13 @@ namespace GoveKits.Runtime.Storage
             return node;
         }
 
-        private void RecycleNode(AudioNode node)
+        private static void RecycleNode(AudioNode node)
         {
             node.IsActive = false;
             node.Source.clip = null;
-            if (!string.IsNullOrEmpty(node.AssetPath))
-            {
-                resCore.ReleaseHandle(node.AssetPath);
-                node.AssetPath = null;
-            }
         }
 
-        private IEnumerator FadeBGM(AudioClip newClip, float duration, string newPath, float pitch)
+        private static IEnumerator FadeBGM(AudioClip newClip, float duration, float pitch)
         {
             float startVol = _bgmSource.volume;
             // 淡出
@@ -291,10 +259,8 @@ namespace GoveKits.Runtime.Storage
                 yield return null;
             }
 
-            if (!string.IsNullOrEmpty(_currentBgmPath)) resCore.ReleaseHandle(_currentBgmPath);
             _bgmSource.clip = newClip;
             _bgmSource.pitch = pitch;
-            _currentBgmPath = newPath;
             _bgmSource.Play();
 
             // 淡入
@@ -307,9 +273,15 @@ namespace GoveKits.Runtime.Storage
             _bgmSource.volume = targetVol;
         }
 
-        private float BuildPitch(float basePitch, float randomRange)
+
+        public static void Clear()
         {
-            return Mathf.Clamp(basePitch + Random.Range(-randomRange, +randomRange), 0f, 3f);
+            _audioPool.Clear();
+            _volumes.Clear();
+            _root = null;
+            _driver = null;
+            _bgmSource = null;
+            _fadeCoroutine = null;
         }
     }
 }

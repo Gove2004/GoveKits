@@ -3,22 +3,20 @@ using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Network
 {
-    public class HttpCore : ICore
+    public static class HttpCore
     {
-        internal HttpCache Cache { get; } = new HttpCache();
-        internal SemaphoreSlim Throttle { get; private set; } = new SemaphoreSlim(5);
+        internal static HttpCache Cache { get; } = new HttpCache();
+        internal static SemaphoreSlim Throttle { get; private set; } = new SemaphoreSlim(5);
 
         // 工厂
-        public HttpRequestBuilder Get(string url) => new HttpRequestBuilder(this, HttpMethod.GET, url);
-        public HttpRequestBuilder Post(string url) => new HttpRequestBuilder(this, HttpMethod.POST, url);
-        public HttpRequestBuilder Put(string url) => new HttpRequestBuilder(this, HttpMethod.PUT, url);
-        public HttpRequestBuilder Delete(string url) => new HttpRequestBuilder(this, HttpMethod.DELETE, url);
+        public static HttpRequestBuilder Get(string url) => new HttpRequestBuilder(HttpMethod.GET, url);
+        public static HttpRequestBuilder Post(string url) => new HttpRequestBuilder(HttpMethod.POST, url);
+        public static HttpRequestBuilder Put(string url) => new HttpRequestBuilder(HttpMethod.PUT, url);
+        public static HttpRequestBuilder Delete(string url) => new HttpRequestBuilder(HttpMethod.DELETE, url);
 
-        public void ClearCache() => Cache.Clear();
-
-        public void OnShutdown()
+        public static void OnShutdown()
         {
-            ClearCache();
+            Cache.Clear();
             Throttle?.Dispose();
         }
     }

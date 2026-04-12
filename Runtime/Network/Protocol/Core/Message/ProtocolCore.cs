@@ -4,23 +4,43 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using GoveKits.Runtime.Core;
+using MessagePack;
+using MessagePack.Resolvers;
 
 namespace GoveKits.Runtime.Network
 {
-    public class ProtocolCore : ICore
+    public static class ProtocolCore
     {
-        private readonly Dictionary<ushort, Type> _idToType = new();
-        private readonly Dictionary<Type, ushort> _typeToId = new();
+        private static Dictionary<ushort, Type> _idToType = new();
+        private static Dictionary<Type, ushort> _typeToId = new();
         
-        // 序列化器由 ProtocolCore 独占持有
-        private readonly IProtocolMessageSerializer _serializer;
+        // MessagePack 配置
+        private static MessagePackSerializerOptions _options;
 
-        // 构造时注入序列化器
-        public ProtocolCore(IProtocolMessageSerializer serializer)
+        /// <summary>
+        /// 添加 Resolver（可多次调用）
+        /// </summary>
+        public static void AddResolver(IFormatterResolver resolver)
         {
-            _serializer = serializer ?? new StandardMessagePackSerializer();
+            // 延迟初始化 options
+            if (_options == null)
+            {
+                _options = MessagePackSerializerOptions.Standard;
+            }
+            
+            // 组合新的 Resolver
+            var currentResolver = _options.Resolver;
+            var combined = CompositeResolver.Create(resolver, currentResolver);
+            _options = _options.WithResolver(combined);
+        }
 
-            // 自动注册协议
+        /// <summary>
+        /// 扫描所有协议类型
+        /// </summary>
+        public static void ScanProtocols()
+        {
+            Clear();
+
             var msgTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(a => a.GetTypes())
                 .Where(t => typeof(IProtocolMessage).IsAssignableFrom(t) 
@@ -35,32 +55,43 @@ namespace GoveKits.Runtime.Network
                 _idToType[attr.Id] = type;
                 _typeToId[type] = attr.Id;
             }
-            
-            CoreLocator.Log.Success(nameof(ProtocolCore), $"自动注册 {_idToType.Count} 个消息类型");
+
+            LogCore.Success(nameof(ProtocolCore), $"自动注册 {_idToType.Count} 个消息类型");
         }
 
         // --- 路由查询 ---
-        public ushort GetId<T>() where T : IProtocolMessage => _typeToId.GetValueOrDefault(typeof(T), (ushort)0);
-        public ushort GetId(Type type) => _typeToId.GetValueOrDefault(type, (ushort)0);
-        public Type GetType(ushort id) => _idToType.GetValueOrDefault(id);
+        public static ushort GetId<T>() where T : IProtocolMessage => 
+            _typeToId.GetValueOrDefault(typeof(T), (ushort)0);
+        
+        public static ushort GetId(Type type) => 
+            _typeToId.GetValueOrDefault(type, (ushort)0);
+        
+        public static Type GetType(ushort id) => 
+            _idToType.GetValueOrDefault(id);
 
-        // --- 序列化/反序列化入口 ---
-        public byte[] Serialize<T>(T message) where T : IProtocolMessage
+        // --- 序列化/反序列化 ---
+        public static byte[] Serialize<T>(T message) where T : IProtocolMessage
         {
-            return _serializer.Serialize(message);
+            return MessagePackSerializer.Serialize(message, _options);
         }
 
-        public IProtocolMessage Deserialize(ushort protocolId, byte[] payload)
+        public static T Deserialize<T>(byte[] data) where T : IProtocolMessage
+        {
+            return MessagePackSerializer.Deserialize<T>(data, _options);
+        }
+
+        public static IProtocolMessage Deserialize(ushort protocolId, byte[] data)
         {
             var type = GetType(protocolId);
             if (type == null) return null;
-            return _serializer.Deserialize(type, payload);
+            return (IProtocolMessage)MessagePackSerializer.Deserialize(type, data, _options);
         }
 
-        public void OnShutdown()
+        public static void Clear()
         {
             _idToType.Clear();
             _typeToId.Clear();
+            _options = null;
         }
     }
 }

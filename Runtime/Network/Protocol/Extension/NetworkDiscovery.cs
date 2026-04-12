@@ -59,7 +59,7 @@
 //                 // 绑定到任意端口发送
 //                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-//                 CoreLocator.Log.Debug("Discovery", $"Start broadcasting on port {DiscoveryPort}...");
+//                 LogCore.Debug("Discovery", $"Start broadcasting on port {DiscoveryPort}...");
 
 //                 // 1. 构造 Protobuf 消息
 //                 var msg = new DiscoveryMsg
@@ -80,7 +80,7 @@
 //             }
 //             catch (Exception e)
 //             {
-//                 CoreLocator.Log.Error("Discovery", $"Host Error: {e.Message}");
+//                 LogCore.Error("Discovery", $"Host Error: {e.Message}");
 //                 StopDiscovery();
 //             }
 //         }
@@ -96,7 +96,7 @@
 //                 catch (Exception ex) 
 //                 { 
 //                     // 忽略一些网络不可达的临时错误
-//                     CoreLocator.Log.Warn("Discovery", $"Send warning: {ex.Message}"); 
+//                     LogCore.Warn("Discovery", $"Send warning: {ex.Message}"); 
 //                 }
                 
 //                 await UniTask.Delay(TimeSpan.FromSeconds(BroadcastInterval));
@@ -121,13 +121,13 @@
 //                 _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, DiscoveryPort));
                 
 //                 _isRunning = true;
-//                 CoreLocator.Log.Debug("Discovery", "Listening for rooms...");
+//                 LogCore.Debug("Discovery", "Listening for rooms...");
                 
 //                 ListenLoop().Forget();
 //             }
 //             catch (Exception e)
 //             {
-//                 CoreLocator.Log.Warn("Discovery", $"Client Error: {e.Message}");
+//                 LogCore.Warn("Discovery", $"Client Error: {e.Message}");
 //             }
 //         }
 
@@ -165,7 +165,7 @@
 //                 catch (ObjectDisposedException) { break; }
 //                 catch (Exception ex) 
 //                 { 
-//                     CoreLocator.Log.Warn("Discovery", $"Recv error: {ex.Message}"); 
+//                     LogCore.Warn("Discovery", $"Recv error: {ex.Message}"); 
 //                 }
 //             }
 //         }

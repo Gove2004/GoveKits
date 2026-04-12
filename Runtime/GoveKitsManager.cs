@@ -3,69 +3,71 @@ using GoveKits.Runtime.Core;
 using GoveKits.Runtime.Network;
 using GoveKits.Runtime.Procedure;
 using GoveKits.Runtime.Storage;
+using MessagePack.Resolvers;
 using System;
-using UnityEngine;
-
+using YooAsset;
 
 namespace GoveKits.Runtime
 {
     public class GoveKitsManager : MonoSingleton<GoveKitsManager>
     {
+    
         #region 生命周期
 
         private void Awake()
         {
+            Initialize();
+        }
+        private async void Initialize()
+        {
+            // 依赖框架
+            YooAssets.Initialize(new YooLogger());
+
             // Core
-            CoreLocator.InfuseCore(new RandomCore(new NormalRNG(Environment.TickCount)));
-            CoreLocator.InfuseCore(new LogCore(new UnityLogger()));
-            CoreLocator.InfuseCore(new PoolCore());
-            CoreLocator.InfuseCore(new EventCore());
+            LogCore.InfuseLogger(new UnityLogger());
+            RandomCore.Initialize(new NormalRNG(Environment.TickCount));
 
             // Procedure
-            CoreLocator.InfuseCore(new TimeCore(0.05f, 512, 512, 16, 128));
-            CoreLocator.InfuseCore(new SceneCore());
-
-            // Network
-            CoreLocator.InfuseCore(new HttpCore());
-            CoreLocator.InfuseCore(new FTPCore());
-            CoreLocator.InfuseCore(new ProtocolCore(new StandardMessagePackSerializer()));
-            CoreLocator.InfuseCore(new DispatcherCore());
-            CoreLocator.InfuseCore(new ClientCore());
-            CoreLocator.InfuseCore(new ServerCore());
+            TimeCore.Initialize(0.05f, 512, 512, 16, 128);
 
             // Storage
-            CoreLocator.InfuseCore(new PrefsCore());
-            CoreLocator.InfuseCore(new SaveCore(new JsonSerializer()));  // new ProtobufSerializer()
-            CoreLocator.InfuseCore(new ResCore(new ResourcesResLoader()));  // new AssetBundleResLoader()
-            CoreLocator.InfuseCore(new ConfigCore(new IConfigParser[] { new JsonConfigParser(),  new CsvConfigParser() }));
-            
-            CoreLocator.InfuseCore(new AudioCore());
-            CoreLocator.InfuseCore(new LocalizationCore());
+            SaveCore.Initialize(new JsonSerializer());
+            await ResCore.InitPackageAsync(new PackageConfig("DefaultPackage", EPlayMode.EditorSimulateMode));
+            await ResCore.UpdatePackageWorkflowAsync("DefaultPackage", new UpdateCallbacks());
+            await UniTask.Yield();  // ConfigCore 依赖 ResCore
+            ConfigCore.InfuseParser(new JsonConfigParser());
+            ConfigCore.InfuseParser(new CsvConfigParser());
+            ConfigCore.Initialize();
+            await UniTask.Yield();  // LocalizationCore 依赖 ConfigCore
+            LocalizationCore.Initialize();
+            AudioCore.Initialize(16);
 
-            // 在外部覆盖注入新的核心进行覆盖
-            // CoreLocator.InfuseCore(new LogCore(new FileLogger()));
-            
+            // Network
+            ProtocolCore.AddResolver(ContractlessStandardResolver.Instance);
+            ProtocolCore.ScanProtocols();
+
             // 
-            CoreLocator.Log.Success(nameof(GoveKitsManager), "GoveKits initialized.");
+            LogCore.Success(nameof(GoveKitsManager), "GoveKits initialized.");
         }
 
 
         private void Update()
         {
-            CoreLocator.Time.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
-            CoreLocator.Res.Update();
+            TimeCore.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
         }
 
 
-        protected override void OnDestroy()
+        private void OnApplicationQuit()
         {
-            CoreLocator.Log.Success(nameof(GoveKitsManager), "GoveKits shutdown ing.");
+            // 依赖框架
+            YooAssets.Destroy();
 
-            CoreLocator.Clear();
-            base.OnDestroy();
+            // 清理各个Core
+            // 略
         }
 
         #endregion
+    }
 
 
 
@@ -76,10 +78,26 @@ namespace GoveKits.Runtime
 
 
 
+    public class YooLogger : YooAsset.ILogger
+    {
+        public void Error(string message)
+        {
+            LogCore.Error(nameof(YooAssets), message);
+        }
 
+        public void Exception(Exception exception)
+        {
+            LogCore.Error(nameof(YooAssets), exception.ToString());
+        }
 
+        public void Log(string message)
+        {
+            LogCore.Info(nameof(YooAssets), message);
+        }
 
-
-
+        public void Warning(string message)
+        {
+            LogCore.Warn(nameof(YooAssets), message);
+        }
     }
 }
