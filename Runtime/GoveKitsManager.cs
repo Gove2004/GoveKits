@@ -1,10 +1,9 @@
-using Cysharp.Threading.Tasks;
+
 using GoveKits.Runtime.Core;
 using GoveKits.Runtime.Network;
-using GoveKits.Runtime.Procedure;
 using GoveKits.Runtime.Storage;
-using MessagePack.Resolvers;
 using System;
+using System.Collections.Generic;
 using YooAsset;
 
 namespace GoveKits.Runtime
@@ -14,38 +13,44 @@ namespace GoveKits.Runtime
     
         #region 生命周期
 
-        private void Awake()
-        {
-            Initialize();
-        }
+        private void Awake() => Initialize();
         private async void Initialize()
         {
-            // 依赖框架
+            // Dependency
             YooAssets.Initialize(new YooLogger());
 
             // Core
             LogCore.InfuseLogger(new UnityLogger());
             RandomCore.Initialize(new NormalRNG(Environment.TickCount));
-
-            // Procedure
             TimeCore.Initialize(0.05f, 512, 512, 16, 128);
 
             // Network
+            // 1. 外部设置 Resolver
             // ProtocolCore.SetResolver(GeneratedResolver.Instance);
-            ProtocolCore.ScanProtocols();
+            // 2. 扫描协议
+            // ProtocolCore.ScanProtocols();
+            // 3. 客户端连接
+            // await ClientCore.ConnectAsync("127.0.0.1", 3000);
+            // 4. （可选）服务端启动
+            // await ServerCore.StartAsync(3000);
 
             // Storage
-            SaveCore.Initialize(new JsonSerializer());
+            // 1. 资源热更新
             // await ResCore.PackageWorkflowAsync(new AutoOfflinePackageConfig("DefaultPackage"), new UpdateCallbacks());
-            // await UniTask.WaitForSeconds(30f);  // ConfigCore 依赖 ResCore
-            // ConfigCore.InfuseParser(new JsonConfigParser());
-            // ConfigCore.InfuseParser(new CsvConfigParser());
+            // 2. 加载 AOT 泛型元数据
+            // await HotfixCore.LoadAotMetadataAsync({ "XXX.dll", "YYY.dll" });
+            // 3. 加载 热更新 程序集
+            // await HotfixCore.LoadHotfixAssemblyAsync("Hotfix.dll");
+            // 4. 加载资源
+            ConfigCore.InfuseParser(new JsonConfigParser());
+            ConfigCore.InfuseParser(new CsvConfigParser());
             // ConfigCore.Initialize();
-            // await UniTask.Yield();  // LocalizationCore 依赖 ConfigCore
+            // 5. 使用资源
             // LocalizationCore.Initialize();
-            // AudioCore.Initialize(16);
+            AudioCore.Initialize(16);
+            SaveCore.Initialize(new JsonSerializer());
 
-            // 
+            // Log
             LogCore.Success(nameof(GoveKitsManager), "GoveKits initialized.");
         }
 

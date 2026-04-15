@@ -1,7 +1,6 @@
 
-using GoveKits.Runtime.Core;
 
-namespace GoveKits.Runtime.Procedure
+namespace GoveKits.Runtime.Core
 {
     public static class TimeCore
     {

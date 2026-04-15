@@ -4,7 +4,7 @@ using GoveKits.Runtime.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace GoveKits.Runtime.Procedure
+namespace GoveKits.Runtime.Core
 {
     public static class SceneCore
     {

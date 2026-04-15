@@ -1,11 +1,9 @@
-// ============================================
-// Timer.cs - 精简版，移除回收职责
-// ============================================
+
 using System;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core;
 
-namespace GoveKits.Runtime.Procedure
+
+namespace GoveKits.Runtime.Core
 {
     /// <summary>
     /// 轻量定时器对象：状态数据载体，无回收逻辑（由 TimeWheel 统一管理）。
