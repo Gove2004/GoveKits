@@ -36,15 +36,14 @@ namespace GoveKits.Runtime
 
             // Storage
             SaveCore.Initialize(new JsonSerializer());
-            await ResCore.InitPackageAsync(new PackageConfig("DefaultPackage", EPlayMode.EditorSimulateMode));
-            await ResCore.UpdatePackageWorkflowAsync("DefaultPackage", new UpdateCallbacks());
-            await UniTask.Yield();  // ConfigCore 依赖 ResCore
-            ConfigCore.InfuseParser(new JsonConfigParser());
-            ConfigCore.InfuseParser(new CsvConfigParser());
-            ConfigCore.Initialize();
-            await UniTask.Yield();  // LocalizationCore 依赖 ConfigCore
-            LocalizationCore.Initialize();
-            AudioCore.Initialize(16);
+            // await ResCore.PackageWorkflowAsync(new AutoOfflinePackageConfig("DefaultPackage"), new UpdateCallbacks());
+            // await UniTask.WaitForSeconds(30f);  // ConfigCore 依赖 ResCore
+            // ConfigCore.InfuseParser(new JsonConfigParser());
+            // ConfigCore.InfuseParser(new CsvConfigParser());
+            // ConfigCore.Initialize();
+            // await UniTask.Yield();  // LocalizationCore 依赖 ConfigCore
+            // LocalizationCore.Initialize();
+            // AudioCore.Initialize(16);
 
             // 
             LogCore.Success(nameof(GoveKitsManager), "GoveKits initialized.");
@@ -75,9 +74,9 @@ namespace GoveKits.Runtime
 
 
 
-
-
-
+    /// <summary>
+    /// 既然YooAsset支持深入日志，那就这样做
+    /// </summary>
     public class YooLogger : YooAsset.ILogger
     {
         public void Error(string message)

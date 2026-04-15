@@ -3,33 +3,11 @@
     "rootNamespace": "",
     "references": [
         "GUID:077f815a79aa0e844aa0d560eeb65641",
-        "GUID:f51ebe6a0ceec4240a699833d6309b23"
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:2373f786d14518f44b0f475db77ba4de"
     ],
     "includePlatforms": [
-        "Android",
-        "EmbeddedLinux",
-        "iOS",
-        "Kepler",
-        "LinuxStandalone64",
-        "CloudRendering",
-        "macOSStandalone",
-        "macOSStandaloneServer",
-        "Switch2",
-        "Switch",
-        "PS4",
-        "PS5",
-        "QNX",
-        "tvOS",
-        "WSA",
-        "VisionOS",
-        "WebGL",
-        "WindowsStandalone32",
-        "WindowsStandalone64",
-        "WindowsStandalone32Server",
-        "WindowsStandalone64Server",
-        "GameCoreXboxOne",
-        "XboxOne",
-        "GameCoreScarlett"
+        "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

@@ -10,6 +10,22 @@ using YooAsset;
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
+    /// 资源管理核心代理类
+    /// </summary>
+    public enum ResLoadMode
+    {
+        /// <summary>
+        /// 编辑器自动模拟，打包后自动使用离线模式
+        /// </summary>
+        AutoOfflineMode,
+        /// <summary>
+        /// 编辑器模拟，打包后自动使用主机模式
+        /// </summary>
+        AutoHostMode
+    }
+
+
+    /// <summary>
     /// YooAsset 2.3.18 资源管理核心代理类
     /// 完全适配 V2.2+ 最新的 FileSystem(虚拟文件系统) 底层架构
     /// 完全对齐 DownloaderOperation 所有的 Delegate 结构体
@@ -25,7 +41,7 @@ namespace GoveKits.Runtime.Storage
 
         #region 核心初始化 (完全重构：适配 2.2+ FileSystem)
         
-        public static async UniTask<bool> InitPackageAsync(PackageConfig config, bool setAsDefault = false)
+        private static async UniTask<bool> InitPackageAsync(PackageConfig config, bool setAsDefault = false)
         {
             var package = YooAssets.TryGetPackage(config.PackageName);
             if (package == null)
@@ -43,10 +59,28 @@ namespace GoveKits.Runtime.Storage
                 SetDefaultPackage(config.PackageName);
             }
 
+            EPlayMode ePlayMode = EPlayMode.CustomPlayMode;
+            if (config.PlayMode == ResLoadMode.AutoOfflineMode)
+            {
+#if UNITY_EDITOR
+                ePlayMode = EPlayMode.EditorSimulateMode;
+#else
+                ePlayMode = EPlayMode.OfflinePlayMode;
+#endif
+            }
+            if (config.PlayMode == ResLoadMode.AutoHostMode)
+            {
+#if UNITY_EDITOR
+                ePlayMode = EPlayMode.EditorSimulateMode;
+#else
+                ePlayMode = EPlayMode.HostPlayMode;
+#endif
+            }
+
             InitializationOperation initOperation = null;
 
             // YooAsset 2.2+ 必须使用 FileSystemParameters 进行初始化
-            switch (config.PlayMode)
+            switch (ePlayMode)
             {
                 case EPlayMode.EditorSimulateMode:
 #if UNITY_EDITOR
@@ -241,8 +275,21 @@ namespace GoveKits.Runtime.Storage
         #endregion
 
         #region 一键热更新工作流
+
+        /// <summary>
+        /// 一键热更新
+        /// </summary>
+        /// <param name="package">资源包名</param>
+        /// <param name="callbacks">资源下载回调</param>
+        /// <returns></returns>
+        public static async UniTask<bool> PackageWorkflowAsync(PackageConfig package, UpdateCallbacks callbacks)
+        {
+            bool init = await InitPackageAsync(package);
+            if (!init) return false;
+            return await UpdatePackageAsync(package.PackageName, callbacks);
+        }
         
-        public static async UniTask<bool> UpdatePackageWorkflowAsync(string packageName, UpdateCallbacks callbacks)
+        private static async UniTask<bool> UpdatePackageAsync(string packageName, UpdateCallbacks callbacks)
         {
             if (!_packages.TryGetValue(packageName, out var pkg))
             {
@@ -250,31 +297,40 @@ namespace GoveKits.Runtime.Storage
                 return false;
             }
 
+            LogCore.Success(nameof(ResCore), $"开始更新：{packageName}");
             // ================= 1. 获取最新包裹版本 =================
             callbacks?.OnCheckVersionBegin?.Invoke();
             var versionOp = pkg.RequestPackageVersionAsync(); 
-            await versionOp.Task;
+            await UniTask.WaitUntil(() => versionOp.IsDone);
 
             if (versionOp.Status != EOperationStatus.Succeed)
             {
                 callbacks?.OnCheckVersionFailed?.Invoke(versionOp.Error);
+
+                LogCore.Error(nameof(ResCore), $"获取版本失败：{versionOp.Error}");
                 return false;
             }
             
             string latestVersion = versionOp.PackageVersion;
             callbacks?.OnCheckVersionSuccess?.Invoke(latestVersion);
 
+            LogCore.Success(nameof(ResCore), $"获取最新版本：{latestVersion}");
+
             // ================= 2. 更新清单 Manifest =================
             callbacks?.OnUpdateManifestBegin?.Invoke();
             var manifestOp = pkg.UpdatePackageManifestAsync(latestVersion);
-            await manifestOp.Task;
+            await UniTask.WaitUntil(() => manifestOp.IsDone);
 
             if (manifestOp.Status != EOperationStatus.Succeed)
             {
                 callbacks?.OnUpdateManifestFailed?.Invoke(manifestOp.Error);
+
+                LogCore.Error(nameof(ResCore), $"更新清单失败：{manifestOp.Error}");
                 return false;
             }
             callbacks?.OnUpdateManifestSuccess?.Invoke();
+
+            LogCore.Success(nameof(ResCore), $"更新清单成功");
 
             // ================= 3. 创建下载器 =================
             var downloader = pkg.CreateResourceDownloader(10, 3);
@@ -319,7 +375,7 @@ namespace GoveKits.Runtime.Storage
 
             // ================= 5. 开始下载 =================
             downloader.BeginDownload();
-            await downloader.Task;
+            await UniTask.WaitUntil(() => downloader.IsDone);
 
             if (downloader.Status != EOperationStatus.Succeed)
             {

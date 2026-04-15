@@ -4,49 +4,62 @@ using GoveKits.Runtime.Core;
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 基于委托的具体反应实现。
-    /// 职责：快速实例化，无需手写新类。
+    /// 基于委托 (Delegate) 的具体反应实现类。
+    /// <para>职责：无需手动编写新类，即可在运行时通过代码流式装配一个事件监听器。</para>
     /// </summary>
     public class DelegateReaction<T> : UnitReaction<T> where T : EventData, new()
     {
-        /// <summary>
-        /// 反应执行的动作委托
-        /// </summary>
-        private readonly Action<T> _reactionAction;
+        private Action<T> _reactionAction;
+        private Func<T, bool> _filterFunc;
         
-        // 字段 backing
-        private readonly UnitTag _name;
-        private readonly int _priority;
+        private UnitTag _name;
+        private int _priority;
 
-        /// <summary>
-        /// 获取反应名称
-        /// </summary>
         public override UnitTag Name => _name;
-        
-        /// <summary>
-        /// 获取反应优先级
-        /// </summary>
         public override int Priority => _priority;
 
-        /// <summary>
-        /// 构造函数
-        /// </summary>
-        /// <param name="owner">反应所属单位</param>
-        /// <param name="name">反应名称</param>
-        /// <param name="reactionAction">反应执行的委托</param>
-        /// <param name="priority">反应优先级</param>
-        public DelegateReaction(IUnit owner, UnitTag name, Action<T> reactionAction, int priority = 0) 
-            : base(owner)
+        public DelegateReaction() { }
+
+        #region 流式装配接口 (Fluent API)
+
+        public DelegateReaction<T> SetName(UnitTag name)
         {
             _name = name;
-            _reactionAction = reactionAction;
+            return this;
+        }
+
+        public DelegateReaction<T> SetPriority(int priority)
+        {
             _priority = priority;
+            return this;
         }
 
         /// <summary>
-        /// 事件处理方法，执行预设的委托
+        /// 注入核心执行逻辑。
         /// </summary>
-        /// <param name="eventInfo">事件数据</param>
+        public DelegateReaction<T> SetAction(Action<T> reactionAction)
+        {
+            _reactionAction = reactionAction;
+            return this;
+        }
+
+        /// <summary>
+        /// 注入自定义的事件过滤条件。
+        /// </summary>
+        public DelegateReaction<T> SetFilter(Func<T, bool> filterFunc)
+        {
+            _filterFunc = filterFunc;
+            return this;
+        }
+
+        #endregion
+
+        public override bool OnFilter(T eventInfo)
+        {
+            if (_filterFunc != null) return _filterFunc.Invoke(eventInfo);
+            return base.OnFilter(eventInfo);
+        }
+
         public override void OnEvent(T eventInfo)
         {
             _reactionAction?.Invoke(eventInfo);

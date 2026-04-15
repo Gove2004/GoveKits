@@ -6,7 +6,8 @@
         "GUID:6055be8ebefd69e48b49212b09b47b2f",
         "GUID:bbde805d927e795439d7a746d1749cab",
         "GUID:5a46ad82eac024e4fbb6a0516a5def17",
-        "GUID:e34a5702dd353724aa315fb8011f08c3"
+        "GUID:e34a5702dd353724aa315fb8011f08c3",
+        "GUID:13ba8ce62aa80c74598530029cb2d649"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -20,16 +21,6 @@
             "name": "com.unity.textmeshpro",
             "expression": "",
             "define": "TMP_PRESENT"
-        },
-        {
-            "name": "com.unity.addressables",
-            "expression": "",
-            "define": "UNITASK_ADDRESSABLE_SUPPORT"
-        },
-        {
-            "name": "com.unity.addressables.cn",
-            "expression": "",
-            "define": "UNITASK_ADDRESSABLE_SUPPORT"
         }
     ],
     "noEngineReferences": false

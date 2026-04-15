@@ -1,75 +1,63 @@
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 冷却规则。
+    /// 技能冷却时间拦截规则。
     /// </summary>
     /// <remarks>
-    /// 通过在 Source 上挂载一个 CDMark 来表示技能冷却中。
+    /// 巧妙复用状态系统：通过给施法者挂载一个带 Duration 的隐形 CDMark，来拦截技能重发。
     /// </remarks>
     public class CDRule : AbilityRule
     {
-        /// <summary>
-        /// 冷却标记标签。
-        /// </summary>
         public UnitTag CDTag { get; }
+        public float Duration { get; }
 
-        /// <summary>
-        /// 冷却时长（秒）。
-        /// </summary>
-        public float duration;
-
-        /// <summary>
-        /// 创建一个冷却规则实例。
-        /// </summary>
-        /// <param name="cdTag">冷却标记标签。</param>
-        /// <param name="duration">冷却时长（秒）。</param>
         public CDRule(UnitTag cdTag, float duration)
         {
             CDTag = cdTag;
-            this.duration = duration;
+            Duration = duration;
         }
 
         /// <summary>
-        /// 检查当前是否不在冷却中。
+        /// 如果施法者身上找不到这个特定的冷却标记，则允许施放。
         /// </summary>
-        /// <param name="context">技能执行上下文。</param>
-        /// <returns>不在冷却中返回 true。</returns>
         public override bool Check(AbilityContext context)
         {
             return context.Source.Marks.HasTag(CDTag) == false;
         }
 
         /// <summary>
-        /// 提交冷却：向 Source 添加 CDMark。
+        /// 技能被确认执行瞬间，从工厂生成一个专属冷却标记并强行挂载到施法者身上。
         /// </summary>
-        /// <param name="context">技能执行上下文。</param>
         public override void Commit(AbilityContext context)
         {
-            MarkAddEffect.Create()
-                .Set(new CDMark(context.Source, CDTag, duration))
-                .Apply(context.Source);
+            // 利用数据驱动注册中心创建标记实例
+            var cdMark = UnitCore.CreateMark(CDTag, stack: 1, duration: Duration);
+            if (cdMark != null)
+            {
+                // 使用对象池极速应用特效，绝不产生 GC 垃圾
+                MarkAddEffect.Create()
+                    .Set(cdMark)
+                    .Apply(context.Source);
+            }
         }
     }
 
     /// <summary>
-    /// 冷却标记。
+    /// 专用的空白冷却标记实体。
+    /// 它的唯一使命就是存在着，直到时间倒数完毕自然死亡。
     /// </summary>
     public class CDMark : UnitMark
     {
-        /// <summary>
-        /// 标记名（通常为 CD.xxx）。
-        /// </summary>
-        public override UnitTag Name { get; protected set; }
+        private UnitTag _name;
+        public override UnitTag Name { get => _name; protected set => _name = value; }
 
-        /// <summary>
-        /// 创建冷却标记。
-        /// </summary>
-        /// <param name="source">归属单位。</param>
-        /// <param name="name">标记名。</param>
-        /// <param name="duration">持续时间（秒）。</param>
-        public CDMark(IUnit source, UnitTag name, float duration) : base(source, duration: duration)
+        public CDMark() { }
+
+        // 此方法允许底层框架动态构建各种技能的不同名称冷却
+        public CDMark SetName(UnitTag name)
         {
-            Name = name;
+            _name = name;
+            return this;
         }
     }
 }

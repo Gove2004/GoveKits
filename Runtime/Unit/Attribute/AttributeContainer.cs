@@ -1,134 +1,100 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 集中式属性容器
+    /// 集中式属性管理容器。
     /// 
-    /// 核心功能：
-    /// 1. 统一管理所有属性的 BaseValue、Modifier 和 CurrentValue
-    /// 2. 提供属性修改器添加/移除接口
-    /// 3. 提供值变更拦截管线（Before/After）
-    /// 4. 支持属性标签查询和遍历
-    /// 
-    /// 架构设计：
-    /// - 标签化：使用 UnitTag 枚举标识不同属性
-    /// - 管线化：值变更经过 Pre/Post 拦截
-    /// - 事件化：支持值变更通知回调
-    /// - 零 GC：修改器使用 struct，避免堆分配
+    /// 核心职责：
+    /// 1. 统一管理所有属性的 BaseValue、CurrentValue 以及管线重算。
+    /// 2. 提供属性修改器的增减接口。
+    /// 3. 提供值变更的前置/后置拦截管线回调。
     /// </summary>
     public class AttributeContainer : ITagSource, IEnumerable<KeyValuePair<UnitTag, UnitAttribute>>
     {
-        /// <summary>
-        /// 属性字典 - 按标签索引
-        /// 存储所有已注册的属性及其数据
-        /// </summary>
+        private readonly IUnit _owner;
         private readonly Dictionary<UnitTag, UnitAttribute> _attributes = new();
-        
-        /// <summary>遍历器 - 支持 foreach 遍历所有属性</summary>
-        public IEnumerator<KeyValuePair<UnitTag, UnitAttribute>> GetEnumerator() => _attributes.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => _attributes.GetEnumerator();
-        
-        /// <summary>标签查询 - 检查是否包含指定属性</summary>
-        public bool HasTag(UnitTag tag) => _attributes.ContainsKey(tag);
-        
-        /// <summary>属性数量 - 已注册的属性总数</summary>
-        public int Count => _attributes.Count;
+
+        #region 生命周期管线回调
 
         /// <summary>
-        /// 预变更拦截回调
-        /// 1. 数值钳制：限制属性在合法范围内
-        /// 2. 联动修正：根据其他属性调整当前值
-        /// 3. 业务规则：实现特殊属性逻辑
+        /// 预变更拦截回调（Before Change）。
+        /// 职责：数值钳制（限制最大/最小值）、联动修正业务规则。
+        /// 签名：Func(Tag, 预期目标值) -> 返回修正后的合法值。
         /// </summary>
         public Func<UnitTag, float, float> BeforeValueChange;
         
         /// <summary>
-        /// 后变更通知回调
-
-        /// 1. UI 更新：血条、属性面板刷新
-        /// 2. 事件触发：属性达到阈值时触发效果
-        /// 3. 日志记录：追踪属性变化历史
+        /// 后变更通知回调（After Change）。
+        /// 职责：驱动 UI 更新（血条等）、触发数值阈值事件（如血量归零致死）。
+        /// 签名：Action(Tag, 旧值, 新值)。
         /// </summary>
         public Action<UnitTag, float, float> AfterValueChange;
 
+        #endregion
+
+        /// <summary>已注册属性数量</summary>
+        public int Count => _attributes.Count;
+
+        /// <summary>构造函数（依赖注入）</summary>
+        public AttributeContainer(IUnit owner)
+        {
+            _owner = owner;
+        }
+
+        #region 查询与遍历接口
+
+        public IEnumerator<KeyValuePair<UnitTag, UnitAttribute>> GetEnumerator() => _attributes.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _attributes.GetEnumerator();
+        
+        /// <summary>检查是否注册过指定属性</summary>
+        public bool HasTag(UnitTag tag) => _attributes.ContainsKey(tag);
+
+        /// <summary>获取属性当前值（不存在返回 0）</summary>
+        public float GetValue(UnitTag tag) => _attributes.TryGetValue(tag, out var d) ? d.CurrentValue : 0f;
+        
+        /// <summary>获取属性基础值（不存在返回 0）</summary>
+        public float GetBaseValue(UnitTag tag) => _attributes.TryGetValue(tag, out var d) ? d.BaseValue : 0f;
+
+        #endregion
+
+        #region 属性写入与修改操作
+
         /// <summary>
-        /// 添加属性
-        /// 
-        /// 核心功能：
-        /// 1. 创建新的 UnitAttribute 实例
-        /// 2. 初始化 BaseValue 和 CurrentValue
-        /// 3. 触发初始值计算（不触发事件）
+        /// 初始化注册一个属性及其基础值（不触发回调事件）。
         /// </summary>
-        /// <param name="tag">属性标签</param>
-        /// <param name="baseValue">基础值</param>
         public void Add(UnitTag tag, float baseValue)
         {
             var attribute = new UnitAttribute { BaseValue = baseValue, CurrentValue = baseValue };
             _attributes[tag] = attribute;
-
             UpdateCurrentValue(tag, attribute, triggerEvents: false);
         }
 
         /// <summary>
-        /// 获取属性当前值
-        /// 
-        /// 返回说明：
-        /// - 存在：返回 CurrentValue
-        /// - 不存在：返回 0
+        /// 永久性改变属性基础值（如角色升级成长、受伤扣血）。
         /// </summary>
-        public float GetValue(UnitTag tag) => _attributes.TryGetValue(tag, out var d) ? d.CurrentValue : 0f;
-        
-        /// <summary>
-        /// 获取属性基础值
-        /// 
-        /// 返回说明：
-        /// - 存在：返回 BaseValue
-        /// - 不存在：返回 0
-        /// </summary>
-        public float GetBaseValue(UnitTag tag) => _attributes.TryGetValue(tag, out var d) ? d.BaseValue : 0f;
-
-        /// <summary>
-        /// 修改属性基础值
-        /// 适用场景：
-        /// - 角色升级：基础属性增长
-        /// - 装备更换：基础属性变化
-        /// - Buff 效果：临时基础值改变
-        /// </summary>
-        /// <param name="tag">属性标签</param>
-        /// <param name="deltaValue">基础值变化量（可为负）</param>
+        /// <param name="deltaValue">变化量（正增负减）</param>
         public void ChangeBase(UnitTag tag, float deltaValue)
         {
             if (!_attributes.TryGetValue(tag, out var data)) return;
 
-            // 1. 预计算新的基础值
             float expectedBase = data.BaseValue + deltaValue;
 
-            // 2. Pre 拦截：交由外部业务规则钳制或修正
+            // 走预处理管线钳制基础值
             if (BeforeValueChange != null)
-            {
                 expectedBase = BeforeValueChange.Invoke(tag, expectedBase);
-            }
 
-            // 3. 赋给合法的 BaseValue
             data.BaseValue = expectedBase;
             
-            // 4. 走管线重算 CurrentValue，并触发事件
+            // 基础值变动，触发管线重算及后置事件
             UpdateCurrentValue(tag, data, triggerEvents: true);
         }
 
         /// <summary>
-        /// 添加属性修改器
-        /// 适用场景：
-        /// - 装备穿戴：添加装备属性加成
-        /// - Buff 施加：添加临时效果
-        /// - 技能激活：添加技能增益
+        /// 添加动态修改器（如 Buff 增益加成）。
         /// </summary>
-        /// <param name="tag">属性标签</param>
-        /// <param name="modifier">修改器实例</param>
         public void AddModifier(UnitTag tag, AttributeModifier modifier)
         {
             if (!_attributes.TryGetValue(tag, out var data)) return;
@@ -138,19 +104,13 @@ namespace GoveKits.Runtime.Unit
         }
 
         /// <summary>
-        /// 移除指定来源的所有修改器
-        /// 适用场景：
-        /// - 装备卸下：移除该装备的所有加成
-        /// - Buff 过期：移除该 Buff 的所有效果
-        /// - 技能取消：移除该技能的增益
+        /// 根据来源标记，移除所有相关修改器（如 Buff 结束或卸下装备）。
         /// </summary>
-        /// <param name="tag">属性标签</param>
-        /// <param name="source">修改器来源</param>
         public void RemoveModifier(UnitTag tag, ModifierSource source)
         {
             if (!_attributes.TryGetValue(tag, out var data)) return;
 
-            // 只有当真正移除了修改器时，才触发管线重算
+            // 仅当确实有修改器被移除时，才触发代价昂贵的管线重算
             if (data.Modifiers.RemoveAll(m => m.Source == source) > 0)
             {
                 UpdateCurrentValue(tag, data, triggerEvents: true);
@@ -158,13 +118,8 @@ namespace GoveKits.Runtime.Unit
         }
 
         /// <summary>
-        /// 强制重新计算指定属性
-        /// 适用场景：
-        /// - 上限改变：HealthMax 变化时强刷 CurrentHealth
-        /// - 联动触发：相关属性变化时刷新
-        /// - 外部修正：外部逻辑修改后同步
+        /// 强制某属性跑一遍重算管线（适用于该属性没有直接被修改，但受其他联动属性影响的情况）。
         /// </summary>
-        /// <param name="tag">属性标签</param>
         public void ForceRecalculate(UnitTag tag)
         {
             if (_attributes.TryGetValue(tag, out var data))
@@ -173,24 +128,18 @@ namespace GoveKits.Runtime.Unit
             }
         }
 
-        // ================= 核心重算管线 =================
+        #endregion
+
+        #region 内部核心重算管线
 
         /// <summary>
-        /// 内部管线：汇总公式 → Pre 拦截 (钳制) → 赋值 → Post 拦截 (联动) / Event
-        /// 计算示例：
-        /// BaseValue = 100
-        /// Additive = +30 + 20 = +50
-        /// Multiplicative = +0.2 + 0.1 = +0.3
-        /// → CurrentValue = (100 + 50) * (1 + 0.3) = 195
+        /// 执行核心计算公式并派发事件流。
         /// </summary>
-        /// <param name="tag">属性标签</param>
-        /// <param name="data">属性数据</param>
-        /// <param name="triggerEvents">是否触发事件回调</param>
         private void UpdateCurrentValue(UnitTag tag, UnitAttribute data, bool triggerEvents)
         {
             float oldCurrent = data.CurrentValue;
 
-            // 1. 汇总修改器：分别计算 Additive、Multiplicative、Override
+            // 1. 汇总所有处于激活状态的修改器
             float sumAdd = 0f, sumMult = 0f, overrideVal = 0f;
             bool hasOverride = false;
 
@@ -205,30 +154,28 @@ namespace GoveKits.Runtime.Unit
                 }
             }
 
-            // 2. 应用计算公式
+            // 2. 套用 GAS 经典计算公式
             float newCalculatedValue = hasOverride ? overrideVal : (data.BaseValue + sumAdd) * (1f + sumMult);
 
-            // 3. Pre 拦截：交由外部业务规则钳制或修正
+            // 3. 拦截管线：业务方二次过滤（例如限制移速不超过阈值）
             if (BeforeValueChange != null)
             {
                 newCalculatedValue = BeforeValueChange.Invoke(tag, newCalculatedValue);
             }
 
-            // 4. 赋值确立
+            // 4. 最终赋值
             data.CurrentValue = newCalculatedValue;
 
-            // 5. Post 拦截与事件：仅在值发生真实改变，且允许触发事件时执行
+            // 5. 事件派发：仅当值发生本质变化时通知外部
             if (triggerEvents && Math.Abs(oldCurrent - data.CurrentValue) > 1e-5f)
             {
                 AfterValueChange?.Invoke(tag, oldCurrent, data.CurrentValue);
             }
         }
 
-        // ================= 资源清理 =================
+        #endregion
 
-        /// <summary>
-        /// 清空所有属性数据
-        /// </summary>
+        /// <summary>清理重置该容器全部状态</summary>
         public void Clear()
         {
             _attributes.Clear();

@@ -4,83 +4,48 @@ using System.Collections.Generic;
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 表示能够提供标签查询源的接口。
-    /// 例如：单位的 MarkContainer 可以实现此接口以支持 TagQuery 的匹配。
+    /// 提供标签查询匹配源的统一接口。
+    /// （Unit 的 MarkContainer 会自动实现它，暴露给技能系统用于前置条件查询）。
     /// </summary>
     public interface ITagSource
     {
-        /// <summary>
-        /// 检查是否包含指定标签。
-        /// </summary>
         bool HasTag(UnitTag tag);
     }
-
 
     #region 核心查询基类
 
     /// <summary>
-    /// 标签匹配查询基类。通过组合节点可以构造复杂的匹配逻辑（与/或/非/自定义）。
-    /// 支持隐式从 string 或 UnitTag 的转换，以及常用运算符重载以便于表达式式编写查询条件。
+    /// 标签匹配树的抽象基类（类似行为树的条件节点）。
+    /// <para>通过将多个简单的 TagQuery 进行组合（与、或、非），可以构造出极度复杂的技能前置释放条件。</para>
+    /// <example>
+    /// // 示例：目标必须没有免疫标记，且必须处于(中毒或流血)状态之一
+    /// TagQuery condition = !TagQuery.Has("Buff_Immune") & (TagQuery.Has("Debuff_Poison") | TagQuery.Has("Debuff_Bleed"));
+    /// </example>
     /// </summary>
     public abstract class TagQuery
     {
-        /// <summary>
-        /// 判断给定的标签源是否满足此查询条件。
-        /// </summary>
+        /// <summary>针对传入的标签源，执行这棵条件判断树。</summary>
         public abstract bool Match(ITagSource container);
 
-        #region 运算符重载 & 隐式转换 (语法糖)
+        #region 运算符重载 (极客级语法糖)
 
-        // 允许写法: TagQuery q = "Stunned";
-        public static implicit operator TagQuery(string tagName)
-            => new HasTag(tagName);
+        // 允许直接隐式转换：TagQuery q = "Stunned";
+        public static implicit operator TagQuery(string tagName) => new HasTag(tagName);
+        public static implicit operator TagQuery(UnitTag tag) => new HasTag(tag);
 
-        // 允许写法: TagQuery q = unitTag;
-        public static implicit operator TagQuery(UnitTag tag)
-            => new HasTag(tag);
-
-        // 允许写法: !query
-        public static TagQuery operator !(TagQuery query)
-            => new NotTag(query);
-
-        // 允许写法: query1 & query2
-        public static TagQuery operator &(TagQuery left, TagQuery right)
-            => new AllTag(left, right);
-
-        // 允许写法: query1 | query2
-        public static TagQuery operator |(TagQuery left, TagQuery right)
-            => new AnyTag(left, right);
+        // 允许直接使用布尔操作符：!query, query1 & query2, query1 | query2
+        public static TagQuery operator !(TagQuery query) => new NotTag(query);
+        public static TagQuery operator &(TagQuery left, TagQuery right) => new AllTag(left, right);
+        public static TagQuery operator |(TagQuery left, TagQuery right) => new AnyTag(left, right);
 
         #endregion
 
-        #region 静态构建方法 (工厂)
+        #region 静态组合工厂方法
 
-        /// <summary>
-        /// 使用自定义条件构建查询节点。
-        /// </summary>
-        /// <param name="func">匹配函数。</param>
-        /// <returns>自定义条件查询节点。</returns>
+        public static TagQuery Has(UnitTag tag) => new HasTag(tag);
         public static TagQuery Custom(Func<ITagSource, bool> func) => new ConditionTag(func);
-
-        /// <summary>
-        /// 构建"全部满足"查询。
-        /// </summary>
-        /// <param name="queries">子查询列表。</param>
-        /// <returns>AND 查询节点。</returns>
         public static TagQuery All(params TagQuery[] queries) => new AllTag(queries);
-
-        /// <summary>
-        /// 构建"任一满足"查询。
-        /// </summary>
-        /// <param name="queries">子查询列表。</param>
-        /// <returns>OR 查询节点。</returns>
         public static TagQuery Any(params TagQuery[] queries) => new AnyTag(queries);
-
-        /// <summary>
-        /// 构建"取反"查询。
-        /// </summary>
-        /// <param name="query">子查询。</param>
-        /// <returns>NOT 查询节点。</returns>
         public static TagQuery Not(TagQuery query) => new NotTag(query);
 
         #endregion
@@ -88,153 +53,74 @@ namespace GoveKits.Runtime.Unit
 
     #endregion
 
-    #region 具体节点实现
+    #region 内部具体树节点实现
 
-    /// <summary>
-    /// 基础节点：检查是否拥有某个 Tag
-    /// </summary>
     public class HasTag : TagQuery
     {
-        /// <summary>
-        /// 目标标签。
-        /// </summary>
         public readonly UnitTag Tag;
-
-        /// <summary>
-        /// 创建 HasTag 查询节点。
-        /// </summary>
-        /// <param name="tag">要匹配的标签。</param>
-        public HasTag(UnitTag tag)
-        {
-            Tag = tag;
-        }
-
-        public override bool Match(ITagSource container)
-        {
-            return container != null && container.HasTag(Tag);
-        }
-
+        public HasTag(UnitTag tag) { Tag = tag; }
+        
+        public override bool Match(ITagSource container) => container != null && container.HasTag(Tag);
         public override string ToString() => $"({Tag})";
     }
 
-    /// <summary>
-    /// 逻辑非节点 (NOT)
-    /// </summary>
     public class NotTag : TagQuery
     {
         private readonly TagQuery _query;
-
-        /// <summary>
-        /// 创建 NOT 查询节点。
-        /// </summary>
-        /// <param name="query">被取反的子查询。</param>
-        public NotTag(TagQuery query)
-        {
-            _query = query ?? throw new ArgumentNullException(nameof(query));
-        }
-
-        public override bool Match(ITagSource container)
-        {
-            return !_query.Match(container);
-        }
-
+        public NotTag(TagQuery query) { _query = query ?? throw new ArgumentNullException(nameof(query)); }
+        
+        public override bool Match(ITagSource container) => !_query.Match(container);
         public override string ToString() => $"!({_query})";
     }
 
-    /// <summary>
-    /// 逻辑与节点 (AND)
-    /// </summary>
     public class AllTag : TagQuery
     {
         private readonly TagQuery[] _queries;
-
-        /// <summary>
-        /// 创建 AND 查询节点。
-        /// </summary>
-        /// <param name="queries">子查询列表。</param>
         public AllTag(params TagQuery[] queries)
         {
-            var validQueries = new List<TagQuery>();
-            if (queries != null)
-            {
-                foreach (var q in queries) if (q != null) validQueries.Add(q);
-            }
-            _queries = validQueries.ToArray();
+            var valid = new List<TagQuery>();
+            if (queries != null) foreach (var q in queries) if (q != null) valid.Add(q);
+            _queries = valid.ToArray();
         }
 
         public override bool Match(ITagSource container)
         {
             for (int i = 0; i < _queries.Length; i++)
             {
-                if (!_queries[i].Match(container))
-                {
-                    return false;
-                }
+                if (!_queries[i].Match(container)) return false; // 短路求值
             }
-
             return true;
         }
-
         public override string ToString() => $"({string.Join(" & ", (IEnumerable<TagQuery>)_queries)})";
     }
 
-    /// <summary>
-    /// 逻辑或节点 (OR)
-    /// </summary>
     public class AnyTag : TagQuery
     {
         private readonly TagQuery[] _queries;
-
-        /// <summary>
-        /// 创建 OR 查询节点。
-        /// </summary>
-        /// <param name="queries">子查询列表。</param>
         public AnyTag(params TagQuery[] queries)
         {
-            var validQueries = new List<TagQuery>();
-            if (queries != null)
-            {
-                foreach (var q in queries) if (q != null) validQueries.Add(q);
-            }
-            _queries = validQueries.ToArray();
+            var valid = new List<TagQuery>();
+            if (queries != null) foreach (var q in queries) if (q != null) valid.Add(q);
+            _queries = valid.ToArray();
         }
 
         public override bool Match(ITagSource container)
         {
             for (int i = 0; i < _queries.Length; i++)
             {
-                if (_queries[i].Match(container))
-                {
-                    return true;
-                }
+                if (_queries[i].Match(container)) return true; // 短路求值
             }
-
             return false;
         }
-
         public override string ToString() => $"({string.Join(" | ", (IEnumerable<TagQuery>)_queries)})";
     }
 
-    /// <summary>
-    /// 自定义条件节点 (Func)
-    /// </summary>
     public class ConditionTag : TagQuery
     {
         private readonly Func<ITagSource, bool> _func;
-
-        /// <summary>
-        /// 创建自定义条件查询节点。
-        /// </summary>
-        /// <param name="func">匹配函数。</param>
-        public ConditionTag(Func<ITagSource, bool> func)
-        {
-            _func = func ?? throw new ArgumentNullException(nameof(func));
-        }
-
-        public override bool Match(ITagSource container)
-        {
-            return _func(container);
-        }
+        public ConditionTag(Func<ITagSource, bool> func) { _func = func ?? throw new ArgumentNullException(nameof(func)); }
+        
+        public override bool Match(ITagSource container) => _func(container);
     }
 
     #endregion
