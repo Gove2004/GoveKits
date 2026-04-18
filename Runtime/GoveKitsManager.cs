@@ -5,6 +5,8 @@ using GoveKits.Runtime.Storage;
 using System;
 using System.Collections.Generic;
 using YooAsset;
+using MessagePack;
+using MessagePack.Resolvers;
 
 namespace GoveKits.Runtime
 {
@@ -14,7 +16,7 @@ namespace GoveKits.Runtime
         #region 生命周期
 
         private void Awake() => Initialize();
-        private async void Initialize()
+        private void Initialize()
         {
             // Dependency
             YooAssets.Initialize(new YooLogger());
@@ -22,17 +24,21 @@ namespace GoveKits.Runtime
             // Core
             LogCore.InfuseLogger(new UnityLogger());
             RandomCore.Initialize(new NormalRNG(Environment.TickCount));
-            TimeCore.Initialize(0.05f, 512, 512, 16, 128);
+            TimeCore.Initialize(16, 128);
+            TimeCore.RigisterWheel(TimeCore.NormalWheelName, 0.05f, 512);
+            TimeCore.RigisterWheel(TimeCore.UnscaledWheelName, 0.05f, 512);
 
             // Network
             // 1. 外部设置 Resolver
-            // ProtocolCore.SetResolver(GeneratedResolver.Instance);
+            ProtocolCore.AddResolver(GoveKitsBuildinResolver.Instance);
             // 2. 扫描协议
             // ProtocolCore.ScanProtocols();
             // 3. 客户端连接
             // await ClientCore.ConnectAsync("127.0.0.1", 3000);
             // 4. （可选）服务端启动
             // await ServerCore.StartAsync(3000);
+            // 5. （可选）帧同步组件
+            // FrameCore.StartClient();
 
             // Storage
             // 1. 资源热更新
@@ -57,7 +63,12 @@ namespace GoveKits.Runtime
 
         private void Update()
         {
-            TimeCore.Update(UnityEngine.Time.deltaTime, UnityEngine.Time.unscaledDeltaTime);
+            // 驱动时间轮
+            TimeCore.Update(TimeCore.NormalWheelName, UnityEngine.Time.deltaTime);
+            TimeCore.Update(TimeCore.UnscaledWheelName, UnityEngine.Time.unscaledDeltaTime);
+
+            // 驱动帧同步核心
+            FrameCore.Update(UnityEngine.Time.deltaTime);
         }
 
 
@@ -101,7 +112,7 @@ namespace GoveKits.Runtime
 
         public void Warning(string message)
         {
-            LogCore.Warn(nameof(YooAssets), message);
+            LogCore.Warning(nameof(YooAssets), message);
         }
     }
 }

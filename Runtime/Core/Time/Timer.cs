@@ -22,7 +22,6 @@ namespace GoveKits.Runtime.Core
         internal int LoopCount;       // 剩余循环次数 (-1 无限)
         internal long TargetTick;
         internal int Rounds;
-        internal bool UseRealTime;
         
         // --- 链表节点（O(1) 操作关键）---
         internal LinkedListNode<Timer> LinkNode;
@@ -47,7 +46,6 @@ namespace GoveKits.Runtime.Core
             LoopCount = 0;
             TargetTick = 0;
             Rounds = 0;
-            UseRealTime = false;
             RemainingTimeOnPause = 0;
             LinkNode = null;
             BelongsToWheel = null;

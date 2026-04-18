@@ -35,7 +35,7 @@ namespace GoveKits.Editor
         // 记录哪些配置表被展开以查看数据结构
         private readonly HashSet<Type> _expandedTypes = new();
 
-        [MenuItem("GoveKits/Config", false, 102)]
+        [MenuItem("GoveKits/Config", false, 202)]
         public static void ShowWindow()
         {
             var window = GetWindow<ConfigWindow>("Config 管理");

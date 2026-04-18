@@ -33,7 +33,7 @@ namespace GoveKits.Editor
         private string _status = "就绪";
         private MessageType _statusType = MessageType.Info;
 
-        [MenuItem("GoveKits/Prefs", false, 100)]
+        [MenuItem("GoveKits/Prefs", false, 200)]
         public static void ShowWindow()
         {
             var window = GetWindow<PrefsWindow>("Prefs 管理器");

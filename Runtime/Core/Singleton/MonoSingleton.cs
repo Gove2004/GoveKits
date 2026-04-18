@@ -25,6 +25,12 @@ namespace GoveKits.Runtime.Core
         private static T _instance;
 
         /// <summary>
+        /// 初始化标记
+        /// 确保 Init() 方法只被调用一次
+        /// </summary>
+        private bool _initialized;
+
+        /// <summary>
         /// 单例实例访问入口
         /// 首次访问时自动创建实例（仅在运行时）
         /// 编辑器模式下不会自动创建
@@ -58,9 +64,6 @@ namespace GoveKits.Runtime.Core
                 // 创建新的 GameObject 并添加组件
                 GameObject obj = new GameObject(typeof(T).Name);
                 _instance = obj.AddComponent<T>();
-                
-                // 初始化
-                _instance.Init();
 
                 // 查找或创建单例容器对象
                 GameObject gameObject = GameObject.Find(SingletonContainerName);
@@ -74,6 +77,13 @@ namespace GoveKits.Runtime.Core
                 // 将单例对象设为容器的子对象，保持层级整洁
                 obj.transform.SetParent(gameObject.transform);
             }
+
+            // 确保初始化（无论是新创建还是找到现有实例）
+            if (!_instance._initialized)
+            {
+                _instance.Init();
+                _instance._initialized = true;
+            }
         }
 
         /// <summary>
@@ -86,7 +96,7 @@ namespace GoveKits.Runtime.Core
             // 调用反初始化方法
             Uninit();
             
-            // 如果销毁的是当前单例实例，清空引用
+            // 如果销毁的是当前单例实例，清空引用和初始化标记
             if (_instance != null && _instance.gameObject == base.gameObject)
             {
                 _instance = null;

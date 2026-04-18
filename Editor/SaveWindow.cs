@@ -29,7 +29,7 @@ namespace GoveKits.Editor
         private bool _selectedBytesTruncated;
         private PreviewMode _previewMode = PreviewMode.Auto;
 
-        [MenuItem("GoveKits/Save", false, 101)]
+        [MenuItem("GoveKits/Save", false, 201)]
         public static void ShowWindow()
         {
             var window = GetWindow<SaveWindow>("Save 浏览器");

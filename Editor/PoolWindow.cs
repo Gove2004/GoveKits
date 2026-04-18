@@ -28,7 +28,7 @@ namespace GoveKits.Editor
         private FieldInfo _goPoolsField;
         private FieldInfo _goPrefabField;
 
-        [MenuItem("GoveKits/Pool", false, 200)]
+        [MenuItem("GoveKits/Pool", false, 101)]
         public static void ShowWindow()
         {
             var window = GetWindow<PoolWindow>("Pool 监控");

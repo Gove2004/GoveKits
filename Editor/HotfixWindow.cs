@@ -13,7 +13,7 @@ namespace GoveKits.Editor
         private string _outputDir = "Assets/GameRes/HybridCLRBytes";
         private Vector2 _scrollPos;
 
-        [MenuItem("GoveKits/Hotfix", false, 100)]
+        [MenuItem("GoveKits/Hotfix", false, 203)]
         public static void ShowWindow()
         {
             var window = GetWindow<HotfixWindow>("HybridCLR Build Tool");

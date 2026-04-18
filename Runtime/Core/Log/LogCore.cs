@@ -52,7 +52,7 @@ namespace GoveKits.Runtime.Core
         /// <summary>
         /// 警告
         /// </summary>
-        public static void Warn(string tag, string message)
+        public static void Warning(string tag, string message)
         {
             if (ShowLevel > LogLevel.Warning) return;
             DispatchLog(tag, message, LogLevel.Warning, "#ffa500");
@@ -87,6 +87,8 @@ namespace GoveKits.Runtime.Core
         }
 
         #region 扩展方法
+
+        public static void Log(string message) => Info("Log", message);
 
         /// <summary>
         /// 成功

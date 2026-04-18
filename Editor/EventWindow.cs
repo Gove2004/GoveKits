@@ -25,7 +25,7 @@ namespace GoveKits.Editor
         private string _selectedBusName = EventCore.DefaultBusName;
         private readonly HashSet<Type> _expandedEventTypes = new();
 
-        [MenuItem("GoveKits/Event", false, 201)]
+        [MenuItem("GoveKits/Event", false, 100)]
         public static void ShowWindow()
         {
             var window = GetWindow<EventWindow>("Event 监控");

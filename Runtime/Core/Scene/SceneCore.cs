@@ -1,6 +1,5 @@
 using System;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -45,11 +44,6 @@ namespace GoveKits.Runtime.Core
         /// </summary>
         public static void Load(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
         {
-            if (string.IsNullOrWhiteSpace(sceneName))
-            {
-                throw new ArgumentException("Scene name cannot be null or empty.", nameof(sceneName));
-            }
-
             SceneManager.LoadScene(sceneName, mode);
         }
 
@@ -58,17 +52,7 @@ namespace GoveKits.Runtime.Core
         /// </summary>
         public static async UniTask LoadAsync(string sceneName, LoadSceneMode mode = LoadSceneMode.Single)
         {
-            if (string.IsNullOrWhiteSpace(sceneName))
-            {
-                throw new ArgumentException("Scene name cannot be null or empty.", nameof(sceneName));
-            }
-
             AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName, mode);
-            if (operation == null)
-            {
-                throw new InvalidOperationException($"Failed to start loading scene: {sceneName}");
-            }
-
             await operation;
         }
 
@@ -77,11 +61,6 @@ namespace GoveKits.Runtime.Core
         /// </summary>
         public static async UniTask UnloadAsync(string sceneName)
         {
-            if (string.IsNullOrWhiteSpace(sceneName))
-            {
-                throw new ArgumentException("Scene name cannot be null or empty.", nameof(sceneName));
-            }
-
             Scene scene = SceneManager.GetSceneByName(sceneName);
             if (scene.IsValid() == false || scene.isLoaded == false)
             {

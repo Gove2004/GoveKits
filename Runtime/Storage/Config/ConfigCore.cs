@@ -84,7 +84,7 @@ namespace GoveKits.Runtime.Storage
         {
             if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                LogCore.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                LogCore.Warning(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
                 return new List<T>();
             }
 
@@ -95,7 +95,7 @@ namespace GoveKits.Runtime.Storage
         {
             if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                LogCore.Warn(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                LogCore.Warning(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
                 return new List<T>();
             }
 
