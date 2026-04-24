@@ -1,49 +1,85 @@
-
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Network
 {
     public static class SpawnCore
     {
-        private static Dictionary<string, Func<ISpawnMsg, GameObject>> _prefab = new();
+        // 核心变更：Key 从“C#类名”变成了“PrefabId(字符串)”
+        private static readonly Dictionary<string, Func<SpawnEntityMsg, INetObject>> _factories = new();
+        private static readonly Dictionary<string, Action<INetObject>> _despawnActions = new();
+        private static readonly Dictionary<int, INetObject> _activeEntities = new();
 
-        public static void Register<T>(Func<T, GameObject> func) where T : ISpawnMsg
+
+        // --- 注册字典 ---
+        public static void Register(string prefabId, Func<SpawnEntityMsg, INetObject> factoryFunc, Action<INetObject> despawnAction)
         {
-            string typeName = typeof(T).FullName;
-            if (_prefab.ContainsKey(typeName))
+            if (_factories.ContainsKey(prefabId))
             {
-                Debug.LogError($"SpawnCore 已经注册过 {typeName} 了，不能重复注册！");
+                LogCore.Warning(nameof(SpawnCore), $"已经注册过 {prefabId} 的生成器了！");
                 return;
             }
-
-            _prefab[typeName] = (msg) => func((T)msg);
+            _factories[prefabId] = factoryFunc;
+            _despawnActions[prefabId] = despawnAction;
         }
 
-
-        public static GameObject Spawn(ISpawnMsg msg)
+        // --- 生成与销毁 ---
+        public static INetObject Spawn(SpawnEntityMsg msg)
         {
-            string typeName = msg.GetType().FullName;
-            if (_prefab.TryGetValue(typeName, out var func))
+            if (_activeEntities.ContainsKey(msg.NetId)) return _activeEntities[msg.NetId];
+
+            if (_factories.TryGetValue(msg.PrefabId, out var factoryFunc))
             {
-                return func(msg);
+                // 调用业务层注册的工厂函数
+                INetObject netObj = factoryFunc(msg);
+                if (netObj != null)
+                {
+                    _activeEntities.Add(msg.NetId, netObj);
+                }
+                return netObj;
             }
             else
             {
-                Debug.LogError($"SpawnCore 没有注册过 {typeName} 的生成函数！");
+                LogCore.Error(nameof(SpawnCore), $"未找到 PrefabId: [{msg.PrefabId}] 的注册器！");
                 return null;
             }
         }
-    }
 
+        public static void Despawn(int netId)
+        {
+            if (_activeEntities.TryGetValue(netId, out var netObj))
+            {
+                _activeEntities.Remove(netId);
+                if (_despawnActions.TryGetValue(netObj.PrefabId, out var despawnAction))
+                {
+                    despawnAction(netObj);
+                }
+                else
+                {
+                    LogCore.Error(nameof(SpawnCore), $"未找到 PrefabId: [{netObj.PrefabId}] 的销毁器！");
+                }
+            }
+            else
+            {
+                LogCore.Warning(nameof(SpawnCore), $"尝试销毁不存在的 NetId: {netId}");
+            }
+        }
 
-    /// <summary>
-    /// 根据消息内容生成一个GameObject
-    /// </summary>
-    public interface ISpawnMsg
-    {
-        
+        public static void ClearAll()
+        {
+            foreach (var netObj in _activeEntities.Values)
+                if (netObj != null) Despawn(netObj.NetId);
+            _activeEntities.Clear();
+        }
+
+        public static INetObject GetEntity(int netId)
+        {
+            _activeEntities.TryGetValue(netId, out var netObj);
+            return netObj;
+        }
+
+        public static IEnumerable<KeyValuePair<int, INetObject>> GetAllEntities() => _activeEntities;
     }
 }

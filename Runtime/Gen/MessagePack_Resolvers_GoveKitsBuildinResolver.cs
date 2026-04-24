@@ -47,17 +47,29 @@ namespace MessagePack.Resolvers
 
         static GoveKitsBuildinResolverGetFormatterHelper()
         {
-            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(9)
+            lookup = new global::System.Collections.Generic.Dictionary<global::System.Type, int>(21)
             {
-                { typeof(global::GoveKits.Runtime.Network.FrameInputPackage[]), 0 },
-                { typeof(global::GoveKits.Runtime.Network.FramePackage[]), 1 },
-                { typeof(global::GoveKits.Runtime.Network.ByeMsg), 2 },
-                { typeof(global::GoveKits.Runtime.Network.FrameInputPackage), 3 },
-                { typeof(global::GoveKits.Runtime.Network.FramePackage), 4 },
-                { typeof(global::GoveKits.Runtime.Network.HiMsg), 5 },
-                { typeof(global::GoveKits.Runtime.Network.PingPongHeartbeatMsg), 6 },
-                { typeof(global::GoveKits.Runtime.Network.SyncFrameRequestMsg), 7 },
-                { typeof(global::GoveKits.Runtime.Network.SyncFrameResponseMsg), 8 },
+                { typeof(global::GoveKits.Runtime.Network.EntityState[]), 0 },
+                { typeof(global::GoveKits.Runtime.Network.FrameInputPackage[]), 1 },
+                { typeof(global::GoveKits.Runtime.Network.FramePackage[]), 2 },
+                { typeof(global::GoveKits.Runtime.Network.SpawnEntityMsg[]), 3 },
+                { typeof(global::GoveKits.Runtime.Network.ByebyeClientMsg), 4 },
+                { typeof(global::GoveKits.Runtime.Network.ByebyeServerMsg), 5 },
+                { typeof(global::GoveKits.Runtime.Network.DespawnEntityMsg), 6 },
+                { typeof(global::GoveKits.Runtime.Network.EntityState), 7 },
+                { typeof(global::GoveKits.Runtime.Network.FrameInputPackage), 8 },
+                { typeof(global::GoveKits.Runtime.Network.FramePackage), 9 },
+                { typeof(global::GoveKits.Runtime.Network.HelloClientMsg), 10 },
+                { typeof(global::GoveKits.Runtime.Network.HelloServerMsg), 11 },
+                { typeof(global::GoveKits.Runtime.Network.PingMsg), 12 },
+                { typeof(global::GoveKits.Runtime.Network.PingPongHeartbeatMsg), 13 },
+                { typeof(global::GoveKits.Runtime.Network.PongMsg), 14 },
+                { typeof(global::GoveKits.Runtime.Network.SpawnEntityMsg), 15 },
+                { typeof(global::GoveKits.Runtime.Network.StateInputPackage), 16 },
+                { typeof(global::GoveKits.Runtime.Network.SyncAllEntitiesMsg), 17 },
+                { typeof(global::GoveKits.Runtime.Network.SyncFrameRequestMsg), 18 },
+                { typeof(global::GoveKits.Runtime.Network.SyncFrameResponseMsg), 19 },
+                { typeof(global::GoveKits.Runtime.Network.WorldPackage), 20 },
             };
         }
 
@@ -71,15 +83,27 @@ namespace MessagePack.Resolvers
 
             switch (key)
             {
-                case 0: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>();
-                case 1: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.FramePackage>();
-                case 2: return new MessagePack.Formatters.GoveKits.Runtime.Network.ByeMsgFormatter();
-                case 3: return new MessagePack.Formatters.GoveKits.Runtime.Network.FrameInputPackageFormatter();
-                case 4: return new MessagePack.Formatters.GoveKits.Runtime.Network.FramePackageFormatter();
-                case 5: return new MessagePack.Formatters.GoveKits.Runtime.Network.HiMsgFormatter();
-                case 6: return new MessagePack.Formatters.GoveKits.Runtime.Network.PingPongHeartbeatMsgFormatter();
-                case 7: return new MessagePack.Formatters.GoveKits.Runtime.Network.SyncFrameRequestMsgFormatter();
-                case 8: return new MessagePack.Formatters.GoveKits.Runtime.Network.SyncFrameResponseMsgFormatter();
+                case 0: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.EntityState>();
+                case 1: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>();
+                case 2: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.FramePackage>();
+                case 3: return new global::MessagePack.Formatters.ArrayFormatter<global::GoveKits.Runtime.Network.SpawnEntityMsg>();
+                case 4: return new MessagePack.Formatters.GoveKits.Runtime.Network.ByebyeClientMsgFormatter();
+                case 5: return new MessagePack.Formatters.GoveKits.Runtime.Network.ByebyeServerMsgFormatter();
+                case 6: return new MessagePack.Formatters.GoveKits.Runtime.Network.DespawnEntityMsgFormatter();
+                case 7: return new MessagePack.Formatters.GoveKits.Runtime.Network.EntityStateFormatter();
+                case 8: return new MessagePack.Formatters.GoveKits.Runtime.Network.FrameInputPackageFormatter();
+                case 9: return new MessagePack.Formatters.GoveKits.Runtime.Network.FramePackageFormatter();
+                case 10: return new MessagePack.Formatters.GoveKits.Runtime.Network.HelloClientMsgFormatter();
+                case 11: return new MessagePack.Formatters.GoveKits.Runtime.Network.HelloServerMsgFormatter();
+                case 12: return new MessagePack.Formatters.GoveKits.Runtime.Network.PingMsgFormatter();
+                case 13: return new MessagePack.Formatters.GoveKits.Runtime.Network.PingPongHeartbeatMsgFormatter();
+                case 14: return new MessagePack.Formatters.GoveKits.Runtime.Network.PongMsgFormatter();
+                case 15: return new MessagePack.Formatters.GoveKits.Runtime.Network.SpawnEntityMsgFormatter();
+                case 16: return new MessagePack.Formatters.GoveKits.Runtime.Network.StateInputPackageFormatter();
+                case 17: return new MessagePack.Formatters.GoveKits.Runtime.Network.SyncAllEntitiesMsgFormatter();
+                case 18: return new MessagePack.Formatters.GoveKits.Runtime.Network.SyncFrameRequestMsgFormatter();
+                case 19: return new MessagePack.Formatters.GoveKits.Runtime.Network.SyncFrameResponseMsgFormatter();
+                case 20: return new MessagePack.Formatters.GoveKits.Runtime.Network.WorldPackageFormatter();
                 default: return null;
             }
         }

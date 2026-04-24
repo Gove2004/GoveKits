@@ -2,32 +2,29 @@ using System;
 
 namespace GoveKits.Runtime.Network
 {
-    // 供 FrameCore 统一调用的非泛型接口
-    public interface IClientSubmitor
+    public interface IClientStateInputor
     {
         int PlayerId { get; }
         void Update(float deltaTime);
     }
 
     /// <summary>
-    /// 客户端帧提交器基类
+    /// 客户端输入提交器基类
     /// </summary>
-    public abstract class ClientFrameSubmitor<T> : IClientSubmitor where T : IProtocolMessage, new()
+    public abstract class ClientStateInputor<T> : IClientStateInputor where T : IProtocolMessage, new()
     {
-        public int PlayerId => ClientCore.PlayerId;
-        public float SubmitInterval { get; set; }
+        public int PlayerId { get; private set; }
+        public float SubmitInterval { get; set; } // 客户端发包频率
         
         private float _accumulateTime = 0f;
-        protected T PendingInput = new T(); // 待发送的大包裹
+        protected T PendingInput = new T();
 
-        public ClientFrameSubmitor(float submitInterval = 0.033f)
+        public ClientStateInputor(int playerId, float submitInterval = 0.033f)
         {
+            PlayerId = playerId;
             SubmitInterval = submitInterval;
         }
 
-        /// <summary>
-        /// 代理方法：供分布式系统局部修改大包裹的数据
-        /// </summary>
         public void ModifyInput(Action<T> modifier)
         {
             modifier?.Invoke(PendingInput);
@@ -35,14 +32,12 @@ namespace GoveKits.Runtime.Network
 
         public void Update(float deltaTime)
         {
-            if (PlayerId == 0) return; // 还未连接服务器或者本地玩家还未准备好，不提交输入
-
             _accumulateTime += deltaTime;
             if (_accumulateTime >= SubmitInterval)
             {
                 // 序列化当前包裹并发送
-                FrameCore.SendInput(PlayerId, PendingInput);
-                
+                StateCore.SendStateInput(PlayerId, ProtocolCore.Serialize(PendingInput));
+
                 OnAfterSubmit(); // 触发清理逻辑
                 
                 _accumulateTime -= SubmitInterval;
@@ -50,7 +45,7 @@ namespace GoveKits.Runtime.Network
         }
 
         /// <summary>
-        /// 子类实现：发包后的清理工作（如清除开火标记）
+        /// 子类实现：发包后的清理工作（如清除一次性开火标记）
         /// </summary>
         protected abstract void OnAfterSubmit();
     }

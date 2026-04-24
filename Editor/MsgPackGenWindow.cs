@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO; // Added for directory operations
 using System.Text;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -19,6 +20,7 @@ namespace GoveKits.Editor
 
         public string InputPath = "Scripts";
         public string OutputPath = "Gen/";
+        public bool ClearOutputDirectory = true; // 新增选项：生成前清空输出目录
         public bool MapMode = false;
         public string Symbols = "";
         public string ResolverName = "GeneratedResolver";
@@ -165,6 +167,11 @@ namespace GoveKits.Editor
 
                     cfg.InputPath = DrawField("-i input path:", cfg.InputPath);
                     cfg.OutputPath = DrawField("-o output path:", cfg.OutputPath);
+                    
+                    // --- 新增UI选项 ---
+                    cfg.ClearOutputDirectory = EditorGUILayout.ToggleLeft("生成前清空输出目录", cfg.ClearOutputDirectory);
+                    GUILayout.Space(5);
+
                     cfg.MapMode = EditorGUILayout.ToggleLeft("-m use map mode", cfg.MapMode);
                     cfg.Symbols = DrawField("-c conditional symbols:", cfg.Symbols);
                     cfg.ResolverName = DrawField("-r generated resolver name:", cfg.ResolverName);
@@ -200,7 +207,7 @@ namespace GoveKits.Editor
         private void SaveConfigs()
         {
             var wrapper = new MpcConfigListWrapper { Configs = _configs };
-            string json = JsonUtility.ToJson(wrapper);
+            string json = JsonUtility.ToJson(wrapper, true);
             EditorPrefs.SetString(PrefsKey, json);
         }
 
@@ -264,15 +271,45 @@ namespace GoveKits.Editor
 
         private async Task<bool> ProcessSingleConfigAsync(MpcConfigItem cfg)
         {
+            // --- 新增逻辑：清空输出目录 ---
+            if (cfg.ClearOutputDirectory && !string.IsNullOrWhiteSpace(cfg.OutputPath))
+            {
+                string fullOutputPath = Path.Combine(Application.dataPath, cfg.OutputPath);
+                string normalizedOutputPath = Path.GetFullPath(fullOutputPath);
+                string normalizedAssetsPath = Path.GetFullPath(Application.dataPath);
+
+                // 安全检查：确保不是 Assets 根目录且在项目内
+                if (normalizedOutputPath.StartsWith(normalizedAssetsPath) && normalizedOutputPath != normalizedAssetsPath)
+                {
+                    if (Directory.Exists(normalizedOutputPath))
+                    {
+                        try
+                        {
+                            Debug.Log($"<color=orange>选项已启用：正在清空目录 [{cfg.OutputPath}]...</color>");
+                            Directory.Delete(normalizedOutputPath, true);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogError($"清空目录 {cfg.OutputPath} 失败: {e.Message}");
+                            return false; // 如果清理失败则中止本次生成
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"出于安全考虑，跳过清空目录 [{cfg.OutputPath}]。该路径可能指向项目根目录或外部文件夹。");
+                }
+            }
+            
             // 拼装 MessagePack Compiler (mpc) 参数
             var sb = new StringBuilder();
             sb.Append($"-i \"{cfg.InputPath}\" -o \"{cfg.OutputPath}\"");
 
             if (cfg.MapMode) sb.Append(" -m");
-            if (!string.IsNullOrWhiteSpace(cfg.Symbols)) sb.Append($" -c {cfg.Symbols}");
-            if (!string.IsNullOrWhiteSpace(cfg.ResolverName)) sb.Append($" -r {cfg.ResolverName}");
-            if (!string.IsNullOrWhiteSpace(cfg.Namespace)) sb.Append($" -n {cfg.Namespace}");
-            if (!string.IsNullOrWhiteSpace(cfg.MultipleSymbols)) sb.Append($" -ms {cfg.MultipleSymbols}");
+            if (!string.IsNullOrWhiteSpace(cfg.Symbols)) sb.Append($" -c \"{cfg.Symbols}\"");
+            if (!string.IsNullOrWhiteSpace(cfg.ResolverName)) sb.Append($" -r \"{cfg.ResolverName}\"");
+            if (!string.IsNullOrWhiteSpace(cfg.Namespace)) sb.Append($" -n \"{cfg.Namespace}\"");
+            if (!string.IsNullOrWhiteSpace(cfg.MultipleSymbols)) sb.Append($" -ms \"{cfg.MultipleSymbols}\"");
 
             string arguments = sb.ToString();
             Debug.Log($"<color=cyan>开始生成 [{cfg.Name}]</color>\n执行命令: mpc {arguments}");
@@ -282,7 +319,7 @@ namespace GoveKits.Editor
                 // 使用原生的调用方式（注意：原生调用的是 mpc 别名，且工作目录严格定为 Assets 目录！）
                 string log = await InvokeProcessStartAsync("mpc", arguments);
 
-                if (!string.IsNullOrWhiteSpace(log) && !log.Contains("error"))
+                if (!string.IsNullOrWhiteSpace(log) && !log.ToLower().Contains("error"))
                 {
                     Debug.Log($"<color=green>【{cfg.Name}】 代码生成成功！</color>\n{log}");
                     return true;

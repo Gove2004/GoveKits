@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class HiMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.HiMsg>
+    public sealed class EntityStateFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.EntityState>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.HiMsg value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.EntityState value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,11 +27,18 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(1);
-            writer.Write(value.Int);
+            writer.WriteArrayHeader(8);
+            writer.Write(value.NetId);
+            writer.Write(value.Px);
+            writer.Write(value.Py);
+            writer.Write(value.Pz);
+            writer.Write(value.Rx);
+            writer.Write(value.Ry);
+            writer.Write(value.Rz);
+            writer.Write(value.Payload);
         }
 
-        public global::GoveKits.Runtime.Network.HiMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.EntityState Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -40,14 +47,35 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
 
             options.Security.DepthStep(ref reader);
             var length = reader.ReadArrayHeader();
-            var __Int__ = default(int);
+            var ____result = new global::GoveKits.Runtime.Network.EntityState();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        __Int__ = reader.ReadInt32();
+                        ____result.NetId = reader.ReadInt32();
+                        break;
+                    case 1:
+                        ____result.Px = reader.ReadSingle();
+                        break;
+                    case 2:
+                        ____result.Py = reader.ReadSingle();
+                        break;
+                    case 3:
+                        ____result.Pz = reader.ReadSingle();
+                        break;
+                    case 4:
+                        ____result.Rx = reader.ReadSingle();
+                        break;
+                    case 5:
+                        ____result.Ry = reader.ReadSingle();
+                        break;
+                    case 6:
+                        ____result.Rz = reader.ReadSingle();
+                        break;
+                    case 7:
+                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:
                         reader.Skip();
@@ -55,7 +83,6 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 }
             }
 
-            var ____result = new global::GoveKits.Runtime.Network.HiMsg(__Int__);
             reader.Depth--;
             return ____result;
         }

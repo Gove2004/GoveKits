@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class ByeMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.ByeMsg>
+    public sealed class WorldPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.WorldPackage>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.ByeMsg value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.WorldPackage value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -28,12 +28,13 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(2);
-            writer.Write(value.Int);
-            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.Str, options);
+            writer.WriteArrayHeader(3);
+            writer.Write(value.SnapshotTick);
+            writer.Write(value.ServerTime);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Serialize(ref writer, value.Entities, options);
         }
 
-        public global::GoveKits.Runtime.Network.ByeMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.WorldPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -43,17 +44,20 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             options.Security.DepthStep(ref reader);
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.ByeMsg();
+            var ____result = new global::GoveKits.Runtime.Network.WorldPackage();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.Int = reader.ReadInt32();
+                        ____result.SnapshotTick = reader.ReadInt32();
                         break;
                     case 1:
-                        ____result.Str = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        ____result.ServerTime = reader.ReadSingle();
+                        break;
+                    case 2:
+                        ____result.Entities = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Deserialize(ref reader, options);
                         break;
                     default:
                         reader.Skip();

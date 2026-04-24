@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class FrameInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>
+    public sealed class SpawnEntityMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.SpawnEntityMsg>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.FrameInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.SpawnEntityMsg value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,15 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(3);
-            writer.Write(value.PlayerId);
-            writer.Write(value.ProtocolId);
-            writer.Write(value.Payload);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(4);
+            writer.Write(value.NetId);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PrefabId, options);
+            writer.Write(value.OwnerId);
+            writer.Write(value.CustomInitData);
         }
 
-        public global::GoveKits.Runtime.Network.FrameInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.SpawnEntityMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -41,21 +43,25 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             options.Security.DepthStep(ref reader);
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.FrameInputPackage();
+            var ____result = new global::GoveKits.Runtime.Network.SpawnEntityMsg();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.PlayerId = reader.ReadInt32();
+                        ____result.NetId = reader.ReadInt32();
                         break;
                     case 1:
-                        ____result.ProtocolId = reader.ReadUInt16();
+                        ____result.PrefabId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
                         break;
                     case 2:
-                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        ____result.OwnerId = reader.ReadInt32();
+                        break;
+                    case 3:
+                        ____result.CustomInitData = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:
                         reader.Skip();

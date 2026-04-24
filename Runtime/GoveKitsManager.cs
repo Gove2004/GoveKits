@@ -39,6 +39,8 @@ namespace GoveKits.Runtime
             // await ServerCore.StartAsync(3000);
             // 5. （可选）帧同步组件
             // FrameCore.StartClient();
+            // 6. （可选）Rpc组件
+            // RpcCore.Initialize();
 
             // Storage
             // 1. 资源热更新

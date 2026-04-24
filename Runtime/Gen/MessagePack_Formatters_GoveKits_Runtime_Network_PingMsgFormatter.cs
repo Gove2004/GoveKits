@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class FrameInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>
+    public sealed class PingMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.PingMsg>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.FrameInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.PingMsg value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,12 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(3);
-            writer.Write(value.PlayerId);
-            writer.Write(value.ProtocolId);
-            writer.Write(value.Payload);
+            writer.WriteArrayHeader(2);
+            writer.Write(value.ClientTimestamp);
+            writer.Write(value.ServerTimestamp);
         }
 
-        public global::GoveKits.Runtime.Network.FrameInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.PingMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -42,20 +41,17 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
 
             options.Security.DepthStep(ref reader);
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.FrameInputPackage();
+            var ____result = new global::GoveKits.Runtime.Network.PingMsg();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.PlayerId = reader.ReadInt32();
+                        ____result.ClientTimestamp = reader.ReadInt64();
                         break;
                     case 1:
-                        ____result.ProtocolId = reader.ReadUInt16();
-                        break;
-                    case 2:
-                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        ____result.ServerTimestamp = reader.ReadInt64();
                         break;
                     default:
                         reader.Skip();

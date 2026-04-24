@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class FrameInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>
+    public sealed class DespawnEntityMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.DespawnEntityMsg>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.FrameInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.DespawnEntityMsg value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,11 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(3);
-            writer.Write(value.PlayerId);
-            writer.Write(value.ProtocolId);
-            writer.Write(value.Payload);
+            writer.WriteArrayHeader(1);
+            writer.Write(value.NetId);
         }
 
-        public global::GoveKits.Runtime.Network.FrameInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.DespawnEntityMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -42,20 +40,14 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
 
             options.Security.DepthStep(ref reader);
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.FrameInputPackage();
+            var ____result = new global::GoveKits.Runtime.Network.DespawnEntityMsg();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.PlayerId = reader.ReadInt32();
-                        break;
-                    case 1:
-                        ____result.ProtocolId = reader.ReadUInt16();
-                        break;
-                    case 2:
-                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        ____result.NetId = reader.ReadInt32();
                         break;
                     default:
                         reader.Skip();

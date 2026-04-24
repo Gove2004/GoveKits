@@ -4,7 +4,6 @@ using System.Reflection;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
 
-
 namespace GoveKits.Runtime.Network
 {
     public static class DispatcherCore
@@ -12,8 +11,7 @@ namespace GoveKits.Runtime.Network
         private static Dictionary<ushort, List<IMessageHandler>> _handlerMap = new();
         private static Dictionary<object, List<(ushort, IMessageHandler)>> _instanceBindings = new();
 
-
-        public static async UniTask DispatchAsync(int channelId, ushort protocolId, IProtocolMessage message)
+        public static async UniTask DispatchAsync(Session session, ushort protocolId, IProtocolMessage message)
         {
             await UniTask.SwitchToMainThread();
 
@@ -22,7 +20,7 @@ namespace GoveKits.Runtime.Network
 
             for (int i = handlers.Count - 1; i >= 0; i--) 
             {
-                try { await handlers[i].Handle(channelId, message); }
+                try { await handlers[i].Handle(session, message); }
                 catch (Exception ex) { LogCore.Error(nameof(DispatcherCore), $"执行失败: {ex}"); }
             }
         }
@@ -30,7 +28,6 @@ namespace GoveKits.Runtime.Network
         public static void Bind(object target)
         {
             if (_instanceBindings.ContainsKey(target)) return;
-
             var bindings = new List<(ushort, IMessageHandler)>();
 
             foreach (var method in target.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
@@ -41,7 +38,6 @@ namespace GoveKits.Runtime.Network
                 IMessageHandler handler = null;
                 Type msgType = null;
 
-                // 客户端签名校验：void Method(IProtocolMessage msg)
                 if (param.Length == 1 && typeof(IProtocolMessage).IsAssignableFrom(param[0].ParameterType))
                 {
                     msgType = param[0].ParameterType;
@@ -49,17 +45,16 @@ namespace GoveKits.Runtime.Network
                     var del = Delegate.CreateDelegate(actionType, target, method);
                     handler = (IMessageHandler)Activator.CreateInstance(typeof(ClientProtocolHandler<>).MakeGenericType(msgType), del);
                 }
-                // 服务端签名校验：void Method(int channelId, IProtocolMessage msg)
-                else if (param.Length == 2 && param[0].ParameterType == typeof(int) && typeof(IProtocolMessage).IsAssignableFrom(param[1].ParameterType))
+                else if (param.Length == 2 && param[0].ParameterType == typeof(Session) && typeof(IProtocolMessage).IsAssignableFrom(param[1].ParameterType))
                 {
                     msgType = param[1].ParameterType;
-                    var actionType = typeof(Action<,>).MakeGenericType(typeof(int), msgType);
+                    var actionType = typeof(Action<,>).MakeGenericType(typeof(Session), msgType);
                     var del = Delegate.CreateDelegate(actionType, target, method);
                     handler = (IMessageHandler)Activator.CreateInstance(typeof(ServerProtocolHandler<>).MakeGenericType(msgType), del);
                 }
                 else
                 {
-                    LogCore.Warning(nameof(DispatcherCore), $"方法签名错误: {method.Name}");
+                    LogCore.Warning(nameof(DispatcherCore), $"方法签名不合法: {method.Name}");
                 }
 
                 if (handler != null && msgType != null)
@@ -85,6 +80,7 @@ namespace GoveKits.Runtime.Network
                 _instanceBindings.Remove(target);
             }
         }
+
         public static void Clear() { _handlerMap.Clear(); _instanceBindings.Clear(); }
     }
 }

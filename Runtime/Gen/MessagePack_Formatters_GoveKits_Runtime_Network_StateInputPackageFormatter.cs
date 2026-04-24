@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class FrameInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.FrameInputPackage>
+    public sealed class StateInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.StateInputPackage>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.FrameInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.StateInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,12 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(3);
+            writer.WriteArrayHeader(2);
             writer.Write(value.PlayerId);
-            writer.Write(value.ProtocolId);
             writer.Write(value.Payload);
         }
 
-        public global::GoveKits.Runtime.Network.FrameInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.StateInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -42,7 +41,7 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
 
             options.Security.DepthStep(ref reader);
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.FrameInputPackage();
+            var ____result = new global::GoveKits.Runtime.Network.StateInputPackage();
 
             for (int i = 0; i < length; i++)
             {
@@ -52,9 +51,6 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                         ____result.PlayerId = reader.ReadInt32();
                         break;
                     case 1:
-                        ____result.ProtocolId = reader.ReadUInt16();
-                        break;
-                    case 2:
                         ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:

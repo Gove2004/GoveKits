@@ -1,134 +1,131 @@
-// Transport/TcpNetChannel.cs（修改版，不依赖 Pipelines）
 using System;
-using System.IO;
+using System.Buffers.Binary;
+using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 
 namespace GoveKits.Runtime.Network
 {
-    public class TcpNetChannel : INetChannel
+    public class TcpConnection : IConnection
     {
-        public int ChannelId { get; private set; }
-        public bool IsActive => _socket?.Connected ?? false;
-        
-        public event Action<int, ushort, byte[]> OnDataReceived;
-        public event Action<int, string> OnError;
+        public bool IsConnected => _socket?.Connected ?? false;
+        public EndPoint RemoteEndPoint => _socket?.RemoteEndPoint;
 
-        private readonly Socket _socket;
-        private readonly MemoryStream _recvStream; // 替代 Pipe
-        private readonly byte[] _recvBuffer;
-        private readonly object _lock = new();
+        public event Action<IConnection> OnConnected;
+        public event Action<IConnection, string> OnDisconnected;
+        public event Action<IConnection, byte[]> OnFrameReceived;
 
-        public TcpNetChannel(Socket socket, int channelId, int bufferSize = 8192)
+        private Socket _socket;
+        private CancellationTokenSource _cts;
+
+        public TcpConnection() { }
+
+        public TcpConnection(Socket acceptedSocket)
         {
-            _socket = socket;
-            ChannelId = channelId;
+            _socket = acceptedSocket;
             _socket.NoDelay = true;
-            
-            _recvStream = new MemoryStream();
-            _recvBuffer = new byte[bufferSize];
-            
-            _ = ReceiveLoopAsync();
+            _cts = new CancellationTokenSource();
+            StartReceiveLoop().Forget();
         }
 
-        public void SetID(int id) => ChannelId = id;
-
-        public void Send(ushort protocolId, byte[] payload)
-        {
-            if (!IsActive) return;
-            
-            byte[] frame = FrameCodec.Encode(protocolId, payload);
-            try 
-            { 
-                _socket.Send(frame); 
-            }
-            catch (Exception ex) 
-            { 
-                OnError?.Invoke(ChannelId, $"Send failed: {ex.Message}");
-                Dispose();
-            }
-        }
-
-        private async UniTask ReceiveLoopAsync()
+        public async Task<bool> ConnectAsync(EndPoint target)
         {
             try
             {
-                while (IsActive)
+                Close("Reconnecting");
+                _socket = new Socket(target.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                _socket.NoDelay = true;
+                _cts = new CancellationTokenSource();
+
+                await _socket.ConnectAsync(target);
+                OnConnected?.Invoke(this);
+                StartReceiveLoop().Forget();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                OnDisconnected?.Invoke(this, $"Connect failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        public void SendFrame(byte[] frameData)
+        {
+            if (!IsConnected) return;
+            try
+            {
+                // 自动装配 [4字节长度头]
+                byte[] sendBuffer = new byte[4 + frameData.Length];
+                BinaryPrimitives.WriteInt32LittleEndian(sendBuffer.AsSpan(0, 4), frameData.Length);
+                Buffer.BlockCopy(frameData, 0, sendBuffer, 4, frameData.Length);
+
+                _socket.Send(sendBuffer, 0, sendBuffer.Length, SocketFlags.None);
+            }
+            catch (Exception ex)
+            {
+                Close($"Send failed: {ex.Message}");
+            }
+        }
+
+        private async UniTaskVoid StartReceiveLoop()
+        {
+            try
+            {
+                byte[] lengthBuffer = new byte[4];
+
+                while (IsConnected && !_cts.IsCancellationRequested)
                 {
-                    int received = await _socket.ReceiveAsync(
-                        new ArraySegment<byte>(_recvBuffer), 
-                        SocketFlags.None);
-                    
-                    if (received == 0) 
+                    // 1. 精确读取 4 字节长度头
+                    if (!await ReadExactAsync(lengthBuffer, 4)) break;
+                    int frameLength = BinaryPrimitives.ReadInt32LittleEndian(lengthBuffer);
+
+                    if (frameLength <= 0 || frameLength > 1024 * 1024 * 5) // 5MB保护
                     {
-                        OnError?.Invoke(ChannelId, "Connection closed by remote");
+                        Close("Invalid frame length");
                         break;
                     }
 
-                    // 写入流并尝试解包
-                    lock (_lock)
-                    {
-                        _recvStream.Write(_recvBuffer, 0, received);
-                        ProcessStream();
-                    }
+                    // 2. 根据长度，精确读取完整数据帧
+                    byte[] frameData = new byte[frameLength];
+                    if (!await ReadExactAsync(frameData, frameLength)) break;
+
+                    // 3. 抛出完整包
+                    OnFrameReceived?.Invoke(this, frameData);
                 }
             }
             catch (Exception ex)
             {
-                OnError?.Invoke(ChannelId, $"Receive error: {ex.Message}");
-            }
-            finally
-            {
-                Dispose();
+                Close($"Receive error: {ex.Message}");
             }
         }
 
-        private void ProcessStream()
+        // 核心读取工具：必须读满指定字节数，解决 TCP 碎片化问题
+        private async Task<bool> ReadExactAsync(byte[] buffer, int requiredBytes)
         {
-            _recvStream.Position = 0;
-            var buffer = _recvStream.GetBuffer();
-            var readableBytes = (int)_recvStream.Length;
-            int processed = 0;
-
-            while (readableBytes - processed >= FrameCodec.HeaderSize)
+            int offset = 0;
+            while (offset < requiredBytes)
             {
-                var span = new ReadOnlySpan<byte>(buffer, processed, readableBytes - processed);
-                int consumed = FrameCodec.TryDecode(span, out var protocolId, out var payload);
+                int read = await _socket.ReceiveAsync(
+                    new ArraySegment<byte>(buffer, offset, requiredBytes - offset), 
+                    SocketFlags.None);
                 
-                if (consumed == 0) break; // 半包，等下次数据
-                
-                // 复制 payload（因为后面会修改流）
-                var payloadCopy = new byte[payload.Length];
-                payload.CopyTo(payloadCopy);
-                
-                OnDataReceived?.Invoke(ChannelId, protocolId, payloadCopy);
-                processed += consumed;
+                if (read == 0) return false; // 远端断开
+                offset += read;
             }
-
-            // 保留未处理的数据
-            if (processed > 0)
-            {
-                int remaining = readableBytes - processed;
-                if (remaining > 0)
-                {
-                    Buffer.BlockCopy(buffer, processed, buffer, 0, remaining);
-                }
-                _recvStream.SetLength(remaining);
-                _recvStream.Position = remaining;
-            }
+            return true;
         }
 
-        public Task CloseAsync()
+        public void Close(string reason = "")
         {
-            Dispose();
-            return Task.CompletedTask;
+            if (_socket == null) return;
+            try { _cts?.Cancel(); } catch { }
+            try { _socket.Close(); } catch { }
+            _socket = null;
+            OnDisconnected?.Invoke(this, reason);
         }
 
-        public void Dispose()
-        {
-            try { _socket?.Close(); } catch { }
-            _recvStream?.Dispose();
-        }
+        public void Dispose() => Close("Dispose");
     }
 }

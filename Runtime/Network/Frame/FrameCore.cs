@@ -65,20 +65,25 @@ namespace GoveKits.Runtime.Network
             }
             
             _clientExecutor?.Update(deltaTime);
+
+            _systemCmdCounter = 0; // 每帧结束重置
         }
 
+        /// <summary>
+        /// 不直接调用此接口塞进来的指令不会传递到 [MessageHandler]
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="commandData"></param>
+        private static int _systemCmdCounter = 0;
         public static void ServerInject<T>(T commandData) where T : IProtocolMessage
         {
-            if (_serverCollector == null) return;
-
-            var inputPkg = new FrameInputPackage
+            FrameInputPackage sysBuffer = new FrameInputPackage
             {
-                PlayerId = 0, // 0 代表系统/上帝
+                PlayerId = --_systemCmdCounter, // 约定：PlayerId < 0 的包是系统/上帝指令
+                ProtocolId = ProtocolCore.GetId<T>(),
                 Payload = ProtocolCore.Serialize(commandData)
             };
-
-            // 直接塞进收集器里，下一帧会和玩家指令一起广播出去！
-            _serverCollector.CollectInput(inputPkg);
+            _serverCollector?.CollectInput(sysBuffer);
         }
 
         public static void SubmitModify<T>(Action<T> modifier) where T : IProtocolMessage, new()
@@ -89,9 +94,15 @@ namespace GoveKits.Runtime.Network
             }
         }
 
-        internal static void SendInput(int playerId, byte[] payload)
+        internal static void SendInput<T>(int playerId, T payloadObj) where T : IProtocolMessage
         {
-            ClientCore.Send(new FrameInputPackage { PlayerId = playerId, Payload = payload });
+            FrameInputPackage bufferInput = new()
+            {
+                PlayerId = playerId,
+                ProtocolId = ProtocolCore.GetId<T>(),
+                Payload = ProtocolCore.Serialize(payloadObj)
+            };
+            ClientCore.Send(bufferInput);
         }
 
         // --- 网络代理 ---
@@ -117,17 +128,18 @@ namespace GoveKits.Runtime.Network
                 }
             }
         }
+        
 
         private class ServerNetworkProxy
         {
             [MessageHandler]
-            public void OnReceiveInput(int channelId, FrameInputPackage input) => _serverCollector?.CollectInput(input);
+            public void OnReceiveInput(Session session, FrameInputPackage input) => _serverCollector?.CollectInput(input);
 
             [MessageHandler]
-            public void OnReceiveSyncRequest(int channelId, SyncFrameRequestMsg req)
+            public void OnReceiveSyncRequest(Session session, SyncFrameRequestMsg req)
             {
                 // 服务端收到客户端的追帧请求，开始提取档案下发
-                _serverStoreger?.SendHistoryToClient(channelId, req.LocalFrameId);
+                _serverStoreger?.SendHistoryToClient(session.SessionId, req.LocalFrameId);
             }
         }
     }

@@ -8,9 +8,9 @@ namespace GoveKits.Runtime.Network
     public class FrameInputPackage : IProtocolMessage
     {
         [Key(0)] public int PlayerId { get; set; }
-        [Key(1)] public byte[] Payload { get; set; } // 业务层数据盲盒
+        [Key(1)] public ushort ProtocolId { get; set; } // 辨别Payload
+        [Key(2)] public byte[] Payload { get; set; } 
     }
-
 
     [MessagePackObject]
     [ProtocolId(102)]
@@ -19,17 +19,17 @@ namespace GoveKits.Runtime.Network
         [Key(0)] public int FrameId { get; set; }
         [Key(1)] public FrameInputPackage[] Inputs { get; set; }
 
-        public T GetInput<T>(int playerId) where T : IProtocolMessage
+        public T GetInput<T>(int playerId) where T : class, IProtocolMessage
         {
             if (Inputs == null) return default;
-            var input = Inputs.FirstOrDefault(i => i.PlayerId == playerId);
+            
+            // 【核心修复】：提取时必须核对 ProtocolId，防止 Spawn 被强行解析成 Despawn！
+            ushort targetProtoId = ProtocolCore.GetId<T>();
+            var input = Inputs.FirstOrDefault(i => i.PlayerId == playerId && i.ProtocolId == targetProtoId);
+            
             if (input == null || input.Payload == null) return default;
-            return ProtocolCore.Deserialize<T>(input.Payload);
-        }
 
-        public bool HasInput(int playerId)
-        {
-            return Inputs != null && Inputs.Any(i => i.PlayerId == playerId);
+            return ProtocolCore.Deserialize(targetProtoId, input.Payload) as T;
         }
     }
 

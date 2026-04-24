@@ -35,6 +35,7 @@ namespace GoveKits.Runtime.Network
         public void EndCatchUpPhase()
         {
             // 注意：只是收到标记，我们还要等字典里的帧消化到正常水平，才真正解除 CatchUp
+            LogCore.Warning(nameof(ClientFrameExecutor), "收到追帧结束标记，等待消化剩余帧后进入正常模式...");
         }
 
         public void Update(float deltaTime)
