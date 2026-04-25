@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class SyncFrameResponseMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.SyncFrameResponseMsg>
+    public sealed class PlayerInputPackageFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.PlayerInputPackage>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.SyncFrameResponseMsg value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.PlayerInputPackage value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,13 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(2);
-            writer.Write(value.IsEnd);
-            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.AllInputPackage[]>(formatterResolver).Serialize(ref writer, value.HistoryFrames, options);
+            writer.WriteArrayHeader(3);
+            writer.Write(value.PlayerId);
+            writer.Write(value.ProtocolId);
+            writer.Write(value.Payload);
         }
 
-        public global::GoveKits.Runtime.Network.SyncFrameResponseMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.PlayerInputPackage Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -41,19 +41,21 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             options.Security.DepthStep(ref reader);
-            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.SyncFrameResponseMsg();
+            var ____result = new global::GoveKits.Runtime.Network.PlayerInputPackage();
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.IsEnd = reader.ReadBoolean();
+                        ____result.PlayerId = reader.ReadInt32();
                         break;
                     case 1:
-                        ____result.HistoryFrames = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.AllInputPackage[]>(formatterResolver).Deserialize(ref reader, options);
+                        ____result.ProtocolId = reader.ReadUInt16();
+                        break;
+                    case 2:
+                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:
                         reader.Skip();

@@ -70,7 +70,8 @@ namespace GoveKits.Runtime
             TimeCore.Update(TimeCore.UnscaledWheelName, UnityEngine.Time.unscaledDeltaTime);
 
             // 驱动帧同步核心
-            FrameCore.Update(UnityEngine.Time.deltaTime);
+            FrameServerCore.Update(UnityEngine.Time.deltaTime);
+            FrameClientCore.Update(UnityEngine.Time.deltaTime);
         }
 
 

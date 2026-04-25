@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class SyncFrameResponseMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.SyncFrameResponseMsg>
+    public sealed class DespawnRspMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.DespawnRspMsg>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.SyncFrameResponseMsg value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.DespawnRspMsg value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -27,13 +27,11 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(2);
-            writer.Write(value.IsEnd);
-            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.AllInputPackage[]>(formatterResolver).Serialize(ref writer, value.HistoryFrames, options);
+            writer.WriteArrayHeader(1);
+            writer.Write(value.ObjectId);
         }
 
-        public global::GoveKits.Runtime.Network.SyncFrameResponseMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.DespawnRspMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -41,19 +39,15 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             options.Security.DepthStep(ref reader);
-            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.SyncFrameResponseMsg();
+            var __ObjectId__ = default(uint);
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.IsEnd = reader.ReadBoolean();
-                        break;
-                    case 1:
-                        ____result.HistoryFrames = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.AllInputPackage[]>(formatterResolver).Deserialize(ref reader, options);
+                        __ObjectId__ = reader.ReadUInt32();
                         break;
                     default:
                         reader.Skip();
@@ -61,6 +55,7 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 }
             }
 
+            var ____result = new global::GoveKits.Runtime.Network.DespawnRspMsg(__ObjectId__);
             reader.Depth--;
             return ____result;
         }
