@@ -15,6 +15,7 @@ namespace GoveKits.Runtime.Core
 
         // 内部发号器（从 100 开始，预留前面的 ID 给特殊用途）
         private static uint _localIdCounter = 100;
+        public static uint NextObjectId() => ++_localIdCounter;
 
         // 全局生命周期事件（极度好用！小地图、网络同步、成就系统可以直接监听）
         public static event Action<ISpawnable> OnEntitySpawned;
@@ -32,6 +33,11 @@ namespace GoveKits.Runtime.Core
             _spawnFactories[spawnKey] = factoryFunc;
             _despawnActions[spawnKey] = despawnAction;
         }
+        public static void UnRegister(string spawnKey)
+        {
+            _spawnFactories.Remove(spawnKey);
+            _despawnActions.Remove(spawnKey);
+        }
 
         /// <summary>
         /// 核心生成方法
@@ -48,7 +54,7 @@ namespace GoveKits.Runtime.Core
             }
 
             // 1. 决定 ID 的归属权
-            uint objectId = predefinedId > 0 ? predefinedId : ++_localIdCounter;
+            uint objectId = predefinedId > 0 ? predefinedId : NextObjectId();
 
             // 防止网络同步时传入了重复的 ID
             if (_spawnedEntities.ContainsKey(objectId))
@@ -138,6 +144,11 @@ namespace GoveKits.Runtime.Core
                 if (entity is T tEntity) list.Add(tEntity);
             }
             return list;
+        }
+
+        public static List<ISpawnable> GetAllEntities()
+        {
+            return new List<ISpawnable>(_spawnedEntities.Values);
         }
 
         /// <summary>

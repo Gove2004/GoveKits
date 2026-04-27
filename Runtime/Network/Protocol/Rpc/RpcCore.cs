@@ -1,25 +1,40 @@
-// RpcClientCore.cs
+
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Network
 {
-    public static class RpcClientCore
+    public static class RpcCore
     {
         private static int _nextRpcId = 1;
         private static readonly ConcurrentDictionary<int, Action<RpcResponseMsg>> _pendingRpcs = new();
-        private static readonly RpcClientProxy _proxy = new RpcClientProxy();
+        private static readonly RpcProxy _proxy = new();
 
+        /// <summary>
+        /// 客户端初始化，绑定 RPC 消息处理器
+        /// </summary>
         public static void Initialize()
         {
             ClientCore.Dispatcher.Bind(_proxy);
             ClientCore.OnDisconnected += HandleDisconnect;
+
+            // 出生和消亡 服务
+            // Register<SpawnReq, SpawnRsp>("Spawn", _proxy.OnSpawn);
+            // Register<DespawnReq, DespawnRsp>("Despawn", _proxy.OnDespawn);
         }
 
+        /// <summary>
+        /// 客户端断开连接时清理状态，取消所有待处理的 RPC 调用
+        /// </summary>
         public static void Shutdown()
         {
+            // Unregister("Spawn");
+            // Unregister("Despawn");
+
             ClientCore.Dispatcher.Unbind(_proxy);
             ClientCore.OnDisconnected -= HandleDisconnect;
             foreach (var rpc in _pendingRpcs.Values) rpc.Invoke(null);
@@ -70,12 +85,67 @@ namespace GoveKits.Runtime.Network
 
         private static void HandleDisconnect(string reason) => Shutdown();
 
-        private class RpcClientProxy
+
+
+
+
+        // 存储注册的 RPC 方法：MethodName -> 包装好的异步委托
+        private static readonly Dictionary<string, Func<Session, byte[], UniTask<byte[]>>> _rpcHandlers = new();
+
+        /// <summary>
+        /// 服务端注册 RPC 处理方法
+        /// </summary>
+        public static void Register<TReq, TRes>(string methodName, Func<Session, TReq, UniTask<TRes>> handler) 
+            where TReq : class 
+            where TRes : class
+        {
+            _rpcHandlers[methodName] = async (session, argsData) =>
+            {
+                var reqObj = ProtocolCore.Deserialize(typeof(TReq), argsData) as TReq;
+                var resObj = await handler(session, reqObj);
+                return resObj == null ? null : ProtocolCore.Serialize(typeof(TRes), resObj);
+            };
+        }
+        public static void Unregister(string methodName) => _rpcHandlers.Remove(methodName);
+
+
+
+
+
+        private class RpcProxy
         {
             [MessageHandler]
             public void OnRpcResponse(RpcResponseMsg msg)
             {
                 if (_pendingRpcs.TryRemove(msg.RpcId, out var action)) action.Invoke(msg);
+            }
+
+            [MessageHandler]
+            public async void OnRpcRequest(Session session, RpcRequestMsg req)
+            {
+                var response = new RpcResponseMsg { RpcId = req.RpcId };
+
+                if (_rpcHandlers.TryGetValue(req.MethodName, out var handler))
+                {
+                    try
+                    {
+                        // 执行业务逻辑
+                        response.ReturnData = await handler(session, req.ArgsData);
+                    }
+                    catch (Exception ex)
+                    {
+                        response.ErrorCode = 500;
+                        response.ErrorMsg = ex.Message;
+                    }
+                }
+                else
+                {
+                    response.ErrorCode = 404;
+                    response.ErrorMsg = $"RPC Method [{req.MethodName}] not found.";
+                }
+
+                // 异步返回给客户端
+                session.Send(response);
             }
         }
     }

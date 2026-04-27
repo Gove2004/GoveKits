@@ -27,15 +27,9 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(8);
+            writer.WriteArrayHeader(2);
             writer.Write(value.NetId);
-            writer.Write(value.Px);
-            writer.Write(value.Py);
-            writer.Write(value.Pz);
-            writer.Write(value.Rx);
-            writer.Write(value.Ry);
-            writer.Write(value.Rz);
-            writer.Write(value.Payload);
+            writer.Write(value.StatePayload);
         }
 
         public global::GoveKits.Runtime.Network.EntityState Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
@@ -54,28 +48,10 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 switch (i)
                 {
                     case 0:
-                        ____result.NetId = reader.ReadInt32();
+                        ____result.NetId = reader.ReadUInt32();
                         break;
                     case 1:
-                        ____result.Px = reader.ReadSingle();
-                        break;
-                    case 2:
-                        ____result.Py = reader.ReadSingle();
-                        break;
-                    case 3:
-                        ____result.Pz = reader.ReadSingle();
-                        break;
-                    case 4:
-                        ____result.Rx = reader.ReadSingle();
-                        break;
-                    case 5:
-                        ____result.Ry = reader.ReadSingle();
-                        break;
-                    case 6:
-                        ____result.Rz = reader.ReadSingle();
-                        break;
-                    case 7:
-                        ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        ____result.StatePayload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:
                         reader.Skip();

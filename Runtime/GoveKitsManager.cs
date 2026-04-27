@@ -31,8 +31,8 @@ namespace GoveKits.Runtime
             // Network
             // 1. 外部设置 Resolver
             ProtocolCore.AddResolver(GoveKitsBuildinResolver.Instance);
-            // 2. 扫描协议
-            // ProtocolCore.ScanProtocols();
+            // 2. 扫描并注册协议 ID 映射（握手/同步/RPC 都依赖它）
+            ProtocolCore.ScanAndRegister();
             // 3. 客户端连接
             // await ClientCore.ConnectAsync("127.0.0.1", 3000);
             // 4. （可选）服务端启动
@@ -70,8 +70,7 @@ namespace GoveKits.Runtime
             TimeCore.Update(TimeCore.UnscaledWheelName, UnityEngine.Time.unscaledDeltaTime);
 
             // 驱动帧同步核心
-            FrameServerCore.Update(UnityEngine.Time.deltaTime);
-            FrameClientCore.Update(UnityEngine.Time.deltaTime);
+            SyncCore.Update(UnityEngine.Time.deltaTime);
         }
 
 

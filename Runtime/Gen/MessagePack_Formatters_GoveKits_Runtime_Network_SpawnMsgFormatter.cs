@@ -16,10 +16,10 @@
 
 namespace MessagePack.Formatters.GoveKits.Runtime.Network
 {
-    public sealed class SpawnRspMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.SpawnRspMsg>
+    public sealed class SpawnMsgFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::GoveKits.Runtime.Network.SpawnMsg>
     {
 
-        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.SpawnRspMsg value, global::MessagePack.MessagePackSerializerOptions options)
+        public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::GoveKits.Runtime.Network.SpawnMsg value, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (value == null)
             {
@@ -28,13 +28,14 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(3);
-            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.PrefabId, options);
+            writer.WriteArrayHeader(4);
             writer.Write(value.ObjectId);
-            writer.Write(value.CustomInitData);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.SpawnKey, options);
+            writer.Write(value.SpawnData);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::System.Type>(formatterResolver).Serialize(ref writer, value.SpawnDataType, options);
         }
 
-        public global::GoveKits.Runtime.Network.SpawnRspMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
+        public global::GoveKits.Runtime.Network.SpawnMsg Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
@@ -44,20 +45,26 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             options.Security.DepthStep(ref reader);
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             var length = reader.ReadArrayHeader();
-            var ____result = new global::GoveKits.Runtime.Network.SpawnRspMsg();
+            var __ObjectId__ = default(uint);
+            var __SpawnKey__ = default(string);
+            var __SpawnData__ = default(byte[]);
+            var __SpawnDataType__ = default(global::System.Type);
 
             for (int i = 0; i < length; i++)
             {
                 switch (i)
                 {
                     case 0:
-                        ____result.PrefabId = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
+                        __ObjectId__ = reader.ReadUInt32();
                         break;
                     case 1:
-                        ____result.ObjectId = reader.ReadUInt32();
+                        __SpawnKey__ = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
                         break;
                     case 2:
-                        ____result.CustomInitData = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        __SpawnData__ = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
+                        break;
+                    case 3:
+                        __SpawnDataType__ = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::System.Type>(formatterResolver).Deserialize(ref reader, options);
                         break;
                     default:
                         reader.Skip();
@@ -65,6 +72,7 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 }
             }
 
+            var ____result = new global::GoveKits.Runtime.Network.SpawnMsg(__ObjectId__, __SpawnKey__, __SpawnData__, __SpawnDataType__);
             reader.Depth--;
             return ____result;
         }

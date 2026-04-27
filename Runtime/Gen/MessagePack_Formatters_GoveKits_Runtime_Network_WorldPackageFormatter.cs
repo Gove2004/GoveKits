@@ -29,8 +29,8 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
 
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
             writer.WriteArrayHeader(3);
-            writer.Write(value.SnapshotTick);
-            writer.Write(value.ServerTime);
+            writer.Write(value.Tick);
+            writer.WriteNil();
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Serialize(ref writer, value.Entities, options);
         }
 
@@ -51,10 +51,7 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 switch (i)
                 {
                     case 0:
-                        ____result.SnapshotTick = reader.ReadInt32();
-                        break;
-                    case 1:
-                        ____result.ServerTime = reader.ReadSingle();
+                        ____result.Tick = reader.ReadInt32();
                         break;
                     case 2:
                         ____result.Entities = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Deserialize(ref reader, options);

@@ -1,10 +1,9 @@
-// RpcData.cs
 using MessagePack;
 
 namespace GoveKits.Runtime.Network
 {
     // 全局唯一的 RPC 请求包
-    [ProtocolId(90)]
+    [ProtocolId(11)]
     [MessagePackObject]
     public class RpcRequestMsg : IProtocolMessage
     {
@@ -14,7 +13,7 @@ namespace GoveKits.Runtime.Network
     }
 
     // 全局唯一的 RPC 响应包
-    [ProtocolId(91)]
+    [ProtocolId(12)]
     [MessagePackObject]
     public class RpcResponseMsg : IProtocolMessage
     {

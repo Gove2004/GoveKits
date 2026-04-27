@@ -27,9 +27,8 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                 return;
             }
 
-            writer.WriteArrayHeader(3);
+            writer.WriteArrayHeader(2);
             writer.Write(value.PlayerId);
-            writer.Write(value.ProtocolId);
             writer.Write(value.Payload);
         }
 
@@ -52,9 +51,6 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                         ____result.PlayerId = reader.ReadInt32();
                         break;
                     case 1:
-                        ____result.ProtocolId = reader.ReadUInt16();
-                        break;
-                    case 2:
                         ____result.Payload = global::MessagePack.Internal.CodeGenHelpers.GetArrayFromNullableSequence(reader.ReadBytes());
                         break;
                     default:

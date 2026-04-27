@@ -24,7 +24,13 @@ namespace GoveKits.Runtime.Network
             for (int i = handlers.Count - 1; i >= 0; i--) 
             {
                 try { await handlers[i].Handle(session, message); }
-                catch (Exception ex) { LogCore.Error(nameof(DispatchAsync), $"Failed to handle message: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    var root = ex;
+                    while (root.InnerException != null) root = root.InnerException;
+                    LogCore.Error(nameof(DispatchAsync),
+                        $"Failed to handle protocolId={protocolId}, msgType={message?.GetType().Name}, handler={handlers[i].GetType().Name}, error={root.Message}\n{root}");
+                }
             }
         }
 

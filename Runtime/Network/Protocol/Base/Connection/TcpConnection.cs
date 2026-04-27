@@ -47,6 +47,7 @@ namespace GoveKits.Runtime.Network
                 _splitter.Clear();
 
                 await _socket.ConnectAsync(target);
+                await UniTask.SwitchToMainThread();
                 OnConnected?.Invoke(this);
                 StartReceiveLoop().Forget();
                 return true;

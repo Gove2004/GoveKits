@@ -48,6 +48,7 @@ namespace GoveKits.Runtime.Network
                 try
                 {
                     var socket = await _listener.AcceptSocketAsync();
+
                     int id = _nextSessionId++;
                     
                     // 为新客户端创建一个 Connection，并用 Session 包装它
