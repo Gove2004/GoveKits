@@ -52,7 +52,7 @@ namespace GoveKits.Runtime.Network
     public class WorldPackage : IProtocolMessage
     {
         [Key(0)] public int Tick;
-        [Key(2)] public EntityState[] Entities;
+        [Key(1)] public EntityState[] Entities;
 
         public EntityState GetEntity(int netId)
         {

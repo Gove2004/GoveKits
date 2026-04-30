@@ -18,7 +18,7 @@ namespace GoveKits.Runtime.Network
         private object _pendingInput; // 待提交的输入数据，可以根据需要定义具体类型
         private Type _inputType; // 输入数据的类型
 
-        public ClientInputor(float submitInterval = 0.033f)
+        public ClientInputor(float submitInterval = 0.05f)
         {
             SubmitInterval = submitInterval;
         }

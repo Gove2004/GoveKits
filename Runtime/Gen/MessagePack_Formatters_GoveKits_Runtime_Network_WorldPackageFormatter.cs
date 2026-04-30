@@ -28,9 +28,8 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
             }
 
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(3);
+            writer.WriteArrayHeader(2);
             writer.Write(value.Tick);
-            writer.WriteNil();
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Serialize(ref writer, value.Entities, options);
         }
 
@@ -53,7 +52,7 @@ namespace MessagePack.Formatters.GoveKits.Runtime.Network
                     case 0:
                         ____result.Tick = reader.ReadInt32();
                         break;
-                    case 2:
+                    case 1:
                         ____result.Entities = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<global::GoveKits.Runtime.Network.EntityState[]>(formatterResolver).Deserialize(ref reader, options);
                         break;
                     default:
