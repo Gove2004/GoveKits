@@ -93,5 +93,16 @@ namespace GoveKits.Runtime.UI
             }
             base.OnHide();
         }
+
+        
+        //
+        protected virtual void OnDestroy()
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.PropertyChanged -= OnDataChanged;
+                ViewModel = null;
+            }
+        }
     }
 }
