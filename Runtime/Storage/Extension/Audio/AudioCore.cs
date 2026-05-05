@@ -52,6 +52,7 @@ namespace GoveKits.Runtime.Storage
             _bgmSource = _root.AddComponent<AudioSource>();
             _bgmSource.loop = true;
             _bgmSource.playOnAwake = false;
+            _bgmSource.priority = 0;  // 避免BGM被满载裁切
 
             // 2. 初始化音量字典
             foreach (AudioChannel channel in Enum.GetValues(typeof(AudioChannel)))
@@ -238,6 +239,7 @@ namespace GoveKits.Runtime.Storage
         {
             var src = _root.AddComponent<AudioSource>();
             src.playOnAwake = false;
+            src.priority = 128; 
             var node = new AudioNode { Source = src, IsActive = false };
             _audioPool.Add(node);
             return node;
