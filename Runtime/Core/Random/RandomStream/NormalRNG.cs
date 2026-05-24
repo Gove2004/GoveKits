@@ -7,7 +7,7 @@ namespace GoveKits.Runtime.Core
     /// <summary>
     /// 标准随机数生成器（基于 System.Random，线程安全）
     /// </summary>
-    internal class NormalRNG : IRNG
+    public class NormalRNG : IRNG
     {
         private readonly object _lock = new object();
         private Random _random;

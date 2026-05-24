@@ -52,9 +52,9 @@ namespace GoveKits.Runtime
             // 4. 加载资源
             ConfigCore.InfuseParser(new JsonConfigParser());
             ConfigCore.InfuseParser(new CsvConfigParser());
-            // ConfigCore.Initialize();
+            ConfigCore.Initialize();
             // 5. 使用资源
-            // LocalizationCore.Initialize();
+            LocalizationCore.Initialize();
             AudioCore.Initialize(16);
             SaveCore.Initialize(new JsonSerializer());
 

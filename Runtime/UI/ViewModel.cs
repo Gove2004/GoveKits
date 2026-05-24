@@ -1,57 +1,56 @@
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
+
 
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// MVVM 模式中的 ViewModel 基类
-    /// 
-    /// 核心功能：
-    /// 1. 实现 INotifyPropertyChanged 接口，支持数据绑定通知
-    /// 2. 提供 OnPropertyChanged 方法触发属性变更事件
-    /// 3. 提供 SetProperty 辅助方法简化属性实现
     /// </summary>
-    public abstract class ViewModel : INotifyPropertyChanged
+    public abstract class ViewModel
     {
-        /// <summary>
-        /// 属性变更事件
-        /// 当属性值改变时触发，通知 UI 更新
-        /// </summary>
-        public event PropertyChangedEventHandler PropertyChanged;
+        protected readonly List<ViewPanel> views = new List<ViewPanel>();
 
-        /// <summary>
-        /// 触发属性变更通知
-        /// 使用 CallerMemberName 特性自动获取调用者属性名
-        /// </summary>
-        /// <param name="propertyName">变更的属性名（自动填充）</param>
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        public virtual void OnInit()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            // 初始化数据
         }
 
         /// <summary>
-        /// 辅助方法：简化属性写法
-        /// 自动比较新旧值，仅在值改变时触发通知
+        /// 绑定 ViewModel 和 View 的关系
+        /// 在 ViewModel 中维护一个 View 列表，支持多 View 绑定同一 ViewModel
         /// </summary>
-        /// <typeparam name="T">属性类型</typeparam>
-        /// <param name="storage">属性存储字段引用</param>
-        /// <param name="value">新值</param>
-        /// <param name="propertyName">属性名（自动填充）</param>
-        /// <returns>值是否发生改变</returns>
-        protected bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
+        public void BindView(ViewPanel view)
         {
-            if (EqualityComparer<T>.Default.Equals(storage, value)) return false;
-            storage = value;
-            OnPropertyChanged(propertyName);
-            return true;
+            if (!views.Contains(view))
+            {
+                views.Add(view);
+            }
         }
 
+        /// <summary>
+        /// 解绑 ViewModel 和 View 的关系
+        /// 当 View 销毁或不再需要更新时调用，避免内存泄漏
+        /// </summary>
+        public void UnbindView(ViewPanel view)
+        {
+            if (views.Contains(view))
+            {
+                views.Remove(view);
+            }
+        }
 
         /// <summary>
-        /// 当 ViewModel 被销毁时触发。
-        /// 子类可重写此方法，用于注销全局事件监听。
+        /// 通知所有绑定的 View 更新
         /// </summary>
-        public virtual void OnUninit() { }
+        /// <param name="key">属性名称</param>
+        protected void NotifyViews(string key)
+        {
+            // 倒序遍历，防止在更新过程中 View 卸载（调用 UnbindView）导致集合修改异常
+            for (int i = views.Count - 1; i >= 0; i--)
+            {
+                views[i].OnNotify(key);
+            }
+        }
     }
+
 }

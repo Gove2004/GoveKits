@@ -19,7 +19,7 @@ GoveKits 是一套 Unity 游戏开发框架，主打模块化、可扩展、工�
     "dependencies": {
         "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#2.3.18",
         "com.code-philosophy.hybridclr": "https://github.com/focus-creative-games/hybridclr_unity.git",
-        "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0"
+        "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
     }
 }
 ```

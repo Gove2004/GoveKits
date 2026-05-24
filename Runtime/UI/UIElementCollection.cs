@@ -20,33 +20,52 @@ namespace GoveKits.Runtime.UI
     /// </summary>
     public abstract class UIElementCollection : MonoBehaviour
     {
-        // --- 核心字典容器 ---
+        // --- 核心字典容器（使用懒加载，节约内存） ---
+        private Dictionary<string, Button> _buttons;
         /// <summary>按钮组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Button> Buttons = new();
+        protected Dictionary<string, Button> Buttons => _buttons ??= new Dictionary<string, Button>();
+
+        private Dictionary<string, Toggle> _toggles;
         /// <summary>开关组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Toggle> Toggles = new();
+        protected Dictionary<string, Toggle> Toggles => _toggles ??= new Dictionary<string, Toggle>();
+
+        private Dictionary<string, Slider> _sliders;
         /// <summary>滑块组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Slider> Sliders = new();
+        protected Dictionary<string, Slider> Sliders => _sliders ??= new Dictionary<string, Slider>();
+
+        private Dictionary<string, Dropdown> _dropdowns;
         /// <summary>下拉框组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Dropdown> Dropdowns = new();
+        protected Dictionary<string, Dropdown> Dropdowns => _dropdowns ??= new Dictionary<string, Dropdown>();
+
+        private Dictionary<string, Image> _images;
         /// <summary>图片组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Image> Images = new();
+        protected Dictionary<string, Image> Images => _images ??= new Dictionary<string, Image>();
+
+        private Dictionary<string, RawImage> _rawImages;
         /// <summary>原始图片组件字典 - 按名称索引</summary>
-        protected Dictionary<string, RawImage> RawImages = new();
+        protected Dictionary<string, RawImage> RawImages => _rawImages ??= new Dictionary<string, RawImage>();
         
         // --- 文本与输入 (原生) ---
+        private Dictionary<string, Text> _texts;
         /// <summary>原生文本组件字典 - 按名称索引</summary>
-        protected Dictionary<string, Text> Texts = new();
+        protected Dictionary<string, Text> Texts => _texts ??= new Dictionary<string, Text>();
+
+        private Dictionary<string, InputField> _inputFields;
         /// <summary>原生输入框字典 - 按名称索引</summary>
-        protected Dictionary<string, InputField> InputFields = new();
+        protected Dictionary<string, InputField> InputFields => _inputFields ??= new Dictionary<string, InputField>();
         
         // --- TextMeshPro ---
+        private Dictionary<string, TextMeshProUGUI> _tmpTexts;
         /// <summary>TMP 文本组件字典 - 按名称索引</summary>
-        protected Dictionary<string, TextMeshProUGUI> TMPTexts = new();
+        protected Dictionary<string, TextMeshProUGUI> TMPTexts => _tmpTexts ??= new Dictionary<string, TextMeshProUGUI>();
+
+        private Dictionary<string, TMP_InputField> _tmpInputFields;
         /// <summary>TMP 输入框字典 - 按名称索引</summary>
-        protected Dictionary<string, TMP_InputField> TMPInputFields = new();
+        protected Dictionary<string, TMP_InputField> TMPInputFields => _tmpInputFields ??= new Dictionary<string, TMP_InputField>();
+
+        private Dictionary<string, TMP_Dropdown> _tmpDropdowns;
         /// <summary>TMP 下拉框字典 - 按名称索引</summary>
-        protected Dictionary<string, TMP_Dropdown> TMPDropdowns = new();
+        protected Dictionary<string, TMP_Dropdown> TMPDropdowns => _tmpDropdowns ??= new Dictionary<string, TMP_Dropdown>();
 
         protected virtual void Awake()
         {
@@ -55,67 +74,97 @@ namespace GoveKits.Runtime.UI
 
         /// <summary>
         /// 自动绑定所有 UI 元素
-        /// 遍历子对象，收集组件并注册事件监听
+        /// 单次遍历统一提取，大幅减少 GetComponentsInChildren 调用开销
         /// </summary>
         private void AutoBindUIElements()
         {
-            // 1. Button 点击事件 - 自动路由到 OnButtonClicked
-            foreach (var btn in GetComponentsInChildren<Button>(true))
-            {
-                Buttons[btn.name] = btn;
-                string btnName = btn.name;
-                btn.onClick.AddListener(() => OnButtonClicked(btnName));
-            }
+            // 所有原生和 TMP 的 UI 控件均继承自 UIBehaviour (或者Graphic)
+            // 只需要遍历提取这 1 次，将原来的 11 次层级遍历缩减为 1 次
+            var uiBehaviours = GetComponentsInChildren<UnityEngine.EventSystems.UIBehaviour>(true);
 
-            // 2. Toggle 状态改变 - 自动路由到 OnToggleChanged
-            foreach (var tog in GetComponentsInChildren<Toggle>(true))
+            foreach (var behaviour in uiBehaviours)
             {
-                Toggles[tog.name] = tog;
-                string togName = tog.name;
-                tog.onValueChanged.AddListener(val => OnToggleChanged(togName, val));
-            }
+                string compName = behaviour.name;
 
-            // 3. Slider 滑动 - 自动路由到 OnSliderChanged
-            foreach (var slider in GetComponentsInChildren<Slider>(true))
-            {
-                Sliders[slider.name] = slider;
-                string sName = slider.name;
-                slider.onValueChanged.AddListener(val => OnSliderChanged(sName, val));
+                // C# 模式匹配语法进行分发，效率极高，兼容多组件情况。
+                switch (behaviour)
+                {
+                    case Button btn:
+                        if (TryCache(ref _buttons, compName, btn))
+                            btn.onClick.AddListener(() => OnButtonClicked(compName));
+                        break;
+                    case Toggle tog:
+                        if (TryCache(ref _toggles, compName, tog))
+                            tog.onValueChanged.AddListener(val => OnToggleChanged(compName, val));
+                        break;
+                    case Slider slider:
+                        if (TryCache(ref _sliders, compName, slider))
+                            slider.onValueChanged.AddListener(val => OnSliderChanged(compName, val));
+                        break;
+                    case Dropdown dp:
+                        if (TryCache(ref _dropdowns, compName, dp))
+                            dp.onValueChanged.AddListener(val => OnDropdownChanged(compName, val));
+                        break;
+                    case TMP_Dropdown tmpDp:
+                        if (TryCache(ref _tmpDropdowns, compName, tmpDp))
+                            tmpDp.onValueChanged.AddListener(val => OnTMPDropdownChanged(compName, val));
+                        break;
+                    case InputField input:
+                        if (TryCache(ref _inputFields, compName, input))
+                            input.onValueChanged.AddListener(val => OnInputChanged(compName, val));
+                        break;
+                    case TMP_InputField tmpInput:
+                        if (TryCache(ref _tmpInputFields, compName, tmpInput))
+                            tmpInput.onValueChanged.AddListener(val => OnTMPInputChanged(compName, val));
+                        break;
+                    case Text txt:
+                        TryCache(ref _texts, compName, txt);
+                        break;
+                    case TextMeshProUGUI tmpTxt:
+                        TryCache(ref _tmpTexts, compName, tmpTxt);
+                        break;
+                    case Image img:
+                        TryCache(ref _images, compName, img);
+                        break;
+                    case RawImage rawImg:
+                        TryCache(ref _rawImages, compName, rawImg);
+                        break;
+                }
             }
+        }
 
-            // 4. Dropdown (原生 & TMP) - 分别路由
-            foreach (var dp in GetComponentsInChildren<Dropdown>(true))
-            {
-                Dropdowns[dp.name] = dp;
-                string dName = dp.name;
-                dp.onValueChanged.AddListener(val => OnDropdownChanged(dName, val));
-            }
-            foreach (var dp in GetComponentsInChildren<TMP_Dropdown>(true))
-            {
-                TMPDropdowns[dp.name] = dp;
-                string dName = dp.name;
-                dp.onValueChanged.AddListener(val => OnTMPDropdownChanged(dName, val));
-            }
+        /// <summary>
+        /// 辅助缓存方法，同时避免同名组件被静默覆盖的问题，按需分配字典
+        /// </summary>
+        private bool TryCache<T>(ref Dictionary<string, T> dict, string name, T component) where T : Component
+        {
+            dict ??= new Dictionary<string, T>();
 
-            // 5. InputField (原生 & TMP) - 分别路由
-            foreach (var input in GetComponentsInChildren<InputField>(true))
+            if (!dict.ContainsKey(name))
             {
-                InputFields[input.name] = input;
-                string iName = input.name;
-                input.onValueChanged.AddListener(val => OnInputChanged(iName, val));
+                dict.Add(name, component);
+                return true;
             }
-            foreach (var input in GetComponentsInChildren<TMP_InputField>(true))
-            {
-                TMPInputFields[input.name] = input;
-                string iName = input.name;
-                input.onValueChanged.AddListener(val => OnTMPInputChanged(iName, val));
-            }
+            
+            Debug.LogWarning($"[UIElementCollection] <{gameObject.name}> 存在同名的同类 UI 组件: {name} ({typeof(T).Name})。可能会导致事件路由和获取混乱，请检查层级！");
+            return false;
+        }
 
-            // 6. 纯显示组件 (Text, TMPText, Image, RawImage) - 仅收集，无事件
-            foreach (var txt in GetComponentsInChildren<Text>(true)) Texts[txt.name] = txt;
-            foreach (var txt in GetComponentsInChildren<TextMeshProUGUI>(true)) TMPTexts[txt.name] = txt;
-            foreach (var img in GetComponentsInChildren<Image>(true)) Images[img.name] = img;
-            foreach (var img in GetComponentsInChildren<RawImage>(true)) RawImages[img.name] = img;
+        protected virtual void OnDestroy()
+        {
+            // 防御性清理与事件解绑
+            if (_buttons != null) { foreach(var b in _buttons.Values) { if (b) b.onClick.RemoveAllListeners(); } _buttons.Clear(); _buttons = null; }
+            if (_toggles != null) { foreach(var t in _toggles.Values) { if (t) t.onValueChanged.RemoveAllListeners(); } _toggles.Clear(); _toggles = null; }
+            if (_sliders != null) { foreach(var s in _sliders.Values) { if (s) s.onValueChanged.RemoveAllListeners(); } _sliders.Clear(); _sliders = null; }
+            if (_dropdowns != null) { foreach(var d in _dropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _dropdowns.Clear(); _dropdowns = null; }
+            if (_tmpDropdowns != null) { foreach(var d in _tmpDropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _tmpDropdowns.Clear(); _tmpDropdowns = null; }
+            if (_inputFields != null) { foreach(var i in _inputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _inputFields.Clear(); _inputFields = null; }
+            if (_tmpInputFields != null) { foreach(var i in _tmpInputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _tmpInputFields.Clear(); _tmpInputFields = null; }
+            
+            _texts?.Clear(); _texts = null;
+            _tmpTexts?.Clear(); _tmpTexts = null;
+            _images?.Clear(); _images = null;
+            _rawImages?.Clear(); _rawImages = null;
         }
 
         // --- 供子类重写的交互回调 ---
