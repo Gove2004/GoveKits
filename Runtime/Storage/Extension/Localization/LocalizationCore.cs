@@ -12,7 +12,7 @@ namespace GoveKits.Runtime.Storage
         private const string LanguagePrefKey = "Localization.Language";
         private const string FontConfigResourcePath = "Config/LocalizationConfig";
 
-        private static Dictionary<string, LocalizationConfigData> RawRows = new Dictionary<string, LocalizationConfigData>();
+        private static Dictionary<string, ILocalizationConfigData> RawRows = new Dictionary<string, ILocalizationConfigData>();
         private static Dictionary<string, string> CurrentLangCache = new Dictionary<string, string>();
 
         private static LocalizationConfig _fontConfig;
@@ -93,10 +93,10 @@ namespace GoveKits.Runtime.Storage
         {
             RawRows.Clear();
 
-            List<LocalizationConfigData> rows = ConfigCore.LoadAll<LocalizationConfigData>();
+            List<ILocalizationConfigData> rows = ConfigCore.LoadAll<ILocalizationConfigData>();
             for (int i = 0; i < rows.Count; i++)
             {
-                LocalizationConfigData row = rows[i];
+                ILocalizationConfigData row = rows[i];
                 if (row == null || string.IsNullOrWhiteSpace(row.Key))
                 {
                     continue;
@@ -115,7 +115,7 @@ namespace GoveKits.Runtime.Storage
             foreach (var kvp in RawRows)
             {
                 string key = kvp.Key;
-                LocalizationConfigData row = kvp.Value;
+                ILocalizationConfigData row = kvp.Value;
 
                 string content = ReadLanguageField(row, langName);
                 if (string.IsNullOrEmpty(content))
@@ -130,9 +130,9 @@ namespace GoveKits.Runtime.Storage
             }
         }
 
-        private static string ReadLanguageField(LocalizationConfigData row, string fieldName)
+        private static string ReadLanguageField(ILocalizationConfigData row, string fieldName)
         {
-            var field = typeof(LocalizationConfigData).GetField(fieldName);
+            var field = typeof(ILocalizationConfigData).GetField(fieldName);
             if (field == null)
             {
                 return null;

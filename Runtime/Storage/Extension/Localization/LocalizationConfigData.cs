@@ -6,11 +6,16 @@ namespace GoveKits.Runtime.Storage
     /// <summary>
     /// 本地化行数据。通过 ConfigCore 自动加载。
     /// </summary>
-    [ConfigPath("Assets/Resources/Config/Localization.csv")]
-    public class LocalizationConfigData : IConfigData
+    public class ILocalizationConfigData : IConfigData
     {
         public string Key;
-        public string ChineseCN;
-        public string EnglishUS;
     }
+
+    // [ConfigPath("Localization")]
+    // public class MyLocalizationConfigData : ILocalizationConfigData
+    // {
+    //     public string ChineseCN;
+    //     public string EnglishUS;
+    //     public string JapaneseJP;
+    // }
 }
