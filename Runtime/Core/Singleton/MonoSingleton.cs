@@ -50,10 +50,52 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
+        /// Unity Awake 生命周期方法
+        /// 在组件启用时自动调用
+        /// 负责初始化单例实例和设置持久化
+        /// </summary>
+        protected virtual void Awake()
+        {
+            // 如果当前实例就是单例实例，则进行初始化
+            if (_instance == null || _instance == this)
+            {
+                if (!_initialized)
+                {
+                    // 如果是通过属性访问创建的实例，需要将实例引用赋值给静态字段
+                    if (_instance == null)
+                    {
+                        _instance = (T)this;
+                    }
+                    
+                    Init();
+                    _initialized = true;
+                    
+                    // 查找或创建单例容器对象
+                    GameObject container = GameObject.Find(SingletonContainerName);
+                    if (container == null)
+                    {
+                        container = new GameObject(SingletonContainerName);
+                        // 容器对象跨场景持久化
+                        Object.DontDestroyOnLoad(container);
+                    }
+                    
+                    // 将单例对象设为容器的子对象，保持层级整洁
+                    transform.SetParent(container.transform);
+                }
+            }
+            else
+            {
+                // 如果已经存在单例实例，则销毁当前重复实例
+                LogCore.Warning(nameof(MonoSingleton<T>), $"检测到重复的 {typeof(T).Name} 实例，已自动销毁。");
+                Destroy(gameObject);
+            }
+        }
+
+        /// <summary>
         /// 创建单例实例
         /// 优先查找场景中是否已存在该类型组件
         /// 不存在则动态创建 GameObject 并添加组件
-        /// 将实例挂载到持久化容器下
+        /// 注意：初始化将在 Awake 中进行
         /// </summary>
         private static void CreateInstance()
         {
@@ -64,26 +106,10 @@ namespace GoveKits.Runtime.Core
                 // 创建新的 GameObject 并添加组件
                 GameObject obj = new GameObject(typeof(T).Name);
                 _instance = obj.AddComponent<T>();
+                // Awake 将被自动调用，并在其中进行初始化
             }
-
-            // 确保初始化（无论是新创建还是找到现有实例）
-            if (!_instance._initialized)
-            {
-                _instance.Init();
-                _instance._initialized = true;
-
-                // 查找或创建单例容器对象
-                GameObject gameObject = GameObject.Find(SingletonContainerName);
-                if (gameObject == null)
-                {
-                    gameObject = new GameObject(SingletonContainerName);
-                    // 容器对象跨场景持久化
-                    Object.DontDestroyOnLoad(gameObject);
-                }
-                
-                // 将单例对象设为容器的子对象，保持层级整洁
-                _instance.transform.SetParent(gameObject.transform);
-            }   
+            // 如果找到现有实例，Awake 可能已经被调用或稍后被调用
+            // 初始化逻辑已在 Awake 中处理
         }
 
         /// <summary>
@@ -97,15 +123,16 @@ namespace GoveKits.Runtime.Core
             Uninit();
             
             // 如果销毁的是当前单例实例，清空引用和初始化标记
-            if (_instance != null && _instance.gameObject == base.gameObject)
+            if (_instance != null && _instance.gameObject == gameObject)
             {
                 _instance = null;
+                _initialized = false;
             }
         }
 
         /// <summary>
         /// 初始化方法
-        /// 在单例创建完成后自动调用
+        /// 在单例创建完成后自动调用（通过 Awake）
         /// 子类可重写此方法执行自定义初始化逻辑
         /// </summary>
         protected virtual void Init()
