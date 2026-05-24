@@ -64,6 +64,13 @@ namespace GoveKits.Runtime.Core
                 // 创建新的 GameObject 并添加组件
                 GameObject obj = new GameObject(typeof(T).Name);
                 _instance = obj.AddComponent<T>();
+            }
+
+            // 确保初始化（无论是新创建还是找到现有实例）
+            if (!_instance._initialized)
+            {
+                _instance.Init();
+                _instance._initialized = true;
 
                 // 查找或创建单例容器对象
                 GameObject gameObject = GameObject.Find(SingletonContainerName);
@@ -75,15 +82,8 @@ namespace GoveKits.Runtime.Core
                 }
                 
                 // 将单例对象设为容器的子对象，保持层级整洁
-                obj.transform.SetParent(gameObject.transform);
-            }
-
-            // 确保初始化（无论是新创建还是找到现有实例）
-            if (!_instance._initialized)
-            {
-                _instance.Init();
-                _instance._initialized = true;
-            }
+                _instance.transform.SetParent(gameObject.transform);
+            }   
         }
 
         /// <summary>
