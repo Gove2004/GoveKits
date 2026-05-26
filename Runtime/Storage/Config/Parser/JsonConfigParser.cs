@@ -11,7 +11,7 @@ namespace GoveKits.Runtime.Storage
     /// </summary>
     public sealed class JsonConfigParser : IConfigParser
     {
-        private static readonly string[] ParserExtensions = { ".json" };
+        private static readonly string[] ParserExtensions = { "json" };
 
         public IReadOnlyList<string> Extensions => ParserExtensions;
 

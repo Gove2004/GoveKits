@@ -13,12 +13,17 @@ namespace GoveKits.Runtime.Storage
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
     public sealed class ConfigPathAttribute : Attribute
     {
-        public ConfigPathAttribute(string filePath) { FilePath = filePath; }
+        public ConfigPathAttribute(string filePath, string extension) 
+        { 
+            FilePath = filePath; 
+            Extension = extension; 
+        }
 
         /// <summary>
         /// 配置文件相对路径
         /// </summary>
         public string FilePath { get; }
+        public string Extension { get; }
     }
 
 

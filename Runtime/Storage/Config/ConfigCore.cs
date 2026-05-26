@@ -54,12 +54,11 @@ namespace GoveKits.Runtime.Storage
             var textAsset = handle.AssetObject as TextAsset;
             
             // 根据文件扩展名自动选择解析器
-            string ext = Path.GetExtension(binding.Attribute.FilePath).ToLowerInvariant();
-            var parser = _parsers.FirstOrDefault(p => p.Extensions.Contains(ext));
+            var parser = _parsers.FirstOrDefault(p => p.Extensions.Contains(binding.Attribute.Extension, StringComparer.OrdinalIgnoreCase));
             
             if (parser == null)
             {
-                throw new NotSupportedException($"不支持的配置文件格式: {ext}，路径: {binding.Attribute.FilePath}");
+                throw new NotSupportedException($"不支持的配置文件格式: {binding.Attribute.Extension}，路径: {binding.Attribute.FilePath}");
             }
 
             // 反射调用泛型解析

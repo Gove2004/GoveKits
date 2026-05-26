@@ -13,7 +13,7 @@ namespace GoveKits.Runtime.Storage
     /// </remarks>
     public sealed class CsvConfigParser : IConfigParser
     {
-        private static readonly string[] ParserExtensions = { ".csv" };
+        private static readonly string[] ParserExtensions = { "csv" };
 
         public IReadOnlyList<string> Extensions => ParserExtensions;
 

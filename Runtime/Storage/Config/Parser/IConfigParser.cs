@@ -9,7 +9,7 @@ namespace GoveKits.Runtime.Storage
     {
         /// <summary>
         /// 支持的扩展名（小写，带点）。
-        /// 例如: .json / .csv
+        /// 例如: json / csv
         /// </summary>
         IReadOnlyList<string> Extensions { get; }
 
