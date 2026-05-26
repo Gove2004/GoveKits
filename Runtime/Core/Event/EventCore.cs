@@ -33,10 +33,19 @@ namespace GoveKits.Runtime.Core
             }
         }
 
-        public static void Publish<TEvent>(Action<TEvent> initer, string busName = DefaultBusName) where TEvent : EventData, new()
+
+        /// <summary>
+        /// 获取事件实例，务必在使用完毕后通过 PoolCore.Return(evt) 归还实例以避免内存泄漏
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        public static TEvent GetEvent<TEvent>() where TEvent : EventData, new()
         {
-            TEvent evt = PoolCore.Get<TEvent>();
-            initer?.Invoke(evt);
+            return PoolCore.Get<TEvent>();
+        }
+
+
+        public static void Publish<TEvent>(TEvent evt, string busName = DefaultBusName) where TEvent : EventData, new()
+        {
             try
             {
                 EventBus bus = GetOrCreateBus(busName);
