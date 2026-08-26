@@ -1,4 +1,4 @@
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using Mirror;
 using UnityEditor;
 using UnityEngine;

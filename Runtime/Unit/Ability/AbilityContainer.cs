@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Unit
 {

@@ -1,5 +1,5 @@
 using System;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Unit
 {

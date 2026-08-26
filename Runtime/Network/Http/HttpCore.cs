@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using Newtonsoft.Json;
 using UnityEngine.Networking;
 

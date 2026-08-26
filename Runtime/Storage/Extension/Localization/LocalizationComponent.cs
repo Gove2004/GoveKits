@@ -1,4 +1,4 @@
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using UnityEngine;
 using UnityEngine.UI;
 #if TMP_PRESENT

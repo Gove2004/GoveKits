@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using YooAsset;

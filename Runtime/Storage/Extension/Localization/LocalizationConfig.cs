@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using UnityEngine;
 #if TMP_PRESENT
 using TMPro;

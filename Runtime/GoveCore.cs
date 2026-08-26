@@ -3,7 +3,7 @@ using GoveKits.Runtime.Storage;
 using GoveKits.Runtime.UI;
 using GoveKits.Runtime.Unit;
 
-namespace GoveKits.Runtime.Core
+namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// GoveKits 运行时组合根（静态类）。

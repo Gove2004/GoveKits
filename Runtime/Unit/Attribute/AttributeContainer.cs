@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using UnityEngine;
 
 namespace GoveKits.Runtime.Unit

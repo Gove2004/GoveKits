@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core;
+using GoveKits.Runtime.Util;
 using HybridCLR;
 using UnityEngine;
 using YooAsset;
