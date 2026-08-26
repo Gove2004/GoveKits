@@ -1,6 +1,6 @@
 using System;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Core
 {
     /// <summary>
     /// 轻量级 disposable action。

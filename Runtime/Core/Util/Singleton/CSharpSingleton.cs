@@ -1,4 +1,4 @@
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Core
 {
     /// <summary>
     /// 纯 C# 单例基类。

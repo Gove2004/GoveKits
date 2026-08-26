@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Core
 {
     internal static class MonoSingletonContainer
     {

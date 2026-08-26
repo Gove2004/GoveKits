@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Core
 {
     /// <summary>
     /// 核心随机数生成器接口。

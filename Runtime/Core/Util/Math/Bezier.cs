@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime.Core
 {
     // 贝塞尔曲线相关算法。
     public static class Bezier
