@@ -2,7 +2,7 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Gove2004/GoveKits)
 
-GoveKits 是一套面向 Unity 游戏的模块化开发框架，提供 Core 基础设施、Storage 存储与集成、Unit 数值能力系统、UI 面板框架、Network 网络协议以及 Editor 调试工具链。框架以静态 `*Core` 门面模式组织所有子系统，由 `GoveCore` 统一管理生命周期。
+GoveKits 是一套面向 Unity 游戏的模块化开发框架，提供 Util 基础设施、Storage 存储与集成、Unit 数值能力系统、UI 面板框架、Network 网络（内置 Mirror）以及 Editor 调试工具链。框架以静态 `*Core` 门面模式组织所有子系统，由 `GoveCore` 统一管理生命周期。
 
 ## 安装
 
@@ -76,18 +76,18 @@ https://github.com/Gove2004/GoveKits.git
 
 | 模块 | 说明 | 详细文档 |
 |------|------|---------|
-| **Core** | 基础能力：日志、对象池、随机数(RNG)、事件总线、时间轮、实体生成 | [Runtime/Core/README.md](./Runtime/Core/README.md) |
+| **Util** | 基础能力：日志、对象池、随机数(RNG)、事件总线、时间轮、实体生成、通用工具 | [Runtime/Util/README.md](./Runtime/Util/README.md) |
 | **Storage** | 存储集成：资源加载(YooAsset)、配置表、存档、热更新(HybridCLR)、音频、多语言 | [Runtime/Storage/README.md](./Runtime/Storage/README.md) |
 | **Unit** | 类 GAS 能力系统：属性、技能、标记(Buff/Debuff)、反应链、效果、序列化 | [Runtime/Unit/README.md](./Runtime/Unit/README.md) |
 | **UI** | MVVM 面板框架：ViewModel 绑定、ViewPanel、自动组件收集 | [Runtime/UI/README.md](./Runtime/UI/README.md) |
 | **Network** | 网络：Mirror 通信（内置）+ UnityWebRequest HTTP 封装 | [Runtime/Network/README.md](./Runtime/Network/README.md) |
-| **Window** | Editor 调试工具链：15 个可视化窗口，覆盖 Core/Storage/Network/Unit 实时监控 | [Editor/README.md](./Editor/README.md) |
+| **Window** | Editor 调试工具链：13 个可视化窗口，覆盖 Util/Storage/Network/Unit 实时监控 | [Editor/README.md](./Editor/README.md) |
 
 ## 快速开始
 
 1. 完成前置依赖和 GoveKits 包安装。
 2. 在初始化场景中调用 `GoveCore.Setup()`。
-3. 优先初始化 Core 与 Storage（`GoveCore.Setup()` → `ResCore.InitPackageAsync()` → `ConfigCore.Setup()`）。
+3. 优先初始化 Util 与 Storage（`GoveCore.Setup()` → `ResCore.InitPackageAsync()` → `ConfigCore.Setup()`）。
 4. 按需接入 Unit / UI / Network 模块。
 
 ## 目录结构
@@ -95,15 +95,16 @@ https://github.com/Gove2004/GoveKits.git
 ```
 GoveKits/
 ├── Runtime/                  # 运行时框架代码
-│   ├── Core/                 #   基础子系统（日志、池、事件、时间轮等）
+│   ├── Util/                 #   基础子系统（日志、池、事件、时间轮、实体生成）
+│   │   └── More/             #     通用工具（单例、RNG、贝塞尔曲线、DisposeAction）
 │   ├── Storage/              #   存储与集成（资源、配置、存档、热更、音频、本地化）
 │   ├── Unit/                 #   类 GAS 能力系统（属性、技能、标记、反应）
 │   ├── UI/                   #   MVVM 面板框架
 │   ├── Network/              #   网络（Mirror 接入层 + HTTP 封装）
 │   │   ├── Http/             #     UnityWebRequest 封装
 │   │   └── Mirror/           #     Mirror 接入层（GoveKits.Mirror 程序集）
-│   ├── Todo/                 #   实验性代码（AI / ECS）
-├── Editor/                   # Unity Editor 调试窗口
+│   └── Todo/                 #   实验性代码（AI / ECS）
+├── Editor/                   # Unity Editor 调试窗口（Util/Network/Storage/UI/Unit）
 ├── package.json              # 包元数据
 └── README.md                 # 本文件
 ```

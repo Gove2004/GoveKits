@@ -1,22 +1,20 @@
 # Window 模块（Editor 调试工具）
 
-GoveKits 提供 15 个 Editor 调试窗口，覆盖 Core、Storage、Network、Unit 等子系统的实时监控与管理。所有窗口通过 `GoveKits` 顶级菜单下的子菜单项打开，仅在 Editor 模式下可用。
+GoveKits 提供 13 个 Editor 调试窗口，覆盖 Util、Storage、Network、Unit 等子系统的实时监控与管理。所有窗口通过 `GoveKits` 顶级菜单下的子菜单项打开，仅在 Editor 模式下可用。
 
 ## 窗口一览
 
 | 菜单路径 | 窗口 | 说明 | 模块 |
 |---------|------|------|------|
-| GoveKits/Core | **Pool 监控** | 查看所有对象池的容量、使用率和命中率 | Core/Pool |
-| GoveKits/Event | **Event 监控** | 实时查看事件总线上的活跃事件和监听器 | Core/Event |
-| GoveKits/Time | **TimeWheel 监控** | 列出所有活跃定时器，支持暂停/恢复/取消 | Core/Time |
-| GoveKits/Spawn | **Spawn 监控** | 查看存活实体列表和注册工厂，支持手动销毁 | Core/Spawn |
+| GoveKits/Core | **Pool 监控** | 查看所有对象池的容量、使用率和命中率 | Util/Pool |
+| GoveKits/Event | **Event 监控** | 实时查看事件总线上的活跃事件和监听器 | Util/Event |
+| GoveKits/Time | **TimeWheel 监控** | 列出所有活跃定时器，支持暂停/恢复/取消 | Util/Time |
+| GoveKits/Spawn | **Spawn 监控** | 查看存活实体列表和注册工厂，支持手动销毁 | Util/Spawn |
 | GoveKits/Save | **Save 浏览器** | 物理存档文件浏览器，支持 UTF-8/Hex 预览 | Storage/Save |
 | GoveKits/Config | **Config 管理** | 配置表映射、加载状态查看和数据结构预览 | Storage/Config |
 | GoveKits/Prefs | **Prefs 编辑器** | PlayerPrefs 键值编辑、常用列表管理 | Storage/Prefs |
-| GoveKits/Hotfix | **Hotfix 管理** | 热更新程序集状态检查和 AOT 引用分析 | Storage/Hotfix |
-| GoveKits/Network | **Network 监控** | 客户端/服务端连接状态、RTT、踢人操作 | Network |
-| GoveKits/Protocol | **Protocol 管理** | 协议 ID 注册表查看和导出（Markdown/JSON/Plain） | Network |
-| GoveKits/MsgPackGen | **MsgPack 生成** | MessagePack 编译器配置和代码生成 | Network |
+| GoveKits/Hotfix | **Hotfix 管理** | 热更新程序集状态检查和 AOT 引用分析 | Storage/Res |
+| GoveKits/Network | **Network 监控** | Mirror 客户端/服务端连接状态、RTT、踢人操作 | Network |
 | GoveKits/Localization | **Localization 管理** | 翻译表查看、缺失检测和语言切换 | Storage/Localization |
 | GoveKits/Unit | **Unit 检查器** | Inspector 中增强显示 Unit 的属性和技能数据 | Unit |
 | GoveKits/Android | **Android 配置** | Android 项目引导配置工具 | Editor |
@@ -103,31 +101,12 @@ HybridCLR 热更新管理窗口，检查热更程序集和 AOT 引用。
 
 ### Network 监控（NetworkWindow）
 
-网络监控窗口，同时展示 Client 和 Server 的连接状态。
+基于内置 Mirror 的网络监控窗口，同时展示 Client 和 Server 的连接状态。
 
-- **客户端 Tab**：显示 PlayerId、RTT（颜色指示：<50ms 绿 / <150ms 黄 / 以上红）、连接状态
-- **服务端 Tab**：显示监听状态、在线连接数、每个连接的 RTT 和状态
+- **客户端 Tab**：客户端激活状态、连接状态、RTT（颜色指示：<50ms 绿 / <150ms 黄 / 以上红）
+- **服务端 Tab**：服务端激活状态、在线连接数、每个连接的地址与就绪状态
 - **踢人按钮**：从编辑器踢出指定客户端
 - **自动刷新**：Play 模式下每 0.5 秒自动刷新
-
-### Protocol 管理（ProtocolWindow）
-
-协议 ID 注册表查看和导出工具。
-
-- **协议列表**：显示协议 ID、类型名、命名空间
-- **搜索**：按 ID/类型名/命名空间过滤
-- **导出**：支持 Markdown / JSON / 纯文本三种格式
-- **复制报告**：一键复制协议列表到剪贴板
-
-### MsgPack 生成（MsgPackGenWindow）
-
-MessagePack 编译器配置和代码生成工具。
-
-- **配置列表**：每个配置项包含启用开关、展开状态、名称、输入路径、输出路径
-- **映射模式**：MapMode（字典映射）/ Keyless（无键）/ SubMap（子映射）
-- **符号配置**：指定程序集符号名和命名空间
-- **批量生成**：一键生成所有启用的配置项的代码
-- **异步执行**：在后台进程生成，不阻塞编辑器
 
 ### Localization 管理（LocalizationWindow）
 
@@ -164,4 +143,3 @@ Android 隐私弹窗模板部署工具。从源目录复制模板文件到 Andro
 2. **调试阶段**：使用 Save 浏览器和 Config 管理检查数据文件，使用 Network 监控排查连接问题
 3. **性能分析**：通过 Pool 监控观察对象池命中率，通过 Time 监控检查定时器数量
 4. **热更排查**：使用 Hotfix 窗口检查 AOT 泛型引用是否完整
-5. **协议调试**：通过 Protocol 窗口导出协议列表供前后端联调对照

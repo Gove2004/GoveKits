@@ -365,7 +365,7 @@ UnitArchiveData loaded = JsonUtility.FromJson<UnitArchiveData>(json);
 UnitSerializer.Restore(unit, loaded);
 ```
 
-`UnitArchiveData` 是可序列化的纯数据结构，包含属性快照、标记列表、技能列表和反应列表，可直接序列化到 JSON / MessagePack / 任意格式。
+`UnitArchiveData` 是可序列化的纯数据结构，包含属性快照、标记列表、技能列表和反应列表，可直接序列化到 JSON 或任意自定义格式（如 `ISerializer` 实现）。
 
 ## 世界单元 (Universe)
 
