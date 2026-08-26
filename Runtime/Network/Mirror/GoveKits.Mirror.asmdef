@@ -1,0 +1,17 @@
+{
+    "name": "GoveKits.Mirror",
+    "rootNamespace": "GoveKits.Runtime.Network",
+    "references": [
+        "GUID:30817c1a0e6d646d99c048fc403f5979",
+        "GUID:6d2049d49997c5d4d81160cd74fb1073"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

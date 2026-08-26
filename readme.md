@@ -26,6 +26,17 @@ GoveKits 是一套面向 Unity 游戏的模块化开发框架，提供 Core 基�
 
 至少确保 `YooAsset`、`UniTask` 和 `HybridCLR` 存在，它们是 ResCore 和异步流程的基础。
 
+### 内置依赖
+
+GoveKits 内置以下第三方库，随包分发，**使用方请勿重复安装**（重复安装会导致程序集重名编译冲突）：
+
+| 库 | 版本 | 协议 | 用途 |
+|----|------|------|------|
+| **Mirror** | 96.11.0 | MIT | 网络通信（`Plugins/Mirror/`，已精简去除 Examples） |
+| **Newtonsoft.Json** | netstandard2.0 | MIT | 序列化（存档 / 配置 / 单元数据） |
+
+如需升级内置库版本，直接替换 `Plugins/` 下对应目录即可。
+
 ### 方式 A：Git 安装（推荐）
 
 1. 打开 Unity 编辑器 → Window → Package Manager。
@@ -69,7 +80,7 @@ https://github.com/Gove2004/GoveKits.git
 | **Storage** | 存储集成：资源加载(YooAsset)、配置表、存档、热更新(HybridCLR)、音频、多语言 | [Runtime/Storage/README.md](./Runtime/Storage/README.md) |
 | **Unit** | 类 GAS 能力系统：属性、技能、标记(Buff/Debuff)、反应链、效果、序列化 | [Runtime/Unit/README.md](./Runtime/Unit/README.md) |
 | **UI** | MVVM 面板框架：ViewModel 绑定、ViewPanel、自动组件收集 | [Runtime/UI/README.md](./Runtime/UI/README.md) |
-| **Network** | 网络协议栈：HTTP、TCP/UDP、帧同步、状态同步、MessagePack 序列化 | [Runtime/Network/README.md](./Runtime/Network/README.md) |
+| **Network** | 网络：Mirror 通信（内置）+ UnityWebRequest HTTP 封装 | [Runtime/Network/README.md](./Runtime/Network/README.md) |
 | **Window** | Editor 调试工具链：15 个可视化窗口，覆盖 Core/Storage/Network/Unit 实时监控 | [Editor/README.md](./Editor/README.md) |
 
 ## 快速开始
@@ -88,12 +99,10 @@ GoveKits/
 │   ├── Storage/              #   存储与集成（资源、配置、存档、热更、音频、本地化）
 │   ├── Unit/                 #   类 GAS 能力系统（属性、技能、标记、反应）
 │   ├── UI/                   #   MVVM 面板框架
-│   ├── Network/              #   网络协议栈（HTTP、TCP/UDP、帧同步）
-│   ├── AI/                   #   AI 行为引擎（感知-记忆-思考循环）
-│   ├── Architecture/         #   架构与业务组织
-│   │   └── ECS/              #     轻量 ECS 架构原型
-│   ├── Todo/                 #   实验性代码
-│   └── Util/                 #   通用工具（单例、贝塞尔曲线、RNG）
+│   ├── Network/              #   网络（Mirror 接入层 + HTTP 封装）
+│   │   ├── Http/             #     UnityWebRequest 封装
+│   │   └── Mirror/           #     Mirror 接入层（GoveKits.Mirror 程序集）
+│   ├── Todo/                 #   实验性代码（AI / ECS）
 ├── Editor/                   # Unity Editor 调试窗口
 ├── package.json              # 包元数据
 └── README.md                 # 本文件
