@@ -3,7 +3,7 @@ using System;
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// 数据序列化接口。实现此接口以支持不同的存档序列化格式（JSON、MessagePack 等）。
+    /// 数据序列化接口。实现此接口以支持不同的存档序列化格式（JSON 等）。
     /// </summary>
     public interface ISerializer
     {

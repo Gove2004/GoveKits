@@ -4,7 +4,7 @@ using GoveKits.Runtime.Core;
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 可完美序列化（如 JSON / MessagePack）的 Unit 纯数据结构。
+    /// 可完美序列化（如 JSON）的 Unit 纯数据结构。
     /// 用于存档、网络同步或外部配置驱动 Unit 的初始化。
     /// </summary>
     [System.Serializable]
