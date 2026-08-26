@@ -33,17 +33,13 @@ namespace GoveKits.Runtime.Core
             // 5. HTTP（需要创建 HttpEngine）
             HttpCore.Setup();
 
-            // 6. 网络（需要初始化内部组件）
-            ClientCore.Setup();
-            ServerCore.Setup();
+            // 6. 配置表解析器（在 Initialize 前由用户调用 AddParser）
 
-            // 7. 配置表解析器（在 Initialize 前由用户调用 AddParser）
-
-            // 8. 业务初始化（由用户在 GoveCore.Setup() 后按需调用）
+            // 7. 业务初始化（由用户在 GoveCore.Setup() 后按需调用）
             // ResCore.InitPackageAsync(...)
             // AudioCore.Setup()
             // LocalizationCore.Setup()
-            // ProtocolCenter.ScanAndRegister()
+            // 网络：由 Mirror 自行管理（NetworkManager / NetworkServer / NetworkClient）
         }
 
         /// <summary>
@@ -60,8 +56,7 @@ namespace GoveKits.Runtime.Core
             ResCore.Close();
             PrefsCore.Close();
 
-            ServerCore.Close();
-            ClientCore.Close();
+            // 网络由 Mirror 自行管理，无需 GoveKits 关闭
             HttpCore.Close();
             UICore.Close();
             SpawnCore.Close();

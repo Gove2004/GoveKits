@@ -1,17 +1,13 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using GoveKits.Runtime.Core;
-using GoveKits.Runtime.Network;
+using Mirror;
 using UnityEditor;
 using UnityEngine;
 
 namespace GoveKits.Editor
 {
     /// <summary>
-    /// Network 网络监控窗口，同时展示 Client 和 Server 的连接状态。
-    /// 通过反射读取 ClientCore 和 ServerCore 的内部字段，实时显示 RTT、连接数和会话详情。
+    /// Network 网络监控窗口（v3.0.0 起基于内置 Mirror）。
+    /// 实时显示 Mirror 客户端/服务端连接状态、RTT 与连接列表。
     /// </summary>
     public class NetworkWindow : GoveKitsEditorWindow
     {
@@ -20,21 +16,6 @@ namespace GoveKits.Editor
 
         /// <summary>当前激活的 Tab（客户端/服务端）。</summary>
         private NetTab _activeTab = NetTab.Client;
-
-        /// <summary>通过反射缓存 ClientCore 内部 _session 字段的引用。</summary>
-        private FieldInfo _clientSessionField;
-
-        /// <summary>通过反射缓存 ClientCore 内部 _playerId 字段的引用。</summary>
-        private FieldInfo _clientPlayerIdField;
-
-        /// <summary>通过反射缓存 ClientCore 内部 _rtt 字段的引用。</summary>
-        private FieldInfo _clientRttField;
-
-        /// <summary>通过反射缓存 ServerCore 内部 _sessions 字段的引用。</summary>
-        private FieldInfo _serverSessionsField;
-
-        /// <summary>通过反射缓存 ServerCore 内部 _isListening 字段的引用。</summary>
-        private FieldInfo _serverListeningField;
 
         /// <summary>
         /// 显示 Network 监控窗口。菜单路径: GoveKits/Network。
@@ -49,21 +30,12 @@ namespace GoveKits.Editor
 
         protected override void OnGoveWindowEnable()
         {
-            _clientSessionField = typeof(ClientCore).GetField("_session", BindingFlags.NonPublic | BindingFlags.Static);
-            _clientPlayerIdField = typeof(ClientCore).GetField("_playerId", BindingFlags.NonPublic | BindingFlags.Static);
-            _clientRttField = typeof(ClientCore).GetField("_rtt", BindingFlags.NonPublic | BindingFlags.Static);
-            _serverSessionsField = typeof(ServerCore).GetField("_sessions", BindingFlags.NonPublic | BindingFlags.Static);
-            _serverListeningField = typeof(ServerCore).GetField("_isListening", BindingFlags.NonPublic | BindingFlags.Static);
             EnableAutoRefresh();
         }
 
         protected override void OnGoveDrawContent()
         {
-            if (!Application.isPlaying)
-            {
-                EditorGUILayout.HelpBox("需要在 Play 模式下才能查看实时数据。", MessageType.Info);
-                return;
-            }
+            if (DrawNotPlayingHint()) return;
 
             if (_activeTab == NetTab.Client) DrawClientInfo();
             else DrawServerInfo();
@@ -73,7 +45,7 @@ namespace GoveKits.Editor
         {
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Network 网络监控", EditorStyles.largeLabel);
+            EditorGUILayout.LabelField("Network 网络监控（Mirror）", EditorStyles.largeLabel);
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(5);
             DrawLine();
@@ -87,103 +59,91 @@ namespace GoveKits.Editor
 
         private void DrawClientInfo()
         {
-            if (_clientSessionField == null)
-            {
-                EditorGUILayout.HelpBox("无法反射获取 ClientCore 字段。", MessageType.Error);
-                return;
-            }
-
-            var session = _clientSessionField.GetValue(null) as Session;
-            int playerId = (int)(_clientPlayerIdField?.GetValue(null) ?? 0);
-            float rtt = (float)(_clientRttField?.GetValue(null) ?? 0f);
-
             EditorGUILayout.BeginHorizontal("box");
             EditorGUILayout.LabelField("Client 状态", EditorStyles.boldLabel);
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(5);
 
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("PlayerId:", GUILayout.Width(80));
-            EditorGUILayout.LabelField(playerId.ToString());
-            EditorGUILayout.EndHorizontal();
+            var defaultColor = GUI.contentColor;
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("RTT:", GUILayout.Width(80));
-            string rttStr = $"{rtt:F0} ms";
-            var color = rtt < 50 ? Color.green : (rtt < 150 ? Color.yellow : Color.red);
-            var defaultColor = GUI.contentColor;
-            GUI.contentColor = color;
-            EditorGUILayout.LabelField(rttStr);
+            EditorGUILayout.LabelField("客户端激活:", GUILayout.Width(80));
+            bool active = NetworkClient.active;
+            GUI.contentColor = active ? Color.green : Color.red;
+            EditorGUILayout.LabelField(active ? "是" : "否");
             GUI.contentColor = defaultColor;
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("连接状态:", GUILayout.Width(80));
-            bool connected = session?.IsConnected == true;
-            var connColor = connected ? Color.green : Color.red;
-            GUI.contentColor = connColor;
+            bool connected = NetworkClient.active && NetworkClient.connection != null;
+            GUI.contentColor = connected ? Color.green : Color.red;
             EditorGUILayout.LabelField(connected ? "已连接" : "未连接");
             GUI.contentColor = defaultColor;
             EditorGUILayout.EndHorizontal();
 
-            GUILayout.Space(10);
+            if (NetworkClient.active && NetworkClient.connection != null)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("服务器地址:", GUILayout.Width(80));
+                EditorGUILayout.LabelField(NetworkClient.connection.address);
+                EditorGUILayout.EndHorizontal();
+            }
 
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("RTT:", GUILayout.Width(80));
+            double rttMs = NetworkTime.rtt * 1000.0;
+            string rttStr = $"{rttMs:F0} ms";
+            var color = rttMs < 50 ? Color.green : (rttMs < 150 ? Color.yellow : Color.red);
+            GUI.contentColor = color;
+            EditorGUILayout.LabelField(rttStr);
+            GUI.contentColor = defaultColor;
+            EditorGUILayout.EndHorizontal();
+
+            GUILayout.Space(10);
             if (connected)
-            {
                 EditorGUILayout.HelpBox("连接正常", MessageType.Info);
-            }
             else
-            {
                 EditorGUILayout.HelpBox("未连接到服务器", MessageType.Warning);
-            }
         }
 
         private void DrawServerInfo()
         {
-            if (_serverSessionsField == null)
-            {
-                EditorGUILayout.HelpBox("无法反射获取 ServerCore 字段。", MessageType.Error);
-                return;
-            }
-
-            var sessions = _serverSessionsField.GetValue(null) as IDictionary;
-            bool isListening = (bool)(_serverListeningField?.GetValue(null) ?? false);
-
             EditorGUILayout.BeginHorizontal("box");
             EditorGUILayout.LabelField("Server 状态", EditorStyles.boldLabel);
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(5);
 
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("监听状态:", GUILayout.Width(80));
-            var listenColor = isListening ? Color.green : Color.red;
             var defaultColor = GUI.contentColor;
-            GUI.contentColor = listenColor;
-            EditorGUILayout.LabelField(isListening ? "已监听" : "未监听");
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("服务端激活:", GUILayout.Width(80));
+            bool active = NetworkServer.active;
+            GUI.contentColor = active ? Color.green : Color.red;
+            EditorGUILayout.LabelField(active ? "是" : "否");
             GUI.contentColor = defaultColor;
             EditorGUILayout.EndHorizontal();
 
             GUILayout.Space(5);
+            int count = NetworkServer.connections?.Count ?? 0;
+            EditorGUILayout.LabelField($"在线连接数: {count}", EditorStyles.boldLabel);
+            GUILayout.Space(5);
 
-            if (sessions != null)
+            if (count > 0)
             {
-                EditorGUILayout.LabelField($"在线连接数: {sessions.Count}", EditorStyles.boldLabel);
-                GUILayout.Space(5);
-
-                foreach (DictionaryEntry kvp in sessions)
+                foreach (var kvp in NetworkServer.connections)
                 {
-                    int sessionId = (int)kvp.Key;
-                    var session = kvp.Value as Session;
-                    if (session == null) continue;
+                    var conn = kvp.Value;
+                    if (conn == null) continue;
 
                     EditorGUILayout.BeginHorizontal("helpbox");
-                    EditorGUILayout.LabelField($"连接 #{sessionId}", EditorStyles.boldLabel, GUILayout.Width(80));
-                    EditorGUILayout.LabelField($"RTT: {session.RTT:F0} ms");
-                    EditorGUILayout.LabelField(session.IsConnected ? "在线" : "掉线");
+                    EditorGUILayout.LabelField($"连接 #{kvp.Key}", EditorStyles.boldLabel, GUILayout.Width(80));
+                    EditorGUILayout.LabelField(conn.address, GUILayout.Width(140));
+                    EditorGUILayout.LabelField(conn.isReady ? "就绪" : "未就绪");
 
                     if (GUILayout.Button("踢出", GUILayout.Width(40)))
                     {
-                        session.Kick("已从编辑器踢出");
+                        conn.Disconnect();
                     }
 
                     EditorGUILayout.EndHorizontal();
