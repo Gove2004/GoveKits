@@ -1,8 +1,8 @@
 {
   "name": "com.gove.kits",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "displayName": "GoveKits",
-  "description": "这是描述",
+  "description": "面向 Unity 游戏的模块化开发框架：Core 基础设施、Storage 存储、Unit 数值能力、UI 面板、Mirror 网络（内置）。",
   "author": {
     "name": "Gove",
     "email": "3425519400@qq.com"
