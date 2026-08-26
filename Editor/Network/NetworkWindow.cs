@@ -82,14 +82,6 @@ namespace GoveKits.Editor
             GUI.contentColor = defaultColor;
             EditorGUILayout.EndHorizontal();
 
-            if (NetworkClient.active && NetworkClient.connection != null)
-            {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("服务器地址:", GUILayout.Width(80));
-                EditorGUILayout.LabelField(NetworkClient.connection.address);
-                EditorGUILayout.EndHorizontal();
-            }
-
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("RTT:", GUILayout.Width(80));
             double rttMs = NetworkTime.rtt * 1000.0;
