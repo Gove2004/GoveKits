@@ -1,54 +1,41 @@
+
 using System;
 using System.Collections.Generic;
 
 namespace GoveKits.Runtime.Core
 {
+    /// <summary>
+    /// 事件系统统一入口。
+    /// 管理事件对象的池化复用和监听器分发。
+    ///
+    /// 典型用法：
+    ///   var evt = EventCore.GetEvent<MyEvent>();
+    ///   evt.SomeData = value;
+    ///   EventCore.Publish(evt);
+    /// （GetEvent 自动从 PoolCore 获取，Publish 自动归还，调用方无需手动池化）
+    /// </summary>
     public static class EventCore
     {
-        public const string DefaultBusName = "Global";
-        private static readonly Dictionary<string, EventBus> _buses = new();
+        private static EventBus bus = new EventBus();
 
         /// <summary>
-        /// 获取或创建指定通道的总线
+        /// 从池中获取指定类型的事件对象。
+        /// 事件类型必须实现 IPoolable 并提供默认构造函数。
+        /// 获取后填充事件数据，再调用 Publish 发布。
         /// </summary>
-        public static EventBus GetOrCreateBus(string channel = DefaultBusName)
-        {
-            if (!_buses.TryGetValue(channel, out var bus))
-            {
-                bus = new EventBus();
-                _buses.Add(channel, bus);
-            }
-            return bus;
-        }
-
-        /// <summary>
-        /// 一键清空某个通道
-        /// </summary>
-        public static void ClearBus(string channel)
-        {
-            if (_buses.TryGetValue(channel, out var bus))
-            {
-                bus.Dispose();
-                _buses.Remove(channel);
-            }
-        }
-
-
-        /// <summary>
-        /// 获取事件实例，务必在使用完毕后通过 PoolCore.Return(evt) 归还实例以避免内存泄漏
-        /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
         public static TEvent GetEvent<TEvent>() where TEvent : EventData, new()
         {
             return PoolCore.Get<TEvent>();
         }
 
-
-        public static void Publish<TEvent>(TEvent evt, string busName = DefaultBusName) where TEvent : EventData, new()
+        /// <summary>
+        /// 发布事件对象，分发到所有匹配的监听器后自动归还到池中。
+        /// 无论发布过程是否抛出异常，事件对象都会被正确归还。
+        /// </summary>
+        public static void Publish<TEvent>(TEvent evt) where TEvent : EventData, new()
         {
             try
             {
-                EventBus bus = GetOrCreateBus(busName);
                 bus.Publish(evt);
             }
             finally
@@ -58,20 +45,21 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 订阅事件，务必保存返回的 IDisposable 用于取消订阅
+        /// 订阅指定类型的事件，返回 IDisposable 用于取消订阅。
         /// </summary>
-        public static IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener, string busName = DefaultBusName) where TEvent : EventData
+        public static IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener) where TEvent : EventData
         {
-            return GetOrCreateBus(busName).Subscribe(listener);
+            return bus.Subscribe(listener);
         }
 
-        public static void Clear()
+        /// <summary>
+        /// 关闭事件总线，清空所有监听器和待处理事件。
+        /// 通常在场景切换或应用退出时调用。
+        /// </summary>
+        public static void Close()
         {
-            foreach (var bus in _buses.Values)
-            {
-                bus.Dispose();
-            }
-            _buses.Clear();
+            bus?.Dispose();
+            bus = null;
         }
     }
 }

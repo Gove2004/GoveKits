@@ -1,5 +1,4 @@
-using System.Threading;
-using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
 
 namespace GoveKits.Runtime.Unit
@@ -7,20 +6,22 @@ namespace GoveKits.Runtime.Unit
     /// <summary>
     /// 基于 MonoBehaviour 的实体表现层载体。
     /// 涵盖模型展示、动画播放，以及底层的四大容器。
+    /// 所有游戏实体的技能系统均继承此类实现。
     /// </summary>
     public abstract class UnitBehaviour : MonoBehaviour, IUnit
     {
+        /// <summary>属性容器</summary>
         public AttributeContainer Attributes { get; protected set; }
+        /// <summary>标记容器</summary>
         public MarkContainer Marks { get; protected set; }
+        /// <summary>技能容器</summary>
         public AbilityContainer Abilities { get; protected set; }
+        /// <summary>反应容器</summary>
         public ReactionContainer Reactions { get; protected set; }
 
-        // 【重构核心】在实例化容器时，将自己 (this) 传递进去
-        public virtual void InitAttributes() => Attributes = new AttributeContainer(this);
-        public virtual void InitMarks() => Marks = new MarkContainer(this);
-        public virtual void InitAbilities() => Abilities = new AbilityContainer(this);
-        public virtual void InitReactions() => Reactions = new ReactionContainer(this);
-
+        /// <summary>
+        /// MonoBehavior 生命周期：初始化全部四大容器。
+        /// </summary>
         protected virtual void Awake()
         {
             InitAttributes();
@@ -29,19 +30,37 @@ namespace GoveKits.Runtime.Unit
             InitReactions();
         }
 
+        /// <summary>初始化属性容器（可被子类覆写以自定义）</summary>
+        public virtual void InitAttributes() => Attributes = new AttributeContainer(this);
+        /// <summary>初始化标记容器（可被子类覆写以自定义）</summary>
+        public virtual void InitMarks() => Marks = new MarkContainer(this);
+        /// <summary>初始化技能容器（可被子类覆写以自定义）</summary>
+        public virtual void InitAbilities() => Abilities = new AbilityContainer(this);
+        /// <summary>初始化反应容器（可被子类覆写以自定义）</summary>
+        public virtual void InitReactions() => Reactions = new ReactionContainer(this);
+
+        /// <summary>
+        /// MonoBehavior 生命周期：每帧驱动标记容器的 Tick 逻辑。
+        /// </summary>
         protected virtual void Update()
         {
-            this.UpdateUnit(Time.deltaTime); // 调用扩展方法更新标记流水线
+            if (Marks != null)
+                this.UpdateUnit(Time.deltaTime);
         }
 
+        /// <summary>清理全部容器状态</summary>
         public void Clear()
         {
-            Attributes.Clear();
-            Marks.Clear();
-            Abilities.Clear();
-            Reactions.Clear();
+            Attributes?.Clear();
+            Marks?.Clear();
+            Abilities?.Clear();
+            Reactions?.Clear();
         }
 
+
+        /// <summary>
+        /// MonoBehavior 生命周期：销毁时清理全部容器。
+        /// </summary>
         protected virtual void OnDestroy()
         {
             this.Clear();

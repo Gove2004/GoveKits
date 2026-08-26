@@ -1,13 +1,12 @@
 using System.Collections.Generic;
 using System.Text;
 using Newtonsoft.Json;
-using UnityEngine;
-using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// Json 配置解析器。
+    /// JSON 配置解析器。支持 List&lt;T&gt;、Dictionary&lt;int,T&gt;、Dictionary&lt;string,T&gt;
+    /// 以及单对象格式的自动降级解析。
     /// </summary>
     public sealed class JsonConfigParser : IConfigParser
     {
@@ -22,47 +21,36 @@ namespace GoveKits.Runtime.Storage
                 : text;
 
             if (string.IsNullOrWhiteSpace(json))
-            {
                 return new List<T>();
-            }
 
             try
             {
                 var list = JsonConvert.DeserializeObject<List<T>>(json);
-                if (list != null)
-                {
-                    return list;
-                }
+                if (list != null) return list;
             }
             catch
             {
-                LogCore.Warning(nameof(JsonConfigParser), "解析为 List<T> 失败，尝试其他格式");
+                // 静默降级，不记录日志（解析器不应依赖外部 LogCore 实例）
             }
 
             try
             {
                 var dictInt = JsonConvert.DeserializeObject<Dictionary<int, T>>(json);
-                if (dictInt != null)
-                {
-                    return new List<T>(dictInt.Values);
-                }
+                if (dictInt != null) return new List<T>(dictInt.Values);
             }
             catch
             {
-                LogCore.Warning(nameof(JsonConfigParser), "解析为 Dictionary<int, T> 失败，尝试其他格式");
+                // 静默降级
             }
 
             try
             {
                 var dictString = JsonConvert.DeserializeObject<Dictionary<string, T>>(json);
-                if (dictString != null)
-                {
-                    return new List<T>(dictString.Values);
-                }
+                if (dictString != null) return new List<T>(dictString.Values);
             }
             catch
             {
-                LogCore.Warning(nameof(JsonConfigParser), "解析为 Dictionary<string, T> 失败，尝试其他格式");
+                // 静默降级
             }
 
             T one = JsonConvert.DeserializeObject<T>(json);

@@ -1,21 +1,24 @@
+using System;
 
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 释放操作包装类
+    /// 轻量级 disposable action。
+    /// 包装一个无参 action，Dispose 时执行。
+    /// 用于 Subscribe 返回取消订阅凭证等场景，避免分配 lambda 闭包。
     /// </summary>
-    public class DisposeAction : System.IDisposable
+    public readonly struct DisposeAction : IDisposable
     {
-        private readonly System.Action _disposeAction;
+        private readonly Action _action;
 
-        public DisposeAction(System.Action disposeAction)
+        public DisposeAction(Action action)
         {
-            _disposeAction = disposeAction;
+            _action = action;
         }
 
         public void Dispose()
         {
-            _disposeAction?.Invoke();
+            _action?.Invoke();
         }
     }
 }

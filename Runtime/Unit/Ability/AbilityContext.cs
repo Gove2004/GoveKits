@@ -4,7 +4,7 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// Unit 技能与效果的执行上下文。
-    /// <para>提供 Source(施法者) / Target(受击者) 以及可扩展的运行时参数容器。</para>
+    /// 提供 Source（施法者）/ Target（受击者）以及可扩展的运行时参数容器。
     /// </summary>
     public class AbilityContext
     {
@@ -12,27 +12,27 @@ namespace GoveKits.Runtime.Unit
         public readonly IUnit Source;
 
         /// <summary>目标方（受击者等，可为 null）</summary>
-        public readonly IUnit Target;
+        public IUnit Target;
 
-        // 无 GC 开销的浮点数参数字典（常用于传递伤害值、倍率等）
         private readonly Dictionary<string, float> _floatData = new();
-        
-        // 扩展对象参数表（常用于传递特定表现层的特效、复杂结构体）
         private readonly Dictionary<string, object> _data = new();
 
+        /// <summary>
+        /// 创建技能执行上下文。
+        /// </summary>
         public AbilityContext(IUnit source, IUnit target = null)
         {
             Source = source;
             Target = target;
         }
 
-        #region 浮点数参数管理 (0 GC)
+        #region 浮点数参数管理
 
+        /// <summary>获取浮点型参数，不存在则返回默认值</summary>
         public float GetFloat(string key, float defaultValue = 0f)
-        {
-            return _floatData.TryGetValue(key, out var value) ? value : defaultValue;
-        }
+            => _floatData.TryGetValue(key, out var value) ? value : defaultValue;
 
+        /// <summary>设置浮点型参数</summary>
         public AbilityContext SetFloat(string key, float value)
         {
             _floatData[key] = value;
@@ -43,12 +43,14 @@ namespace GoveKits.Runtime.Unit
 
         #region 扩展对象参数管理
 
+        /// <summary>设置扩展对象参数</summary>
         public AbilityContext SetData<T>(string key, T value)
         {
             _data[key] = value;
             return this;
         }
 
+        /// <summary>尝试获取指定类型的扩展参数</summary>
         public bool TryGetData<T>(string key, out T value)
         {
             if (_data.TryGetValue(key, out var raw) && raw is T typed)
@@ -60,15 +62,16 @@ namespace GoveKits.Runtime.Unit
             return false;
         }
 
+        /// <summary>获取扩展参数，不存在则返回默认值</summary>
         public T GetData<T>(string key, T defaultValue = default)
-        {
-            return TryGetData<T>(key, out var value) ? value : defaultValue;
-        }
+            => TryGetData<T>(key, out var value) ? value : defaultValue;
 
+        /// <summary>移除指定键的扩展参数</summary>
         public bool RemoveData(string key) => _data.Remove(key);
 
         #endregion
 
+        /// <summary>清空所有运行时参数（回收时用）</summary>
         public void Clear()
         {
             _data.Clear();

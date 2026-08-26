@@ -1,16 +1,32 @@
-
 using System;
-using GoveKits.Runtime.Core;
 using Newtonsoft.Json;
-using UnityEngine.Networking;
 
 namespace GoveKits.Runtime.Network
 {
+    /// <summary>
+    /// HTTP 响应的不可变结构体，封装状态码、响应文本、成功标志和错误信息。
+    /// 通过静态工厂方法 Success/Error/Cached/FailException 创建实例。
+    /// </summary>
     public readonly struct HttpResponse
     {
+        /// <summary>
+        /// 请求是否成功（状态码 2xx 或缓存命中时为 true）。
+        /// </summary>
         public readonly bool IsSuccess;
+
+        /// <summary>
+        /// HTTP 响应状态码。
+        /// </summary>
         public readonly long StatusCode;
+
+        /// <summary>
+        /// 错误信息，请求失败时包含具体描述，成功时为 null。
+        /// </summary>
         public readonly string ErrorMsg;
+
+        /// <summary>
+        /// 响应体文本内容。
+        /// </summary>
         public readonly string Text;
 
         private HttpResponse(bool success, long code, string error, string text)
@@ -21,22 +37,21 @@ namespace GoveKits.Runtime.Network
             Text = text;
         }
 
-        public T GetJson<T>()
-        {
-            try 
-            { 
-                return JsonConvert.DeserializeObject<T>(Text); 
-            }
-            catch (Exception ex)
-            {
-                LogCore.Error(nameof(HttpResponse), $"JSON Parsing Error: {ex.Message}");
-                return default;
-            }
-        }
+        /// <summary>
+        /// 创建成功的 HTTP 响应。
+        /// </summary>
+        /// <param name="statusCode">HTTP 状态码。</param>
+        /// <param name="text">响应体文本。</param>
+        internal static HttpResponse Success(long statusCode, string text)
+            => new HttpResponse(true, statusCode, null, text);
 
-        internal static HttpResponse Success(UnityWebRequest uwr) => new HttpResponse(true, uwr.responseCode, null, uwr.downloadHandler?.text);
-        internal static HttpResponse Error(UnityWebRequest uwr) => new HttpResponse(false, uwr.responseCode, uwr.error, uwr.downloadHandler?.text);
-        internal static HttpResponse Cached(string text) => new HttpResponse(true, 200, null, text);
-        internal static HttpResponse FailException(Exception ex) => new HttpResponse(false, 0, ex.Message, null);
+        internal static HttpResponse Error(long statusCode, string error, string text = null)
+            => new HttpResponse(false, statusCode, error, text);
+
+        internal static HttpResponse Cached(string text)
+            => new HttpResponse(true, 200, null, text);
+
+        internal static HttpResponse FailException(Exception ex)
+            => new HttpResponse(false, 0, ex.Message, null);
     }
 }

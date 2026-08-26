@@ -1,68 +1,68 @@
-using System;
-using GoveKits.Runtime.Core;
+using System.Collections.Generic;
 
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// 基于委托 (Delegate) 的具体反应实现类。
-    /// <para>职责：无需手动编写新类，即可在运行时通过代码流式装配一个事件监听器。</para>
+    /// 基于委托的快捷反应实现类。
+    /// 无需手动编写新类，即可通过代码流式装配一个 Intent 处理器。
     /// </summary>
-    public class DelegateReaction<T> : UnitReaction<T> where T : EventData, new()
+    public class DelegateReaction : UnitReaction
     {
-        private Action<T> _reactionAction;
-        private Func<T, bool> _filterFunc;
-        
         private UnitTag _name;
         private int _priority;
+        private System.Func<UnitIntent, bool> _canHandle;
+        private System.Action<UnitIntent, IList<UnitEffect>> _action;
 
+        /// <summary>反应的唯一标识</summary>
         public override UnitTag Name => _name;
+
+        /// <summary>处理优先级</summary>
         public override int Priority => _priority;
 
-        public DelegateReaction() { }
+        /// <summary>创建一个流式装配的 DelegateReaction</summary>
+        public static DelegateReaction Create() => new DelegateReaction();
 
-        #region 流式装配接口 (Fluent API)
+        private DelegateReaction() { }
 
-        public DelegateReaction<T> SetName(UnitTag name)
+        /// <summary>设置反应名称</summary>
+        public DelegateReaction SetName(UnitTag name)
         {
             _name = name;
             return this;
         }
 
-        public DelegateReaction<T> SetPriority(int priority)
+        /// <summary>设置处理优先级（值越大越先执行）</summary>
+        public DelegateReaction SetPriority(int priority)
         {
             _priority = priority;
             return this;
         }
 
-        /// <summary>
-        /// 注入核心执行逻辑。
-        /// </summary>
-        public DelegateReaction<T> SetAction(Action<T> reactionAction)
+        /// <summary>设置 Intent 过滤条件。返回 false 则跳过此 Reaction</summary>
+        public DelegateReaction SetCanHandle(System.Func<UnitIntent, bool> filter)
         {
-            _reactionAction = reactionAction;
+            _canHandle = filter;
+            return this;
+        }
+
+        /// <summary>设置核心处理逻辑。直接产出 Effect</summary>
+        public DelegateReaction SetAction(System.Action<UnitIntent, IList<UnitEffect>> action)
+        {
+            _action = action;
             return this;
         }
 
         /// <summary>
-        /// 注入自定义的事件过滤条件。
+        /// 检查此 Reaction 是否能够处理给定的 Intent。
+        /// 未设置过滤条件时默认返回 true。
         /// </summary>
-        public DelegateReaction<T> SetFilter(Func<T, bool> filterFunc)
-        {
-            _filterFunc = filterFunc;
-            return this;
-        }
+        public override bool CanHandle(UnitIntent intent)
+            => _canHandle == null || _canHandle.Invoke(intent);
 
-        #endregion
-
-        public override bool OnFilter(T eventInfo)
-        {
-            if (_filterFunc != null) return _filterFunc.Invoke(eventInfo);
-            return base.OnFilter(eventInfo);
-        }
-
-        public override void OnEvent(T eventInfo)
-        {
-            _reactionAction?.Invoke(eventInfo);
-        }
+        /// <summary>
+        /// 处理 Intent，产出 Effect。
+        /// </summary>
+        public override void Handle(UnitIntent intent, IList<UnitEffect> effects)
+            => _action?.Invoke(intent, effects);
     }
 }

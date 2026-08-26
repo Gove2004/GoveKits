@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core; // 你的日志库
+using GoveKits.Runtime.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using YooAsset;
@@ -10,54 +9,37 @@ using YooAsset;
 namespace GoveKits.Runtime.Storage
 {
     /// <summary>
-    /// 资源管理核心代理类
+    /// 资源加载模式，决定编辑器模拟和生产环境的运行方式。
     /// </summary>
     public enum ResLoadMode
     {
-        /// <summary>
-        /// 编辑器自动模拟，打包后自动使用离线模式
-        /// </summary>
+        /// <summary>编辑器中使用模拟模式，打包后自动切换为离线内置模式。</summary>
         AutoOfflineMode,
-        /// <summary>
-        /// 编辑器模拟，打包后自动使用主机模式
-        /// </summary>
+        /// <summary>编辑器中使用模拟模式，打包后自动切换为主机 CDN 模式。</summary>
         AutoHostMode
     }
 
-
     /// <summary>
-    /// YooAsset 2.3.18 资源管理核心代理类
-    /// 完全适配 V2.2+ 最新的 FileSystem(虚拟文件系统) 底层架构
-    /// 完全对齐 DownloaderOperation 所有的 Delegate 结构体
+    /// 资源管理核心，封装 YooAsset 包裹管理、资源加载/卸载、热更新工作流。
     /// </summary>
     public static class ResCore
     {
-        #region 私有字段
-
         private static readonly Dictionary<string, ResourcePackage> _packages = new();
         private static string _defaultPackageName = "DefaultPackage";
 
-        #endregion
+        #region 包裹初始化
 
-        #region 核心初始化 (完全重构：适配 2.2+ FileSystem)
-        
-        private static async UniTask<bool> InitPackageAsync(PackageConfig config, bool setAsDefault = false)
+        private static async UniTask<bool> InitPackageInternal(PackageConfig config, bool setAsDefault = false)
         {
             var package = YooAssets.TryGetPackage(config.PackageName);
             if (package == null)
-            {
                 package = YooAssets.CreatePackage(config.PackageName);
-            }
 
             if (!_packages.ContainsKey(config.PackageName))
-            {
                 _packages.Add(config.PackageName, package);
-            }
 
             if (setAsDefault || _packages.Count == 1)
-            {
                 SetDefaultPackage(config.PackageName);
-            }
 
             EPlayMode ePlayMode = EPlayMode.CustomPlayMode;
             if (config.PlayMode == ResLoadMode.AutoOfflineMode)
@@ -78,18 +60,14 @@ namespace GoveKits.Runtime.Storage
             }
 
             InitializationOperation initOperation = null;
-
-            // YooAsset 2.2+ 必须使用 FileSystemParameters 进行初始化
             switch (ePlayMode)
             {
                 case EPlayMode.EditorSimulateMode:
 #if UNITY_EDITOR
                     var simulateBuildResult = EditorSimulateModeHelper.SimulateBuild(config.PackageName);
                     var packageRoot = simulateBuildResult.PackageRootDirectory;
-                    // 1. 创建编辑器文件系统
                     var editorFileSystem = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
-                    var editorParam = new EditorSimulateModeParameters();
-                    editorParam.EditorFileSystemParameters = editorFileSystem;
+                    var editorParam = new EditorSimulateModeParameters { EditorFileSystemParameters = editorFileSystem };
                     initOperation = package.InitializeAsync(editorParam);
                     break;
 #else
@@ -98,30 +76,26 @@ namespace GoveKits.Runtime.Storage
 #endif
 
                 case EPlayMode.OfflinePlayMode:
-                    // 1. 创建内置文件系统
                     var offlineFileSystem = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                    var offlineParam = new OfflinePlayModeParameters();
-                    offlineParam.BuildinFileSystemParameters = offlineFileSystem;
+                    var offlineParam = new OfflinePlayModeParameters { BuildinFileSystemParameters = offlineFileSystem };
                     initOperation = package.InitializeAsync(offlineParam);
                     break;
 
                 case EPlayMode.HostPlayMode:
-                    // 1. 创建内置文件系统
                     var buildinFileSystem = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                    // 2. 创建远端服务类
                     var remoteServices = new DefaultRemoteServices(config.CDN_URL, config.Fallback_URL);
-                    // 3. 创建缓存文件系统
                     var cacheFileSystem = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
-                    
-                    var hostParam = new HostPlayModeParameters();
-                    hostParam.BuildinFileSystemParameters = buildinFileSystem;
-                    hostParam.CacheFileSystemParameters = cacheFileSystem;
+                    var hostParam = new HostPlayModeParameters
+                    {
+                        BuildinFileSystemParameters = buildinFileSystem,
+                        CacheFileSystemParameters = cacheFileSystem
+                    };
                     initOperation = package.InitializeAsync(hostParam);
                     break;
             }
 
             await initOperation.Task;
-            
+
             if (initOperation.Status != EOperationStatus.Succeed)
             {
                 LogCore.Error(nameof(ResCore), $"包裹 {config.PackageName} 初始化失败: {initOperation.Error}");
@@ -132,6 +106,36 @@ namespace GoveKits.Runtime.Storage
             return true;
         }
 
+        /// <summary>
+        /// 初始化资源包裹。
+        /// </summary>
+        /// <param name="config">包裹配置信息。</param>
+        /// <param name="setAsDefault">是否同时设为默认包裹。</param>
+        /// <returns>初始化是否成功。</returns>
+        public static async UniTask<bool> InitPackageAsync(PackageConfig config, bool setAsDefault = false)
+            => await InitPackageInternal(config, setAsDefault);
+
+        /// <summary>
+        /// 执行完整的包裹初始化和热更新流程。
+        /// </summary>
+        /// <param name="config">包裹配置。</param>
+        /// <param name="callbacks">热更新各阶段的回调通知。</param>
+        /// <returns>整个工作流是否成功。</returns>
+        public static async UniTask<bool> PackageWorkflowAsync(PackageConfig config, UpdateCallbacks callbacks)
+        {
+            bool init = await InitPackageInternal(config);
+            if (!init) return false;
+            return await UpdatePackageInternal(config.PackageName, callbacks);
+        }
+
+        #endregion
+
+        #region 包裹管理
+
+        /// <summary>
+        /// 设置默认资源包裹。后续未指定包裹名的加载请求将使用此包裹。
+        /// </summary>
+        /// <param name="packageName">要设为默认的包裹名称。</param>
         public static void SetDefaultPackage(string packageName)
         {
             if (!_packages.TryGetValue(packageName, out var pkg))
@@ -139,20 +143,33 @@ namespace GoveKits.Runtime.Storage
                 LogCore.Error(nameof(ResCore), $"找不到包裹: {packageName}，设置默认包裹失败！");
                 return;
             }
-
             _defaultPackageName = packageName;
             YooAssets.SetDefaultPackage(pkg);
         }
-        
+
+        /// <summary>
+        /// 销毁指定资源包裹，将其从管理器中移除并调用 YooAsset 销毁接口。
+        /// </summary>
+        /// <param name="packageName">要销毁的包裹名称。</param>
+        public static void DestroyPackage(string packageName)
+        {
+            if (!_packages.Remove(packageName)) return;
+            var package = YooAssets.GetPackage(packageName);
+            if (package != null)
+            {
+                package.DestroyAsync();
+                YooAssets.RemovePackage(packageName);
+            }
+        }
+
         #endregion
 
-        #region 路径解析逻辑 (语法糖)
-        
+        #region 路径解析
+
         private static (ResourcePackage pkg, string assetPath) ParseLocation(string location)
         {
             int colonIndex = location.IndexOf(':');
-            string pkgName;
-            string assetPath;
+            string pkgName, assetPath;
 
             if (colonIndex > 0)
             {
@@ -173,36 +190,65 @@ namespace GoveKits.Runtime.Storage
 
             return (pkg, assetPath);
         }
-        
+
         #endregion
 
         #region 资源加载
-        
-        // ----------------- 异步加载 -----------------
+
+        /// <summary>
+        /// 异步加载指定位置的资源（泛型版本）。
+        /// </summary>
+        /// <typeparam name="T">资源类型。</typeparam>
+        /// <param name="location">资源位置，格式可为 "PackageName:AssetPath" 或纯路径。</param>
+        /// <returns>资源加载句柄。</returns>
         public static AssetHandle LoadAssetAsync<T>(string location) where T : UnityEngine.Object
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadAssetAsync<T>(assetPath);
         }
 
+        /// <summary>
+        /// 异步加载指定位置的资源（非泛型版本）。
+        /// </summary>
+        /// <param name="location">资源位置。</param>
+        /// <param name="type">期望的资源类型。</param>
+        /// <returns>资源加载句柄。</returns>
         public static AssetHandle LoadAssetAsync(string location, Type type)
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadAssetAsync(assetPath, type);
         }
 
+        /// <summary>
+        /// 异步加载原始文件。
+        /// </summary>
+        /// <param name="location">文件位置。</param>
+        /// <returns>原始文件加载句柄。</returns>
         public static RawFileHandle LoadRawFileAsync(string location)
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadRawFileAsync(assetPath);
         }
 
+        /// <summary>
+        /// 异步加载场景。
+        /// </summary>
+        /// <param name="location">场景位置。</param>
+        /// <param name="mode">场景加载模式。</param>
+        /// <param name="suspendLoad">是否暂停加载直到显式继续。</param>
+        /// <returns>场景加载句柄。</returns>
         public static SceneHandle LoadSceneAsync(string location, LoadSceneMode mode = LoadSceneMode.Single, bool suspendLoad = false)
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadSceneAsync(assetPath, mode, suspendLoad: suspendLoad);
         }
 
+        /// <summary>
+        /// 加载资源并立即实例化为 GameObject。加载完成后自动释放句柄。
+        /// </summary>
+        /// <param name="location">资源位置。</param>
+        /// <param name="parent">实例化后的父级 Transform。</param>
+        /// <returns>实例化的 GameObject，失败时返回 null。</returns>
         public static async UniTask<GameObject> InstantiateAsync(string location, Transform parent = null)
         {
             var handle = LoadAssetAsync<GameObject>(location);
@@ -211,85 +257,75 @@ namespace GoveKits.Runtime.Storage
             await handle.Task;
             if (handle.Status == EOperationStatus.Succeed)
             {
-                return handle.InstantiateSync(parent);
+                var go = handle.InstantiateSync(parent);
+                Release(handle);
+                return go;
             }
-            
+
             LogCore.Error(nameof(ResCore), $"实例化失败: {location} Error: {handle.LastError}");
+            Release(handle);
             return null;
         }
 
-        // ----------------- 同步加载 -----------------
+        /// <summary>
+        /// 同步加载指定位置的资源（泛型版本）。
+        /// </summary>
+        /// <typeparam name="T">资源类型。</typeparam>
+        /// <param name="location">资源位置。</param>
+        /// <returns>资源加载句柄。</returns>
         public static AssetHandle LoadAssetSync<T>(string location) where T : UnityEngine.Object
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadAssetSync<T>(assetPath);
         }
-        
+
         #endregion
 
-        #region 内存管理与卸载
-        
-        public static void Release(HandleBase handle)
-        {
-            handle?.Release();
-        }
+        #region 内存管理
 
+        /// <summary>
+        /// 释放资源加载句柄。
+        /// </summary>
+        /// <param name="handle">要释放的句柄。</param>
+        public static void Release(HandleBase handle)
+            => handle?.Release();
+
+        /// <summary>
+        /// 卸载指定包裹中未被引用的资源。
+        /// </summary>
+        /// <param name="packageName">包裹名称；为 null 或空时使用默认包裹。</param>
         public static void UnloadUnusedAssets(string packageName = null)
         {
             string pkgName = string.IsNullOrEmpty(packageName) ? _defaultPackageName : packageName;
             if (_packages.TryGetValue(pkgName, out var pkg))
-            {
                 pkg.UnloadUnusedAssetsAsync();
-            }
         }
 
-        public static void DestroyPackage(string packageName)
-        {
-            if (_packages.Remove(packageName))
-            {
-                var package = YooAssets.GetPackage(packageName);
-                if (package != null)
-                {
-                    package.DestroyAsync(); 
-                    YooAssets.RemovePackage(packageName);
-                }
-            }
-        }
-
-        public static async Task UnloadPackage(string packageName, Action onSuccess = null, Action onFailure = null)
+        /// <summary>
+        /// 异步卸载整个包裹，清除缓存文件并触发回调。
+        /// </summary>
+        /// <param name="packageName">要卸载的包裹名称。</param>
+        /// <param name="onSuccess">卸载成功回调。</param>
+        /// <param name="onFailure">卸载失败回调。</param>
+        public static async UniTaskVoid UnloadPackage(string packageName, Action onSuccess = null, Action onFailure = null)
         {
             var package = YooAssets.GetPackage(packageName);
+            if (package == null) { onFailure?.Invoke(); return; }
+
             var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearAllBundleFiles);
             await operation;
 
             if (operation.Status == EOperationStatus.Succeed)
-            {
                 onSuccess?.Invoke();
-            }
             else
-            {
                 onFailure?.Invoke();
-            }
         }
-        
+
         #endregion
 
-        #region 一键热更新工作流
+        #region 热更新内部方法
 
-        /// <summary>
-        /// 一键热更新
-        /// </summary>
-        /// <param name="package">资源包名</param>
-        /// <param name="callbacks">资源下载回调</param>
-        /// <returns></returns>
-        public static async UniTask<bool> PackageWorkflowAsync(PackageConfig package, UpdateCallbacks callbacks)
-        {
-            bool init = await InitPackageAsync(package);
-            if (!init) return false;
-            return await UpdatePackageAsync(package.PackageName, callbacks);
-        }
-        
-        private static async UniTask<bool> UpdatePackageAsync(string packageName, UpdateCallbacks callbacks)
+        private static async UniTask<bool> UpdatePackageInternal(string packageName, UpdateCallbacks callbacks)
         {
             if (!_packages.TryGetValue(packageName, out var pkg))
             {
@@ -298,25 +334,22 @@ namespace GoveKits.Runtime.Storage
             }
 
             LogCore.Success(nameof(ResCore), $"开始更新：{packageName}");
-            // ================= 1. 获取最新包裹版本 =================
             callbacks?.OnCheckVersionBegin?.Invoke();
-            var versionOp = pkg.RequestPackageVersionAsync(); 
+
+            var versionOp = pkg.RequestPackageVersionAsync();
             await UniTask.WaitUntil(() => versionOp.IsDone);
 
             if (versionOp.Status != EOperationStatus.Succeed)
             {
                 callbacks?.OnCheckVersionFailed?.Invoke(versionOp.Error);
-
                 LogCore.Error(nameof(ResCore), $"获取版本失败：{versionOp.Error}");
                 return false;
             }
-            
+
             string latestVersion = versionOp.PackageVersion;
             callbacks?.OnCheckVersionSuccess?.Invoke(latestVersion);
-
             LogCore.Success(nameof(ResCore), $"获取最新版本：{latestVersion}");
 
-            // ================= 2. 更新清单 Manifest =================
             callbacks?.OnUpdateManifestBegin?.Invoke();
             var manifestOp = pkg.UpdatePackageManifestAsync(latestVersion);
             await UniTask.WaitUntil(() => manifestOp.IsDone);
@@ -324,56 +357,25 @@ namespace GoveKits.Runtime.Storage
             if (manifestOp.Status != EOperationStatus.Succeed)
             {
                 callbacks?.OnUpdateManifestFailed?.Invoke(manifestOp.Error);
-
                 LogCore.Error(nameof(ResCore), $"更新清单失败：{manifestOp.Error}");
                 return false;
             }
             callbacks?.OnUpdateManifestSuccess?.Invoke();
-
             LogCore.Success(nameof(ResCore), $"更新清单成功");
 
-            // ================= 3. 创建下载器 =================
             var downloader = pkg.CreateResourceDownloader(10, 3);
-            
             if (downloader.TotalDownloadCount == 0)
             {
-                // 如果没有需要下载的，手动触发 Finish 回调通知外部
-                callbacks?.OnDownloadFinish?.Invoke(new DownloaderFinishData 
-                { 
-                    PackageName = packageName, 
-                    Succeed = true 
-                });
-                return true; 
+                callbacks?.OnDownloadFinish?.Invoke(new DownloaderFinishData { PackageName = packageName, Succeed = true });
+                return true;
             }
 
-            // ================= 4. 绑定下载回调 (终极对齐源码结构) =================
             callbacks?.OnDownloadBegin?.Invoke(downloader.TotalDownloadCount, downloader.TotalDownloadBytes);
+            downloader.DownloadFileBeginCallback = (data) => callbacks?.OnDownloadFileBegin?.Invoke(data);
+            downloader.DownloadErrorCallback = (data) => callbacks?.OnDownloadError?.Invoke(data);
+            downloader.DownloadUpdateCallback = (data) => callbacks?.OnDownloadUpdate?.Invoke(data);
+            downloader.DownloadFinishCallback = (data) => callbacks?.OnDownloadFinish?.Invoke(data);
 
-            // 对应源码：public delegate void DownloadFileBegin(DownloadFileData data);
-            downloader.DownloadFileBeginCallback = (data) =>
-            {
-                callbacks?.OnDownloadFileBegin?.Invoke(data);
-            };
-
-            // 对应源码：public delegate void DownloadError(DownloadErrorData data);
-            downloader.DownloadErrorCallback = (data) => 
-            {
-                callbacks?.OnDownloadError?.Invoke(data);
-            };
-
-            // 对应源码：public delegate void DownloadUpdate(DownloadUpdateData data);
-            downloader.DownloadUpdateCallback = (data) => 
-            {
-                callbacks?.OnDownloadUpdate?.Invoke(data);
-            };
-
-            // 对应源码：public delegate void DownloaderFinish(DownloaderFinishData data);
-            downloader.DownloadFinishCallback = (data) =>
-            {
-                callbacks?.OnDownloadFinish?.Invoke(data);
-            };
-
-            // ================= 5. 开始下载 =================
             downloader.BeginDownload();
             await UniTask.WaitUntil(() => downloader.IsDone);
 
@@ -385,14 +387,25 @@ namespace GoveKits.Runtime.Storage
 
             return true;
         }
-        
+
         #endregion
 
-        #region 内部辅助类 
-        
         /// <summary>
-        /// 联机模式必须的远端寻址服务
+        /// 清空所有已初始化的资源包裹，重置默认包裹名。
         /// </summary>
+        public static void Close()
+        {
+            foreach (var kvp in _packages)
+            {
+                var pkg = kvp.Value;
+                pkg.DestroyAsync();
+            }
+            _packages.Clear();
+            _defaultPackageName = "DefaultPackage";
+        }
+
+        #region 内部辅助类
+
         private class DefaultRemoteServices : IRemoteServices
         {
             private readonly string _defaultHostServer;
@@ -403,11 +416,11 @@ namespace GoveKits.Runtime.Storage
                 _defaultHostServer = defaultHostServer;
                 _fallbackHostServer = fallbackHostServer;
             }
-            
+
             public string GetRemoteMainURL(string fileName) => $"{_defaultHostServer}/{fileName}";
             public string GetRemoteFallbackURL(string fileName) => $"{_fallbackHostServer}/{fileName}";
         }
-        
+
         #endregion
     }
 }

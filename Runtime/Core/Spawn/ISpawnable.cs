@@ -1,22 +1,20 @@
-using System;
-
 namespace GoveKits.Runtime.Core
 {
     /// <summary>
-    /// 用于 ISpawnable 初始化的数据接口。
-    /// （在网络层中，这可以是被反序列化出来的盲盒数据；在单机层中，它可以是任何类）
+    /// 用于 Spawnable 初始化的数据接口。
+    /// 派生类可携带生成实体时所需的各种配置参数。
     /// </summary>
     public interface ISpawnData { }
 
     /// <summary>
-    /// 表示可以被 SpawnCore 统一生命周期管理的对象。
-    /// 可以挂载在 MonoBehaviour 上，也可以是纯 C# 类。
+    /// 可被 SpawnCore 统一管理生命周期的实体接口。
+    /// 每个实体拥有唯一的 ObjectId 和关联的 SpawnKey。
     /// </summary>
     public interface ISpawnable
     {
+        /// <summary>实体注册时使用的键名，用于查找对应的工厂和销毁函数。</summary>
         string SpawnKey { get; }
-        
-        // 建议接口只留 get，具体赋值由业务类的初始化方法（或属性本身）完成
-        uint ObjectId { get; set; } 
+        /// <summary>实体的唯一对象 ID，全局递增。</summary>
+        uint ObjectId { get; }
     }
 }

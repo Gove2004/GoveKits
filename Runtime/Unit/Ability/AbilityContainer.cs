@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
 
@@ -7,64 +6,71 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// Unit 技能容器。
-    /// </summary>
-    /// <remarks>
     /// 负责技能实例的注册、移除、查询与统一异步执行入口。
-    /// 容器接管了所有技能实例的 Owner 依赖注入权。
-    /// </remarks>
+    /// 容器接管了所有技能实例的 Owner 依赖注入。
+    /// </summary>
     public class AbilityContainer : ITagSource, IEnumerable<KeyValuePair<UnitTag, UnitAbility>>
     {
+        /// <summary>技能所属的宿主 Unit</summary>
         public IUnit Owner { get; }
-        private readonly Dictionary<UnitTag, UnitAbility> _abilitys = new();
+        private readonly Dictionary<UnitTag, UnitAbility> _abilities = new();
 
-        public int Count => _abilitys.Count;
+        /// <summary>当前已注册的技能数量</summary>
+        public int Count => _abilities.Count;
 
-        /// <summary>构造函数，绑定宿主单位</summary>
+        /// <summary>构造函数</summary>
         public AbilityContainer(IUnit owner)
         {
             Owner = owner;
         }
-        
-        public bool HasTag(UnitTag tag) => _abilitys.ContainsKey(tag);
-        
-        public IEnumerator<KeyValuePair<UnitTag, UnitAbility>> GetEnumerator() => _abilitys.GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _abilitys.GetEnumerator();
+
+        /// <summary>检查是否存在指定标签的技能</summary>
+        public bool HasTag(UnitTag tag) => _abilities.ContainsKey(tag);
+
+        public IEnumerator<KeyValuePair<UnitTag, UnitAbility>> GetEnumerator() => _abilities.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _abilities.GetEnumerator();
 
         /// <summary>
-        /// 添加技能并自动为其注入宿主。
-        /// 若已存在同名技能，旧技能将被自动销毁替换。
+        /// 添加技能并自动为其注入宿主。若已存在同名技能，旧技能将被自动销毁替换。
+        /// 正在执行中的旧技能会标记为待销毁而非立即释放。
         /// </summary>
         public void AddAbility(UnitAbility ability)
         {
             if (ability == null) return;
 
-            if (_abilitys.TryGetValue(ability.Name, out var oldAbility))
+            if (_abilities.TryGetValue(ability.Name, out var oldAbility))
             {
-                oldAbility.Dispose();
+                if (oldAbility.IsExecuting)
+                {
+                    LogCore.Warning(nameof(AbilityContainer), $"技能 {ability.Name} 正在执行中，标记为待销毁");
+                    oldAbility.MarkForPendingDestroy();
+                }
+                else
+                {
+                    oldAbility.Dispose();
+                }
             }
 
-            // 【核心注入机制】所有能力在此刻才真正知晓它们的宿主是谁
             ability.Init(Owner);
-            _abilitys[ability.Name] = ability;
+            _abilities[ability.Name] = ability;
         }
 
+        /// <summary>移除指定标签的技能实例</summary>
         public bool RemoveAbility(UnitTag tag)
         {
-            if (_abilitys.TryGetValue(tag, out var ability))
+            if (_abilities.TryGetValue(tag, out var ability))
             {
                 ability.Dispose();
-                _abilitys.Remove(tag);
+                _abilities.Remove(tag);
                 return true;
             }
             return false;
         }
 
-        /// <summary>
-        /// 强类型获取指定标签的技能实例。
-        /// </summary>
+        /// <summary>强类型获取指定标签的技能实例</summary>
         public T GetAbility<T>(UnitTag tag) where T : UnitAbility
         {
-            if (_abilitys.TryGetValue(tag, out var ability))
+            if (_abilities.TryGetValue(tag, out var ability))
             {
                 if (ability is T result) return result;
                 LogCore.Error(nameof(AbilityContainer), $"技能 {tag} 类型不匹配，期望 {typeof(T).Name}");
@@ -72,27 +78,24 @@ namespace GoveKits.Runtime.Unit
             return null;
         }
 
-        /// <summary>
-        /// 由容器代理转发的技能异步执行入口。
-        /// 外部直接调用 `Unit.Use(tag, ctx)` 即可启动整个技能流水线。
-        /// </summary>
-        public UniTask<bool> TryExecuteAsync(UnitTag tag, AbilityContext context, CancellationToken cancellationToken = default)
+        /// <summary>由容器代理转发的技能异步执行入口</summary>
+        public UniTask<bool> TryExecuteAsync(UnitTag tag, AbilityContext context, System.Threading.CancellationToken cancellationToken = default)
         {
-            if (!_abilitys.TryGetValue(tag, out var ability))
+            if (!_abilities.TryGetValue(tag, out var ability))
             {
                 return UniTask.FromResult(false);
             }
-
             return ability.TryExecuteAsync(context, cancellationToken);
         }
 
+        /// <summary>销毁并清空所有技能实例</summary>
         public void Clear()
         {
-            foreach (var ability in _abilitys.Values)
+            foreach (var ability in _abilities.Values)
             {
                 ability.Dispose();
             }
-            _abilitys.Clear();
+            _abilities.Clear();
         }
     }
 }

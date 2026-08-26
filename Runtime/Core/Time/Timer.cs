@@ -1,39 +1,49 @@
-
 using System;
 using System.Collections.Generic;
-
 
 namespace GoveKits.Runtime.Core
 {
     /// <summary>
-    /// 轻量定时器对象：状态数据载体，无回收逻辑（由 TimeWheel 统一管理）。
+    /// 轻量级定时器对象，承载定时器的状态数据和回调引用。
+    /// 由 PoolCore 池化管理，TimeWheel 负责调度执行。
     /// </summary>
     public class Timer : IPoolable
     {
-        // --- 状态标识 ---
+        /// <summary>定时器的全局唯一 ID。</summary>
         public long Id { get; private set; }
+        /// <summary>定时器是否处于暂停状态。</summary>
         public bool IsPaused { get; internal set; }
+        /// <summary>定时器是否已完成（不再触发）。</summary>
         public bool IsDone { get; internal set; }
+        /// <summary>定时器是否已被取消。</summary>
         public bool IsCancelled { get; internal set; }
 
-        // --- 调度数据 ---
+        /// <summary>定时器触发时执行的回调。</summary>
         internal Action Callback;
+        /// <summary>定时器触发间隔（秒）。</summary>
         internal float Interval;
-        internal int LoopCount;       // 剩余循环次数 (-1 无限)
+        /// <summary>总共循环次数，-1 表示无限循环。</summary>
+        internal int LoopCount;
+        /// <summary>目标触发 Tick 编号。</summary>
         internal long TargetTick;
+        /// <summary>已执行的轮数。</summary>
         internal int Rounds;
-        
-        // --- 链表节点（O(1) 操作关键）---
+        /// <summary>在 LinkedList 中的链接节点引用。</summary>
         internal LinkedListNode<Timer> LinkNode;
+        /// <summary>所属的时间轮。</summary>
         internal TimeWheel BelongsToWheel;
-
-        // --- 暂停数据 ---
+        /// <summary>暂停时剩余的计时时间。</summary>
         internal float RemainingTimeOnPause;
 
+        /// <summary>
+        /// 设置定时器的全局唯一 ID。
+        /// </summary>
+        /// <param name="id">ID 值</param>
         public void SetID(long id) => Id = id;
 
         /// <summary>
-        /// 重置所有状态（对象池回收时调用）。
+        /// 重置定时器状态，供池回收时调用。
+        /// 将所有字段归零或置为初始值。
         /// </summary>
         public void OnRecycle()
         {
@@ -51,21 +61,18 @@ namespace GoveKits.Runtime.Core
             BelongsToWheel = null;
         }
 
-        // --- Public API：只标记状态，不直接操作 ---
-
         /// <summary>
-        /// 暂停
+        /// 暂停定时器。暂停期间不会触发回调，可通过 Resume 恢复。
         /// </summary>
         public void Pause()
         {
             if (IsPaused || IsDone || IsCancelled || BelongsToWheel == null) return;
             IsPaused = true;
-            // 计算剩余时间，从时间轮移除（但不回收）
             RemainingTimeOnPause = BelongsToWheel.RemoveAndCalcRemaining(this);
         }
 
         /// <summary>
-        /// 恢复
+        /// 恢复已暂停的定时器，继续倒计时。
         /// </summary>
         public void Resume()
         {
@@ -75,20 +82,13 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 取消
+        /// 取消定时器，使其不再触发回调并被回收。
         /// </summary>
         public void Cancel()
         {
             if (IsDone || IsCancelled) return;
             IsCancelled = true;
-            // 标记为待移除，由 Wheel 在 Process 时统一处理并回收
-            // 如果正在当前槽位处理中，立即处理
-            if (BelongsToWheel != null && BelongsToWheel.IsProcessing)
-            {
-                // Wheel 会在本轮处理完后回收
-                return;
-            }
-            // 否则立即从链表移除，等待 Wheel 的下一轮处理或立即回收
+            if (BelongsToWheel != null && BelongsToWheel.IsProcessing) return;
             BelongsToWheel?.MarkForRemove(this);
         }
     }

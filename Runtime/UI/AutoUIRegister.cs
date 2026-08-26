@@ -1,30 +1,35 @@
+using GoveKits.Runtime.Core;
 using UnityEngine;
-
 
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// 自动将所有子物体上的 ViewPanel 注册到 UICore
+    /// 自动将所有子物体上的 ViewPanel 注册到 UICore。
+    /// 将此组件挂在场景中任意 GameObject 上即可，无需手动调用 Register。
     /// </summary>
     public class AutoUIRegister : MonoBehaviour
     {
+        private ViewPanel[] _panels;
+
         private void Awake()
         {
-            var panels = GetComponentsInChildren<ViewPanel>(true);
-            foreach (var panel in panels)
+            _panels = GetComponentsInChildren<ViewPanel>(true);
+            foreach (var panel in _panels)
             {
                 UICore.Register(panel.GetType(), panel);
             }
         }
 
-
         private void OnDestroy()
         {
-            var panels = GetComponentsInChildren<ViewPanel>(true);
-            foreach (var panel in panels)
+            foreach (var panel in _panels)
             {
-                UICore.UnRegister(panel.GetType());
+                if (panel != null)
+                {
+                    UICore.Unregister(panel.GetType());
+                }
             }
+            _panels = null;
         }
     }
 }

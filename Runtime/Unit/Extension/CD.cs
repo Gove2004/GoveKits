@@ -2,15 +2,21 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// 技能冷却时间拦截规则。
-    /// </summary>
-    /// <remarks>
     /// 巧妙复用状态系统：通过给施法者挂载一个带 Duration 的隐形 CDMark，来拦截技能重发。
-    /// </remarks>
+    /// </summary>
     public class CDRule : AbilityRule
     {
+        /// <summary>冷却标记标签</summary>
         public UnitTag CDTag { get; }
+
+        /// <summary>冷却持续时间（秒）</summary>
         public float Duration { get; }
 
+        /// <summary>
+        /// 创建冷却规则。
+        /// </summary>
+        /// <param name="cdTag">冷却标记标签</param>
+        /// <param name="duration">冷却持续时间（秒）</param>
         public CDRule(UnitTag cdTag, float duration)
         {
             CDTag = cdTag;
@@ -30,11 +36,9 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public override void Commit(AbilityContext context)
         {
-            // 利用数据驱动注册中心创建标记实例
-            var cdMark = UnitCore.CreateMark(CDTag, stack: 1, duration: Duration);
+            var cdMark = UnitCore.CreateMark<CDMark>().SetStack(1).SetDuration(Duration);
             if (cdMark != null)
             {
-                // 使用对象池极速应用特效，绝不产生 GC 垃圾
                 MarkAddEffect.Create()
                     .Set(cdMark)
                     .Apply(context.Source);
@@ -49,11 +53,13 @@ namespace GoveKits.Runtime.Unit
     public class CDMark : UnitMark
     {
         private UnitTag _name;
+        /// <summary>标记名称（由 CDRule 动态设置）</summary>
         public override UnitTag Name { get => _name; protected set => _name = value; }
 
+        /// <summary>无参构造，满足反序列化工厂要求</summary>
         public CDMark() { }
 
-        // 此方法允许底层框架动态构建各种技能的不同名称冷却
+        /// <summary>此方法允许底层框架动态构建各种技能的不同名称冷却</summary>
         public CDMark SetName(UnitTag name)
         {
             _name = name;

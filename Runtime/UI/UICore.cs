@@ -1,18 +1,25 @@
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
+using GoveKits.Runtime.Core;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace GoveKits.Runtime.UI
 {
+    /// <summary>
+    /// UI 系统门面，统一管理面板注册/显示和 ViewModel 生命周期。
+    /// </summary>
     public static class UICore
     {
-        #region ViewPanel 管理
+        private static readonly Dictionary<Type, ViewPanel> _viewPanels = new();
+        private static readonly Dictionary<Type, ViewModel> _viewModels = new();
 
-        // 已经存在的 ViewPanel 实例注册到这里，以便统一管理和访问
-        private static Dictionary<Type, ViewPanel> _viewPanels = new();
-        
-
-        public static void Register<TVP>(ViewPanel panel) where TVP : ViewPanel => Register(typeof(TVP), panel);
+        /// <summary>
+        /// 注册面板实例。面板必须在场景中存在并通过 AutoUIRegister 或其他方式注册。
+        /// 同一类型重复注册会覆盖。
+        /// </summary>
+        public static void Register<T>(ViewPanel panel) where T : ViewPanel => Register(typeof(T), panel);
         public static void Register(Type type, ViewPanel panel)
         {
             if (!_viewPanels.ContainsKey(type))
@@ -21,9 +28,11 @@ namespace GoveKits.Runtime.UI
             }
         }
 
-
-        public static void UnRegister<TVP>() where TVP : ViewPanel => UnRegister(typeof(TVP));
-        public static void UnRegister(Type type)
+        /// <summary>
+        /// 注销指定类型的面板。
+        /// </summary>
+        public static void Unregister<T>() where T : ViewPanel => Unregister(typeof(T));
+        public static void Unregister(Type type)
         {
             if (_viewPanels.ContainsKey(type))
             {
@@ -31,11 +40,9 @@ namespace GoveKits.Runtime.UI
             }
         }
 
-
-        #endregion
-
-        #region Show/Hide 面板接口
-
+        /// <summary>
+        /// 显示面板。触发 OnBindVM -> OnReceiveShowParam -> OnShow 生命周期。
+        /// </summary>
         public static void Show<T>(object param = null) where T : ViewPanel => Show(typeof(T), param);
         public static void Show(Type type, object param = null)
         {
@@ -47,7 +54,9 @@ namespace GoveKits.Runtime.UI
             }
         }
 
-
+        /// <summary>
+        /// 隐藏面板。触发 OnHide -> OnUnbindVM 生命周期。
+        /// </summary>
         public static void Hide<T>() where T : ViewPanel => Hide(typeof(T));
         public static void Hide(Type type)
         {
@@ -58,13 +67,9 @@ namespace GoveKits.Runtime.UI
             }
         }
 
-        #endregion
-
-
-        #region ViewModel 管理
-
-        private static Dictionary<Type, ViewModel> _viewModels = new();
-
+        /// <summary>
+        /// 获取 ViewModel 单例。首次调用时创建并调用 OnInit。
+        /// </summary>
         public static TVM GetVM<TVM>() where TVM : ViewModel, new()
         {
             var type = typeof(TVM);
@@ -76,6 +81,17 @@ namespace GoveKits.Runtime.UI
             return _viewModels[type] as TVM;
         }
 
-        #endregion
+        /// <summary>
+        /// 关闭所有面板和 ViewModel，释放资源。
+        /// </summary>
+        public static void Close()
+        {
+            foreach (var vm in _viewModels.Values)
+            {
+                vm.DetachAllViews();
+            }
+            _viewPanels.Clear();
+            _viewModels.Clear();
+        }
     }
 }

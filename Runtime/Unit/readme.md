@@ -1,209 +1,457 @@
+# Unit 模块
 
-# GoveKits Unit 模块 (类 GAS 核心能力系统)
+数值驱动的角色能力框架。为游戏中的"单位"（角色、怪物、NPC、世界本身）提供一套可组合的属性、技能、状态标记与反应链系统。所有行为通过 **Intent → Reaction → Effect** 管道编排，不直接耦合具体逻辑。
 
-GoveKits Runtime Unit 是一套高度工业化、零 GC、支持纯数据驱动（Data-Driven）的类 GAS 游戏能力框架。
-它采用 IoC（控制反转） 设计，将逻辑与宿主彻底解耦；内置极速对象池与序列化管线，完美支持复杂 RPG/SLG 游戏中的技能、Buff、被动触发、属性联动及读写档需求。
+## 核心概念
 
-## 目录结构
+| 概念 | 说明 |
+|------|------|
+| **IUnit** | 所有单位的契约，聚合四个容器（Attributes/Marks/Abilities/Reactions） |
+| **Ability** | 主动技能，执行后产生 Intent，不直接修改任何状态 |
+| **Reaction** | 被动反应，消费 Intent 并产出 Effect |
+| **Mark** | 持续状态（Buff / Debuff / DOT），可堆叠、可 Tick |
+| **Attribute** | 基础数值（HP、ATK、DEF…），支持加法 / 乘法 / 覆盖三种修饰模式 |
+| **Intent** | 未解析的操作指令，经 Reaction 消费后才真正生效 |
+| **Effect** | 原子状态变更，通过对象池分配，批量应用后回收 |
+
+设计原则：**主动技能只生成意图，被动反应只消费意图并产出效果，数值变更只通过修饰器管道。** 三层解耦使技能、装备、Buff、环境效果可以自由叠加而不互相干扰。
+
+## 架构总览
 
 ```
-Unit/
-├── IUnit.cs                  # Unit 统一接口与基类 (实体契约)
-├── Universe.cs               # 全局环境单例 (用于全局 Buff/事件)
-├── UnitCore.cs               # ⭐️ 组件全局注册与工厂中心 (数据驱动核心)
-├── UnitSerializer.cs         # ⭐️ 纯数据序列化与状态重建工具 (用于读写档)
-├── Ability/                  # 技能系统
-│   ├── UnitAbility.cs        # 技能基类 (无参构造, 支持依赖注入)
-│   ├── AbilityRule.cs        # 技能执行规则 (前置条件与消耗)
-│   ├── AbilityContext.cs     # 技能执行上下文 (Source, Target, 临时参数)
-│   └── AbilityContainer.cs   # 技能容器
-├── Attribute/                # 属性系统
-│   ├── UnitAttribute.cs      # 属性数据块 (BaseValue, CurrentValue)
-│   ├── AttributeModifier.cs  # 属性修改器 (0GC Struct)
-│   └── AttributeContainer.cs # 属性容器 (重算管线)
-├── Mark/                     # 状态标记系统 (Buff/Debuff)
-│   ├── UnitMark.cs           # 标记基类 (支持堆叠, 持续时间)
-│   ├── CD.cs                 # 基于 Mark 的通用冷却规则
-│   └── MarkContainer.cs      # 标记容器 (生命周期管理)
-├── Reaction/                 # 被动反应系统 (事件监听)
-│   ├── UnitReaction.cs       # 反应基类 (事件订阅生命周期)
-│   ├── DelegateReaction.cs   # 委托快捷反应实现
-│   └── ReactionContainer.cs  # 反应容器
-├── Util/                     # 工具与扩展
-│   ├── UnitEffect.cs         # ⭐️ 即时效果基类 (CRTP模式，极速对象池)
-│   ├── Effect.cs             # 内置的通用效果 (扣血、加Buff等)
-│   ├── UnitTag.cs            # 极速哈希标签 (替代 String 键值)
-│   └── TagQuery.cs           # ⭐️ 标签逻辑树查询 (与/或/非 组合匹配)
-└── UnitBehaviour.cs          # Unity MonoBehaviour 宿主表现层实现
+UnitCore（注册中心 + 工厂）
+  ├── RegisterAbility<T>(tag) — 注册技能类型
+  ├── RegisterMark<T>(tag)    — 注册标记类型
+  ├── RegisterReaction<T>(tag) — 注册反应类型
+  ├── CreateAbility(tag)      — 查注册表反射创建
+  ├── CreateAbility<T>()      — 直接 new T（fluent）
+  ├── CreateMark(tag)         — 查注册表反射创建
+  ├── CreateMark<T>()         — 直接 new T（fluent）
+  ├── CreateReaction(tag)     — 查注册表反射创建
+  ├── CreateReaction<T>()     — 直接 new T（fluent）
+  ├── CreateIntent<T>(src, tgt) — 对象池 + 自动设 Source/Target
+  └── CreateEffect<T>()       — 对象池
+
+IUnit（单位实例）
+  ├── Attributes  → AttributeContainer
+  ├── Marks       → MarkContainer
+  ├── Abilities   → AbilityContainer
+  └── Reactions   → ReactionContainer
+  └── IUnitExtensions（扩展方法）
+
+能力执行流:
+  IUnit.UseAbility(tag, ctx)
+    → Ability.Check()   (规则检查: CD / 消耗 / 属性门槛)
+    → Ability.TryExecuteAsync()
+    → Ability.GenerateIntentsAsync()  → IReadOnlyList<UnitIntent>
+    → Intent (HurtIntent / RecoverIntent / AddMarkIntent …)
+    → Target.HandleIntent(intent)
+    → ReactionChain.Sort(Priority desc)
+    → Reaction.CanHandle(intent)      (按 CanHandleTypes 过滤)
+    → Reaction.Handle(intent, effects)
+    → ApplyEffects()                   (批量应用，原子化)
+
+生命周期流:
+  UnitBehaviour.Update(dt)
+    → Marks.UpdateMarks(dt)
+      → TickMark.OnTick()   (DOT 每回合触发 Intent)
+      → Mark 过期 → RemoveMark
 ```
 
-## 核心架构理念
+## 快速开始
 
-1. IoC 依赖注入与无参构造
+### 1. 注册技能 / 标记 / 反应
 
-所有的 Ability (技能)、Mark (状态)、Reaction (被动) 均采用 无参构造函数。它们不再强依赖宿主，而是在被 Add 进容器的瞬间，由容器将 Owner 注入给它们。这使得组件可以通过工厂动态生成。
-
-2. 数据驱动 (Data-Driven)
-
-通过 UnitCore 注册中心，我们可以将 JSON 或配置表里的字符串标签，直接转化为游戏内的实体能力。配合 UnitSerializer，可将怪物的所有状态抽离为极简的 POCO 数据。
-
-3. 零 GC 执行管线
-
-数值修改器 (AttributeModifier) 采用 Struct 结构。瞬间爆发的伤害、治疗、Buff 挂载全部采用 UnitEffect<T> 结合底层 PoolCore 实现对象的极速复用，运行时绝不产生内存垃圾。
-
-## 核心模块使用指南
-
-### 1.UnitCore 与 数据驱动初始化
-
-将能力标签与具体的 C# 类绑定。通常在游戏启动时执行一次。
+在初始化阶段（如 `GoveCore.Setup()` 之后）调用 `UnitCore`：
 
 ```csharp
-// 1. 在游戏启动时注册能力
-UnitCore.RegisterAbility<FireBallAbility>("Skill_FireBall");
-UnitCore.RegisterMark<PoisonMark>("Buff_Poison");
-UnitCore.RegisterReaction<DodgeReaction>("Passive_Dodge");
+// 注册一个火焰球技能（Tag 自动池化）
+UnitCore.RegisterAbility<Fireball>("Skill_Fireball");
 
-// 2. 在运行时，直接通过标签实例化（工厂模式）
-UnitMark poison = UnitCore.CreateMark("Buff_Poison", stack: 1, duration: 5f);
+// 注册灼烧 Debuff
+UnitCore.RegisterMark<BurnMark>("Debuff_Burn");
+
+// 注册伤害反应
+UnitCore.RegisterReaction<DamageReaction>("Reaction_Damage");
+
+// Tag 相同字符串返回同一实例（String Pool 语义）
+UnitTag a = "fire";
+UnitTag b = "fire";
+// ReferenceEquals(a, b) == true
 ```
 
-### 2.IUnit 与 宿主装配
-
-使你的游戏实体继承 UnitBehaviour（或非 Unity 环境下继承 BaseUnit），它将自动初始化四大容器。
+### 2. 创建单位
 
 ```csharp
-public class Monster : UnitBehaviour
+// 方式 A：手动创建
+var unit = gameObject.AddComponent<UnitBehaviour>();
+unit.InitAttributes();
+unit.InitMarks();
+unit.InitAbilities();
+unit.InitReactions();
+
+// 方式 B：从存档数据恢复
+var archive = LoadFromDisk();
+UnitSerializer.Restore(unit, archive);
+```
+
+### 3. 初始化容器内容
+
+继承 `UnitBehaviour` 并重写初始化方法：
+
+```csharp
+public class PlayerUnit : UnitBehaviour
 {
-    protected override void Awake()
+    protected override void InitAttributes()
     {
-        base.Awake(); // 自动初始化 Attributes, Marks, Abilities, Reactions
-
-        // 初始化基础属性
         Attributes.Add("HP", 1000f);
-        Attributes.Add("Attack", 50f);
+        Attributes.Add("ATK", 150f);
+        Attributes.Add("DEF", 50f);
+        Attributes.Add("SPD", 100f);
+    }
 
-        // 通过工厂挂载初始被动
-        Reactions.AddReaction(UnitCore.CreateReaction("Passive_Dodge"));
+    protected override void InitAbilities()
+    {
+        // 方式 A：通过类型直接创建（fluent API）
+        var fireball = UnitCore.CreateAbility<Fireball>();
+        fireball.AddRule(new CDRule("CD_Fireball", 2.0f));
+        Abilities.AddAbility(fireball);
+
+        // 方式 B：通过字符串 Tag 查注册表创建（数据驱动）
+        var sword = UnitCore.CreateAbility("Skill_Sword");
+        Abilities.AddAbility(sword);
+    }
+
+    protected override void InitReactions()
+    {
+        Reactions.AddReaction(new DamageReaction());
+        Reactions.AddReaction(new DodgeReaction());
     }
 }
 ```
 
-### 3. AttributeContainer (属性与修改器)
-
-提供基础值、修改器（加、乘、覆盖）以及生命周期拦截管线。
+### 4. 释放技能
 
 ```csharp
-// 1. 添加属性修改器 (如：装备了一把加 20% 攻击力的剑)
-var swordBuff = new AttributeModifier(ModifierType.Multiplicative, 0.2f, this);
-monster.Attributes.AddModifier("Attack", swordBuff);
+var context = new AbilityContext(targetUnit);
+await sourceUnit.UseAbility("Skill_Fireball", context);
+```
 
-// 2. 移除修改器 (卸下装备)
-monster.Attributes.RemoveModifier("Attack", this);
+### 4.1 统一工厂 API
 
-// 3. 属性安全钳制 (拦截管线)
-monster.Attributes.BeforeValueChange = (tag, value) => {
-    if (tag == "HP") return Mathf.Clamp(value, 0, monster.Attributes.GetBaseValue("MaxHP"));
-    return value;
+所有类型都支持 **类型创建**（代码硬编码）和 **字符串创建**（数据驱动/配置表）两种模式：
+
+```csharp
+// 技能 — 类型创建（直接 new T）
+var ability = UnitCore.CreateAbility<Fireball>();
+
+// 标记 — 类型创建（直接 new T，stack/duration 由子类 fluent 控制）
+var mark = UnitCore.CreateMark<BurnMark>();
+
+// 反应 — 类型创建
+var reaction = UnitCore.CreateReaction<DamageReaction>();
+
+// Intent — 对象池 + 自动设 Source/Target
+var hurtIntent = UnitCore.CreateIntent<HurtIntent>(attacker, defender);
+
+// Effect — 对象池
+var effect = UnitCore.CreateEffect<HurtEffect>();
+```
+
+### 5. UnitTag 池化
+
+```csharp
+UnitTag a = "fire";
+UnitTag b = "fire";
+UnitTag c = new UnitTag("fire");
+// a == b == c（Equals 和引用都相同）
+// ReferenceEquals(a, b) == true
+// UnitTag.PoolSize == 1（只占用一个实例）
+```
+
+## 属性系统
+
+### 计算公式
+
+```
+CurrentValue = (BaseValue + ΣAdditive) × (1 + ΣMultiplicative)
+```
+
+`ModifierType.Override` 直接忽略上述公式，使用 `Value` 作为最终值。
+
+### 属性修改器
+
+```csharp
+var mod = new AttributeModifier(
+    type: ModifierType.Additive,
+    value: 50f,
+    source: null
+);
+unit.Attributes.AddModifier("ATK", mod);
+```
+
+### 数值变更管道
+
+```csharp
+// 在 InitAttributes() 之后挂载
+container.BeforeValueChange = (tag, newValue) =>
+{
+    // 钳制、校验、阻止非法变更
+    return Mathf.Max(0f, newValue);
+};
+
+container.AfterValueChange = (tag, oldValue, newValue) =>
+{
+    // 驱动 UI、检查死亡阈值
+    if (tag == "HP" && newValue <= 0) Die();
 };
 ```
 
-### 4. UnitEffect (瞬时效果与 0GC 对象池)
+## 技能系统 (Ability)
 
-基于命令模式，处理扣血、加状态等瞬时行为。支持流畅的链式调用 API。
+### 技能生命周期
 
-```csharp
-// 最佳实践：使用 Create() 从对象池获取，Apply() 执行后自动回收，0GC！
-AttributeChangeEffect.Create()
-    .Set("HP", -150f)
-    .Apply(monster); // 对怪物造成 150 点真实伤害
-
-// 给怪物挂载一个中毒 Buff
-MarkAddEffect.Create()
-    .Set(UnitCore.CreateMark("Buff_Poison", stack: 1, duration: 10f))
-    .Apply(monster);
+```
+OnInit() → CanExecute() → TryExecuteAsync() → GenerateIntentsAsync() → IReadOnlyList<UnitIntent>
 ```
 
-### AbilityContainer (技能与状态机)
+一个技能可以产出多个 Intent。
 
-管理技能的执行前置条件（Rules）和异步执行过程。
+### 规则系统 (AbilityRule)
+
+规则在 `Check()` 时检查，通过后在 `Commit()` 执行前置操作（扣 MP、上 CD 标记等）：
 
 ```csharp
-public class FireBallAbility : UnitAbility
+public class MPCostRule : AbilityRule
 {
-    public override UnitTag Name => "Skill_FireBall";
+    private readonly float _cost;
+    public override bool Check(AbilityContext ctx)
+        => ctx.Source.Attributes.GetValue(new UnitTag("MP")) >= _cost;
+    public override void Commit(AbilityContext ctx)
+        => ctx.Source.Attributes.ChangeBase(new UnitTag("MP"), -_cost);
+}
+```
 
-    protected override void OnInit()
-    {
-        // 添加前置规则：需要 3 秒冷却时间
-        AddRule(new CDRule("CD.FireBall", 3f));
-    }
+### 内置效果类型
 
-    public override async UniTask ExecuteAsync(AbilityContext context, CancellationToken ct)
+`Effect.cs` 提供 9 种可直接使用的效果：
+
+| 效果 | 作用 |
+|------|------|
+| `AttributeChangeEffect` | 修改属性的基础值或当前值 |
+| `AttributeModifierAddEffect` | 给指定属性添加修饰器 |
+| `AttributeModifierRemoveEffect` | 移除指定属性的修饰器 |
+| `MarkAddEffect` | 给目标添加标记 |
+| `MarkRemoveEffect` | 移除目标的指定标记 |
+| `AbilityAddEffect` | 给目标添加技能 |
+| `AbilityRemoveEffect` | 移除目标的指定技能 |
+| `ReactionAddEffect` | 给目标添加反应 |
+| `ReactionRemoveEffect` | 移除目标的指定反应 |
+
+## 标记系统 (Mark)
+
+### 基础 Mark
+
+继承 `UnitMark`，实现关键生命周期：
+
+```csharp
+public class BurnMark : UnitMark
+{
+    public override UnitTag Name { get; protected set; } = new UnitTag("Burn");
+    public override int MaxStack => 3;
+
+    public override void OnApply() { /* 首次施加 */ }
+    public override void OnStack(UnitMark newMark) { /* 重复施加 */ }
+    public override void OnUpdate(float deltaTime) { /* 每帧更新 */ }
+    public override void OnRemove() { /* 移除清理 */ }
+}
+```
+
+### TickMark（周期性触发）
+
+继承 `TickMark` 实现 DOT（持续伤害）等按周期触发的效果：
+
+```csharp
+public class PoisonMark : TickMark
+{
+    protected override void OnTick()
     {
-        // 1. 播放动画
-        // 2. 生成火球飞行
-        // 3. 命中后造成伤害
-        float damage = Owner.Value("Attack") * 2.0f;
-        AttributeChangeEffect.Create().Set("HP", -damage).Apply(context.Target);
+        var intent = UnitCore.CreateIntent<HurtIntent>(Source, Owner)
+            .SetDamage(damageAmount);
+        Owner.HandleIntent(intent);
     }
 }
-
-// 外部调用释放技能：
-var ctx = new AbilityContext(source: player, target: monster);
-await player.Use("Skill_FireBall", ctx); // 会自动检查 CD
 ```
 
-### 6. ReactionContainer (被动事件订阅)
+### 堆叠与过期
 
-极度优雅的基于委托或类的被动事件监听器。
+- 同一 Tag 的标记重复施加时自动调用 `OnStack`，堆叠数上限由 `MaxStack` 控制
+- `MarkContainer` 内部使用缓存列表避免遍历时修改集合导致的 `InvalidOperationException`
+- 过期标记在下一个 `UpdateMarks(dt)` 调用中被安全移除
+
+## 反应系统 (Reaction)
+
+### 反应生命周期
+
+```
+CanHandle(intent) → Handle(intent, effects)
+```
+
+### Intent 过滤
+
+Reaction 通过 `CanHandleTypes` 数组声明自己能处理的 Intent 类型，默认值为 `new[] { Name }`。`ReactionChain` 在遍历时调用 `CanHandle(intent)` 匹配 `intent.Type` 是否在数组中。
+
+子类可以：
+- 重写 `CanHandleTypes` 指定能处理的 Intent 类型列表
+- 重写 `CanHandle(UnitIntent intent)` 做自定义过滤
+
+### 优先级排序
+
+`ReactionChain` 在每次增删 Reaction 时按 `Priority` 降序排序，高优先级的 Reaction 先处理 Intent。
+
+### DelegateReaction（匿名反应）
+
+无需单独定义类，用 Fluent API 快速构建：
 
 ```csharp
-// 快速流式装配一个被动反应：当收到伤害时，反弹 10 点伤害
-var thornsReaction = new DelegateReaction<DamageEvent>()
-    .SetName("Passive_Thorns")
+var reaction = DelegateReaction.Create()
+    .SetName(new UnitTag("CustomShield"))
     .SetPriority(10)
-    .SetFilter(evt => evt.Target == Owner) // 仅拦截打自己的伤害
-    .SetAction(evt => {
-        AttributeChangeEffect.Create().Set("HP", -10f).Apply(evt.Source);
+    .SetCanHandle(intent => intent is HurtIntent)
+    .SetAction((intent, effects) =>
+    {
+        var hurt = intent as HurtIntent;
+        if (hurt.Damage < shieldValue)
+            effects.Add(UnitCore.CreateEffect<AttributeModifierAddEffect>()
+                .Set(new UnitTag("HP"), new AttributeModifier(ModifierType.Additive, 100f)));
     });
 
-player.Reactions.AddReaction(thornsReaction);
+unit.Reactions.AddReaction(reaction);
 ```
 
-### 7. TagQuery (标签逻辑树查询)
+## 标签查询 (TagQuery)
 
-其强大的状态查询表达式，支持 &(与), |(或), !(非)。用于技能前置条件判断。
+所有容器都实现了 `ITagSource`，支持统一的标签组合查询：
 
 ```csharp
-// 业务要求：目标必须 [没有免疫标记]，且必须处于 [中毒 或 眩晕] 状态之一
-TagQuery condition = !TagQuery.Has("Buff_Immune") & (TagQuery.Has("Buff_Poison") | TagQuery.Has("Buff_Stun"));
+// 基础查询
+TagQuery q1 = TagQuery.Has("Debuff_Poison");
+TagQuery q2 = TagQuery.Has("Skill_Fireball");
 
-if (condition.Match(monster.Marks))
-{
-    // 满足条件，触发背刺暴击！
-}
+// 组合：中毒 OR 流血
+TagQuery q3 = q1 | q2;
+
+// 组合：非免疫 AND (中毒 OR 流血)
+TagQuery q4 = !TagQuery.Has("Immune") & q3;
 ```
 
-### 8. UnitSerializer (数据驱动)
+运算符重载：
+- `\|` — Any（任一满足）
+- `&` — All（全部满足）
+- `!` — Not（取反）
 
-一键提取实体的所有数据（HP、剩余 CD、身上的 Buff 层数），并完美重建。
+## 序列化与存档
+
+`UnitSerializer` 负责在运行时对象与纯数据 DTO 之间转换：
 
 ```csharp
-// 1. 提取当前单位纯数据 (可直接转 JSON 存入硬盘 / 发送给服务器)
-UnitArchiveData archiveData = UnitSerializer.Extract(monster);
+// 提取数据（用于网络同步或存档）
+UnitArchiveData archive = UnitSerializer.Extract(unit);
+string json = JsonUtility.ToJson(archive);
+File.WriteAllText(savePath, json);
 
-// 2. 读档时，将数据完美灌入一个空壳单位 (自动恢复 Buff 剩余读秒)
-IUnit newMonster = new Monster();
-UnitSerializer.Restore(newMonster, archiveData);
+// 恢复数据
+UnitArchiveData loaded = JsonUtility.FromJson<UnitArchiveData>(json);
+UnitSerializer.Restore(unit, loaded);
 ```
 
-## 最佳实践与注意事项
+`UnitArchiveData` 是可序列化的纯数据结构，包含属性快照、标记列表、技能列表和反应列表，可直接序列化到 JSON / MessagePack / 任意格式。
 
-1. 绝对不要在 Effect 内部缓存状态：如果使用了 XXXEffect.Create().Apply()，该对象会在执行完的瞬间被底层回收。如果你需要持久化持有它，请使用 new XXXEffect().ApplyWithoutPool()。
+## 世界单元 (Universe)
 
-2. TickMark 的 Update：MarkContainer.UpdateMarks(deltaTime) 必须在宿主的生命周期（如 Update）中被不断调用，否则 Buff 的持续时间和周期性掉血不会生效。
+`Universe` 是一个全局单例 `IUnit`，代表整个世界服务器级别的 Buff 效果：
 
-3. 扩展自定义 Effect：请继承自 UnitEffect<T> 而非非泛型的基类，这样你才能白嫖底层的 0GC 泛型对象池机制。
+```csharp
+// 初始化 Universe 容器
+Universe.Instance.InitAttributes();
+Universe.Instance.InitMarks();
+Universe.Instance.InitAbilities();
+Universe.Instance.InitReactions();
 
-4. 性能规范：在代码中尽量使用 UnitTag 代替 string 进行字典查询，它在内部会预计算 Hash，查找速度极快。
+// 全服双倍经验 Buff
+var mark = UnitCore.CreateMark<BuffDoubleExp>();
+mark.Apply(Universe.Instance);
 
+// 关闭时清理
+Universe.DestroyInstance();
+```
+
+## 扩展指南
+
+### 新增技能
+
+1. 继承 `UnitAbility`，实现 `Name` 属性
+2. 重写 `GenerateIntentsAsync()` 产出 `IReadOnlyList<UnitIntent>`
+3. 可选：在 `OnInit()` 中添加 `AbilityRule`
+4. 在初始化时 `UnitCore.RegisterAbility<MySkill>("tag")`
+5. 通过 `unit.UseAbility("tag", ctx)` 调用
+
+### 新增标记
+
+1. 继承 `UnitMark` 或 `TickMark`
+2. 实现生命周期回调（`OnApply` / `OnStack` / `OnUpdate` / `OnRemove` / `OnTick`）
+3. `UnitCore.RegisterMark<MyMark>("tag")`
+4. 通过 `MarkAddEffect` 或直接 `Marks.AddMark()` 施加
+
+### 新增反应
+
+1. 继承 `UnitReaction`，实现 `Handle(intent, effects)`
+2. 默认 `CanHandleTypes = new[] { Name }`，如需处理多种 Intent 类型则重写 `CanHandleTypes`
+3. 可选：重写 `CanHandle(UnitIntent intent)` 做自定义过滤
+4. `UnitCore.RegisterReaction<MyReaction>("tag")`
+5. 通过 `Reactions.AddReaction()` 挂载到单位
+
+### 新增效果
+
+1. 继承 `UnitEffect<T>`（CRTP + 对象池自动管理）
+2. 实现 `OnApply()` 和 `OnRecycle()`
+3. 在反应的 `Handle()` 中添加到 `effects` 列表即可
+
+## 文件结构
+
+```
+Unit/
+  Ability/
+    AbilityContainer.cs      # 技能容器
+    UnitAbility.cs           # 技能基类
+    AbilityContext.cs        # 执行上下文
+    AbilityRule.cs           # 技能规则抽象
+  Attribute/
+    AttributeContainer.cs    # 属性容器
+    UnitAttribute.cs         # 属性数据块
+    AttributeModifier.cs     # 属性修饰器
+  Mark/
+    MarkContainer.cs         # 标记容器
+    UnitMark.cs              # 标记基类 + TickMark
+  Reaction/
+    ReactionContainer.cs     # 反应容器
+    ReactionChain.cs         # 反应链（优先级排序 + 分发）
+    UnitReaction.cs          # 反应基类
+    DelegateReaction.cs      # 匿名反应构建器
+  Tag/
+    ITagSource.cs            # 标签查询契约
+    TagQuery.cs              # 组合条件查询
+    UnitTag.cs               # 池化字符串标签（class）
+  Unit/
+    IUnit.cs                 # IUnit 接口
+    IUnitExtensions.cs       # IUnit 扩展方法
+    Universe.cs              # 世界单例
+    UnitCore.cs              # 注册中心 + 工厂
+    UnitIntent.cs            # Intent 基类
+    UnitEffect.cs            # Effect 基类 (泛型/非泛型)
+    UnitSerializer.cs        # 序列化 / 反序列化
+  Extension/
+    UnitBehaviour.cs         # MonoBehaviour 宿主
+    CD.cs                    # CDRule + CDMark
+    Effect.cs                # 内置效果实现 (9 种)
+```

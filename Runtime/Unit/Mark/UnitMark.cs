@@ -5,29 +5,30 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// 标记基类，用于表示单位附着的各种状态效果（如 Buff / Debuff / 护盾 / 标记层数）。
+    /// Mark 是纯数据，不主动处理逻辑。定时触发由生命周期 Intent 驱动。
     /// </summary>
     public abstract class UnitMark
     {
         /// <summary>标记的唯一标识名称</summary>
         public abstract UnitTag Name { get; protected set; }
-        
+
         /// <summary>标记挂载的宿主单位（由 Container 注入）</summary>
         public IUnit Owner { get; protected set; }
 
         #region 核心状态数据
-        
-        /// <summary>最大可叠加层数（默认为1，不可叠加）</summary>
+
+        /// <summary>最大可叠加层数（默认为 1，不可叠加）</summary>
         public virtual int MaxStack { get; protected set; } = 1;
-        
+
         /// <summary>当前已叠加层数</summary>
         public int Stack { get; private set; } = 1;
-        
-        /// <summary>状态持续时间（秒）。-1 表示永久持续，直到被手动移除。</summary>
-        public float Duration { get; protected set; } = -1f; 
-        
+
+        /// <summary>状态持续时间（秒）。-1 表示永久持续，直到被手动移除</summary>
+        public float Duration { get; protected set; } = -1f;
+
         /// <summary>状态流失时间计时器</summary>
         public float Timer { get; private set; }
-        
+
         /// <summary>当前标记是否已经完成生命周期（可被安全移除）</summary>
         public bool IsExpired { get; private set; }
 
@@ -44,7 +45,7 @@ namespace GoveKits.Runtime.Unit
 
         // ================== 注入装配接口 (供 Factory 与 Container 使用) ==================
 
-        /// <summary>用于配置化的链式数据装配</summary>
+        /// <summary>内部方法：设置层数和持续时间</summary>
         internal UnitMark SetData(int stack, float duration)
         {
             Stack = stack;
@@ -52,10 +53,13 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
+        /// <summary>内部方法：设置层数</summary>
         internal UnitMark SetStack(int stack) { Stack = stack; return this; }
+
+        /// <summary>内部方法：设置持续时间</summary>
         internal UnitMark SetDuration(float duration) { Duration = duration; return this; }
 
-        /// <summary>由 MarkContainer 在挂载瞬间调用，注入灵魂</summary>
+        /// <summary>由 MarkContainer 在挂载瞬间调用，注入宿主引用</summary>
         internal void Init(IUnit owner)
         {
             Owner = owner;
@@ -82,7 +86,7 @@ namespace GoveKits.Runtime.Unit
             Timer = 0f;
         }
 
-        /// <summary>每帧更新逻辑，处理时间流逝。</summary>
+        /// <summary>每帧更新逻辑，处理时间流逝</summary>
         public virtual void OnUpdate(float deltaTime)
         {
             if (Duration > 0f)
@@ -95,8 +99,8 @@ namespace GoveKits.Runtime.Unit
             }
         }
 
-        /// <summary>标记时间到期，或被驱散时触发，执行扫尾逻辑。</summary>
-        public virtual void OnRemove() 
+        /// <summary>标记时间到期，或被驱散时触发，执行扫尾逻辑</summary>
+        public virtual void OnRemove()
         {
             Owner = null;
         }
@@ -106,14 +110,16 @@ namespace GoveKits.Runtime.Unit
 
     /// <summary>
     /// 周期性触发的特殊标记（如：中毒掉血、缓慢回蓝、燃烧）。
+    /// TickMark 的周期性触发是纯数据层面的，业务逻辑仍需通过 Intent 驱动。
     /// </summary>
     public abstract class TickMark : UnitMark
     {
         /// <summary>两次触发之间的间隔时间</summary>
         public float TickInterval { get; protected set; }
-        
+
         private float _tickTimer;
 
+        /// <summary>无参构造</summary>
         public TickMark() { }
 
         /// <summary>设置触发频率</summary>
@@ -123,40 +129,36 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
+        /// <summary>
+        /// 标记被首次挂载时触发，额外初始化周期计时器。
+        /// </summary>
         public override void OnApply()
         {
             base.OnApply();
             _tickTimer = 0f;
-            // 默认设计为施加瞬间不立即触发，如果有首跳伤害需求，子类可在此调用 OnTick()
         }
 
+        /// <summary>
+        /// 每帧更新逻辑，额外处理周期性触发。
+        /// </summary>
         public override void OnUpdate(float deltaTime)
         {
-            // 必须调用 base.OnUpdate 让总持续时间（Duration）逻辑正常运作
             base.OnUpdate(deltaTime);
-
             if (IsExpired) return;
 
             if (TickInterval > 0f)
             {
                 _tickTimer += deltaTime;
-                
-                // 追赶机制：处理极低帧率下单帧跨过多周期的跳字补偿
-                while (_tickTimer >= TickInterval) 
+                while (_tickTimer >= TickInterval)
                 {
                     _tickTimer -= TickInterval;
                     OnTick();
-                    
-                    // 若某次 Tick 触发的逻辑导致该标记提前死亡（比如触发解毒），则立即终止迭代
-                    if (IsExpired) break; 
+                    if (IsExpired) break;
                 }
             }
         }
 
-        /// <summary>
-        /// 周期性触发的业务逻辑入口。
-        /// 子类可在此处编写：创建 AttributeChangeEffect 扣减宿主的生命值。
-        /// </summary>
+        /// <summary>周期性触发的业务逻辑入口。子类可在此创建 Intent 并投递</summary>
         protected abstract void OnTick();
     }
 }

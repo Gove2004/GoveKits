@@ -4,16 +4,20 @@ using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Core
 {
-    public class EventBus : IDisposable
+    /// <summary>
+    /// 事件总线，负责按事件类型管理和分发监听器。
+    /// 支持优先级排序、过滤器拦截和中断传播（IsBreak）。
+    /// 内部通过 object-dictionary 桥接泛型与非泛型注册表。
+    /// </summary>
+    public sealed class EventBus : IDisposable
     {
-        // 核心技巧：Value 使用 object，实际存储的是 List<IEventListener<T>>
+        // Value 使用 object，实际存储的是 List<IEventListener<T>>
         private readonly Dictionary<Type, object> _listenerMaps = new();
-        
-        // 记录哪些类型的列表需要重新排序（因为加入了新监听器）
         private readonly HashSet<Type> _dirtyTypes = new();
 
         /// <summary>
-        /// 订阅事件
+        /// 订阅指定类型的事件，返回 IDisposable 用于取消订阅。
+        /// 监听器不会重复添加，且会在下次发布前按优先级重新排序。
         /// </summary>
         internal IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener) where TEvent : EventData
         {
@@ -28,16 +32,12 @@ namespace GoveKits.Runtime.Core
             if (!listeners.Contains(listener))
             {
                 listeners.Add(listener);
-                _dirtyTypes.Add(type); // 标记需要重新排序
+                _dirtyTypes.Add(type);
             }
 
-            // 返回取消订阅的凭证
             return new DisposeAction(() => Unsubscribe(listener));
         }
 
-        /// <summary>
-        /// 取消订阅 (供内部或凭证调用)
-        /// </summary>
         private void Unsubscribe<TEvent>(IEventListener<TEvent> listener) where TEvent : EventData
         {
             var type = typeof(TEvent);
@@ -45,11 +45,14 @@ namespace GoveKits.Runtime.Core
             {
                 var listeners = (List<IEventListener<TEvent>>)listObj;
                 listeners.Remove(listener);
+                _dirtyTypes.Add(type); // 数量变化后需要重新排序
             }
         }
 
         /// <summary>
-        /// 发布事件
+        /// 发布事件，按优先级降序依次调用监听器。
+        /// 每个监听器的 OnFilter 决定其是否接收该事件；
+        /// 事件数据的 IsBreak 为 true 时停止后续分发。
         /// </summary>
         internal void Publish<TEvent>(TEvent eventData) where TEvent : EventData
         {
@@ -59,31 +62,27 @@ namespace GoveKits.Runtime.Core
             var listeners = (List<IEventListener<TEvent>>)listObj;
             if (listeners.Count == 0) return;
 
-            // 如果有新加入的，触发排序
             if (_dirtyTypes.Contains(type))
             {
-                listeners.Sort((a, b) => b.Priority.CompareTo(a.Priority)); // 降序：数字越大越先执行
+                listeners.Sort((a, b) => b.Priority.CompareTo(a.Priority));
                 _dirtyTypes.Remove(type);
             }
 
-            // 使用快照遍历，防止在 OnEvent 中动态添加/移除监听器导致遍历报错
-            var snapshot = listeners.ToArray(); 
-            
+            var snapshot = listeners.ToArray();
+
             foreach (var listener in snapshot)
             {
                 if (listener.OnFilter(eventData))
                 {
                     listener.OnEvent(eventData);
-                    
-                    // 中断机制：比如高优先级的 UI 吞噬了点击事件
-                    if (eventData.IsBreak)
-                    {
-                        break; 
-                    }
+                    if (eventData.IsBreak) break;
                 }
             }
         }
 
+        /// <summary>
+        /// 释放总线占用的所有资源，清除全部监听器。
+        /// </summary>
         public void Dispose()
         {
             _listenerMaps.Clear();

@@ -1,12 +1,15 @@
 using GoveKits.Runtime.Core;
 using UnityEngine;
+using UnityEngine.UI;
 #if TMP_PRESENT
 using TMPro;
 #endif
-using UnityEngine.UI;
 
 namespace GoveKits.Runtime.Storage
 {
+    /// <summary>
+    /// 本地化组件，挂载在 Text 或 TMP_Text 对象上，自动跟随当前语言更新显示文本和字体。
+    /// </summary>
     public class LocalizationComponent : MonoBehaviour
     {
         [Tooltip("多语言 Key")]
@@ -16,6 +19,7 @@ namespace GoveKits.Runtime.Storage
         private TMP_Text _tmpText;
 #endif
         private Text _uiText;
+
         private void Awake()
         {
 #if TMP_PRESENT
@@ -26,14 +30,18 @@ namespace GoveKits.Runtime.Storage
 
         private void Start()
         {
+#if TMP_PRESENT
+            if (_tmpText == null && _uiText == null)
+#else
+            if (_uiText == null)
+#endif
+                LogCore.Warning(nameof(LocalizationComponent), $"当前对象上没有 TMP_Text 或 UI.Text 组件: {name}");
             UpdateContent();
         }
 
         private void OnEnable()
         {
             LocalizationCore.OnLanguageChanged += UpdateContent;
-            // 每次激活时重新刷新，防止字体丢失或文本未更新
-            UpdateContent();
         }
 
         private void OnDisable()
@@ -42,42 +50,33 @@ namespace GoveKits.Runtime.Storage
         }
 
         /// <summary>
-        /// 核心更新逻辑
+        /// 手动更新显示内容。通常在键名变更后调用。
         /// </summary>
         public void UpdateContent()
         {
-            if (string.IsNullOrEmpty(Key))
-            {
-                return;
-            }
+            if (string.IsNullOrEmpty(Key)) return;
 
-            // 1. 更新文本
             string content = LocalizationCore.GetText(Key);
-            // 只有当文本真正变化时才赋值，避免触发网格重建
+
 #if TMP_PRESENT
             if (_tmpText != null && _tmpText.text != content)
-            {
                 _tmpText.text = content;
-            }
 #endif
 
             if (_uiText != null && _uiText.text != content)
-            {
                 _uiText.text = content;
-            }
 
-            // 2. 更新字体
-            // 不同的语言可能需要不同的字体 (如中文需要含中文字库的字体)
 #if TMP_PRESENT
             TMP_FontAsset font = LocalizationCore.GetCurrentFont();
-            if (font != null && _tmpText.font != font)
-            {
+            if (font != null && _tmpText != null && _tmpText.font != font)
                 _tmpText.font = font;
-            }
 #endif
         }
 
-        // 方便代码动态修改 Key
+        /// <summary>
+        /// 设置本地化键名并立即更新显示内容。
+        /// </summary>
+        /// <param name="newKey">新的本地化键名。</param>
         public void SetKey(string newKey)
         {
             Key = newKey;

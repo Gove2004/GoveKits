@@ -3,31 +3,36 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Cysharp.Threading.Tasks;
-using GoveKits.Runtime.Core; 
+using GoveKits.Runtime.Core;
 using HybridCLR;
 using UnityEngine;
 using YooAsset;
 
-
 namespace GoveKits.Runtime.Storage
 {
+    /// <summary>
+    /// 热更新程序核心，封装 HybridCLR 热更加载流程，包括 AOT 泛型元数据加载、
+    /// 热更程序集加载和入口方法调用。
+    /// </summary>
     public static class HotfixCore
     {
         private static readonly Dictionary<string, Assembly> _hotfixAssemblies = new();
 
         /// <summary>
-        /// 1. 加载并补充 AOT 泛型元数据
+        /// 批量加载 AOT 泛型元数据。
         /// </summary>
+        /// <param name="dllNames">需要加载元数据的 DLL 文件名列表。</param>
+        /// <param name="packageName">可选的包裹名前缀，用于 ResCore 定位资源。</param>
+        /// <returns>全部加载成功时返回 true。</returns>
         public static async UniTask<bool> LoadAotMetadataAsync(IReadOnlyList<string> dllNames, string packageName = "")
         {
             for (int i = 0; i < dllNames.Count; i++)
             {
-                // 如果 packageName 为空，依赖 ResCore 默认包语法
-                string location = string.IsNullOrEmpty(packageName) 
-                    ? $"{dllNames[i]}" 
+                string location = string.IsNullOrEmpty(packageName)
+                    ? dllNames[i]
                     : $"{packageName}:{dllNames[i]}";
 
-                if (!await LoadAotMetadataAsync(location))
+                if (!await LoadAotMetadataInternal(location))
                 {
                     LogCore.Error(nameof(HotfixCore), $"批量加载 AOT 中断，失败文件: {dllNames[i]}");
                     return false;
@@ -35,11 +40,10 @@ namespace GoveKits.Runtime.Storage
             }
             return true;
         }
-        public static async UniTask<bool> LoadAotMetadataAsync(string location)
-        {
 
+        private static async UniTask<bool> LoadAotMetadataInternal(string location)
+        {
 #if !UNITY_EDITOR
-            // ================== 真机 IL2CPP 模式 ==================
             var handle = ResCore.LoadAssetAsync<TextAsset>(location);
             await handle.Task;
 
@@ -54,7 +58,6 @@ namespace GoveKits.Runtime.Storage
             byte[] dllBytes = textAsset.bytes;
             ResCore.Release(handle);
 
-            // 补充元数据 (HomologousImageMode.SuperSet 是官方推荐模式)
             LoadImageErrorCode err = RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, HomologousImageMode.SuperSet);
             if (err != LoadImageErrorCode.OK)
             {
@@ -65,28 +68,23 @@ namespace GoveKits.Runtime.Storage
             LogCore.Success(nameof(HotfixCore), $"AOT 元数据补充成功: {location}");
             return true;
 #else
-            // ================== 编辑器模式 ==================
-            // 编辑器下基于 Mono 运行，不存在 AOT 泛型裁剪问题，直接跳过即可！
-            await UniTask.CompletedTask;
             LogCore.Info(nameof(HotfixCore), $"编辑器模式跳过 AOT 元数据补充: {location}");
             return true;
 #endif
         }
 
         /// <summary>
-        /// 2. 加载热更程序集 (Hotfix Assembly)
+        /// 加载热更新程序集。
         /// </summary>
+        /// <param name="location">程序集资源位置。</param>
+        /// <returns>加载成功的程序集对象，失败时返回 null。</returns>
         public static async UniTask<Assembly> LoadHotfixAssemblyAsync(string location)
         {
-            // 解析我们要加载的程序集名字，比如从 "Default:Hotfix.dll.bytes" 中提取出 "Hotfix"
             string assemblyName = Path.GetFileNameWithoutExtension(location);
             if (assemblyName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            {
                 assemblyName = Path.GetFileNameWithoutExtension(assemblyName);
-            }
 
 #if !UNITY_EDITOR
-            // ================== 真机 IL2CPP 模式 ==================
             var handle = ResCore.LoadAssetAsync<TextAsset>(location);
             await UniTask.WaitUntil(() => handle.IsDone);
 
@@ -114,11 +112,6 @@ namespace GoveKits.Runtime.Storage
                 return null;
             }
 #else
-            // ================== 编辑器模式 ==================
-            // ⚠️ 核心操作：编辑器下，代码已经被 Unity 编译并加载到当前 AppDomain 了！
-            // 所以我们绝对不能去读 bytes，而是直接在内存里把它找出来！
-            await UniTask.CompletedTask;
-            
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
             foreach (var ass in assemblies)
             {
@@ -136,8 +129,13 @@ namespace GoveKits.Runtime.Storage
         }
 
         /// <summary>
-        /// 3. 进入热更逻辑主入口
+        /// 启动热更入口方法。通过反射查找并调用指定程序集中的静态方法。
         /// </summary>
+        /// <param name="assemblyName">程序集名称。</param>
+        /// <param name="className">类名。</param>
+        /// <param name="methodName">静态方法名。</param>
+        /// <param name="args">方法参数。</param>
+        /// <returns>成功调用时返回 true。</returns>
         public static bool StartEntryMethod(string assemblyName, string className, string methodName, params object[] args)
         {
             if (!_hotfixAssemblies.TryGetValue(assemblyName, out Assembly ass))
@@ -174,8 +172,10 @@ namespace GoveKits.Runtime.Storage
         }
 
         /// <summary>
-        /// 获取已加载的程序集
+        /// 获取已加载的热更程序集。
         /// </summary>
+        /// <param name="assemblyName">程序集名称。</param>
+        /// <returns>找到的程序集对象，未找到时返回 null。</returns>
         public static Assembly GetAssembly(string assemblyName)
         {
             if (!_hotfixAssemblies.TryGetValue(assemblyName, out Assembly ass))
@@ -183,11 +183,13 @@ namespace GoveKits.Runtime.Storage
                 LogCore.Error(nameof(HotfixCore), $"未找到已加载的程序集 {assemblyName}");
                 return null;
             }
-
             return ass;
         }
 
-        public static void Clear()
+        /// <summary>
+        /// 关闭热更新系统，清空已加载的程序集缓存。
+        /// </summary>
+        public static void Close()
         {
             _hotfixAssemblies.Clear();
         }

@@ -1,60 +1,68 @@
-using UnityEngine;
-using System.ComponentModel;
+using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// UI 面板基类（非泛型）
-    /// 
-    /// 核心功能：
-    /// 1. 继承 UIElementCollection，自动绑定 UI 组件
-    /// 2. 提供面板生命周期方法（OnShow/OnHide）
-    /// 3. 持有 UIController 引用用于导航
+    /// UI 面板视图基类。
+    /// 子类继承后重写生命周期方法，通过 enableXXX 开关控制需要收集的 UI 组件类型。
     /// </summary>
     public abstract class ViewPanel : UIElementCollection
     {
-        public abstract void OnNotify(string paramKey);  // ViewModel 通知 View 更新时调用
-        public abstract void OnBindVM();  // 绑定 ViewModel
-        public abstract void OnUnbindVM();  // 解绑 ViewModel
+        /// <summary>
+        /// ViewModel 通知视图更新时调用。子类根据 key 分支处理不同数据变化。
+        /// </summary>
+        public abstract void OnNotify(string key);
 
-        public abstract void OnReceiveShowParam(object param);  // 弹窗参数初始化
-        public abstract void OnShow();  // 显示时
-        public abstract void OnHide();  // 隐藏时
-        // public abstract void OnOldToDrop();  // 静默销毁
+        /// <summary>绑定 ViewModel，子类重写实现自定义绑定逻辑。</summary>
+        public virtual void OnBindVM() { }
+
+        /// <summary>解绑 ViewModel，子类重写实现自定义解绑逻辑。</summary>
+        public virtual void OnUnbindVM() { }
+
+        /// <summary>面板显示时接收外部参数，默认空实现，子类可重写。</summary>
+        public virtual void OnReceiveShowParam(object param) { }
+
+        /// <summary>面板显示，激活 GameObject。</summary>
+        public virtual void OnShow() => this.gameObject.SetActive(true);
+
+        /// <summary>面板隐藏，禁用 GameObject。</summary>
+        public virtual void OnHide() => this.gameObject.SetActive(false);
     }
 
     /// <summary>
-    /// UI 面板基类
-    /// 
-    /// 核心功能：
-    /// 1. 自动关联指定类型的 ViewModel
-    /// 2. 面板显示/隐藏时自动绑定/解绑 ViewModel
-    /// 3. 避免内存泄漏
+    /// 泛型 UI 面板基类，自动关联指定类型的 ViewModel。
+    /// 面板显示/隐藏时自动绑定/解绑 ViewModel，避免内存泄漏。
     /// </summary>
     /// <typeparam name="TVM">ViewModel 类型</typeparam>
     public abstract class ViewPanel<TVM> : ViewPanel where TVM : ViewModel, new()
-    {        
-        /// <summary>关联的 ViewModel 实例</summary>
+    {
+        /// <summary>关联的 ViewModel 实例，由 OnBindVM 自动赋值。</summary>
         protected TVM VM { get; private set; }
 
+        /// <summary>
+        /// 绑定 ViewModel：从 UICore 获取单例并建立双向关联。
+        /// 多次调用时自动先解绑再重新绑定。
+        /// </summary>
         public override void OnBindVM()
         {
+            if (VM != null)
+            {
+                VM.DetachView(this);
+            }
             VM = UICore.GetVM<TVM>();
-            VM.BindView(this);
+            VM.AttachView(this);
         }
 
+        /// <summary>
+        /// 解绑 ViewModel：断开与 ViewModel 的关联。
+        /// </summary>
         public override void OnUnbindVM()
         {
             if (VM != null)
             {
-                VM.UnbindView(this);
+                VM.DetachView(this);
                 VM = null;
             }
         }
-
-        public override void OnReceiveShowParam(object param) { }
-        public override void OnShow() => this.gameObject.SetActive(true);
-        public override void OnHide() => this.gameObject.SetActive(false);
-        // public override void OnOldToDrop() => GameObject.Destroy(this.gameObject);
     }
 }

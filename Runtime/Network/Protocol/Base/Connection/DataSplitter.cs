@@ -4,28 +4,26 @@ using System.Buffers.Binary;
 namespace GoveKits.Runtime.Network
 {
     /// <summary>
-    /// 标准的长度前缀拆包器，被 Connection 持有，处理粘包与半包
+    /// 长度前缀拆包器，处理 TCP 粘包与半包问题。
+    /// 协议格式：[4 字节长度（小端）][N 字节 payload]。
     /// </summary>
     public class DataSplitter
     {
         private byte[] _buffer;
         private int _writePos;
         private int _readPos;
-        private const int HeaderSize = 4; // 4字节长度头
+        private const int HeaderSize = 4;
+        private const int MaxPacketSize = 1024 * 1024 * 5;
 
         public DataSplitter(int initialCapacity = 8192)
         {
             _buffer = new byte[initialCapacity];
         }
 
-        /// <summary>
-        /// 喂入底层 Socket 收到的原始切片数据
-        /// </summary>
         public void Feed(ArraySegment<byte> data)
         {
             if (data.Count == 0) return;
 
-            // 扩容或整理内存碎片
             if (_writePos + data.Count > _buffer.Length)
             {
                 int validDataCount = _writePos - _readPos;
@@ -33,7 +31,7 @@ namespace GoveKits.Runtime.Network
                 {
                     Array.Resize(ref _buffer, (validDataCount + data.Count) * 2);
                 }
-                
+
                 if (validDataCount > 0 && _readPos > 0)
                 {
                     Buffer.BlockCopy(_buffer, _readPos, _buffer, 0, validDataCount);
@@ -46,9 +44,6 @@ namespace GoveKits.Runtime.Network
             _writePos += data.Count;
         }
 
-        /// <summary>
-        /// 尝试提取出一个完整的网络帧 (去除 4 字节长度头)
-        /// </summary>
         public bool TryExtract(out byte[] packet)
         {
             packet = null;
@@ -56,22 +51,18 @@ namespace GoveKits.Runtime.Network
 
             if (readableBytes < HeaderSize) return false;
 
-            int packetLength = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(_buffer, _readPos, HeaderSize));
-            
-            // 保护机制：非法包长
-            if (packetLength <= 0 || packetLength > 1024 * 1024 * 5)
-                throw new Exception($"Invalid packet length: {packetLength}");
+            int packetLength = (int)BinaryPrimitives.ReadUInt32LittleEndian(new ReadOnlySpan<byte>(_buffer, _readPos, HeaderSize));
 
-            // 半包：数据包尚未接收完整
+            if (packetLength == 0 || packetLength > MaxPacketSize)
+                return false;
+
             if (readableBytes < HeaderSize + packetLength) return false;
 
-            // 提取完整包体
             packet = new byte[packetLength];
             Buffer.BlockCopy(_buffer, _readPos + HeaderSize, packet, 0, packetLength);
 
             _readPos += HeaderSize + packetLength;
 
-            // 复位指针
             if (_readPos == _writePos)
             {
                 _readPos = 0;

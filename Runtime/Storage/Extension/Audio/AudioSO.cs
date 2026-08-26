@@ -2,21 +2,58 @@ using UnityEngine;
 
 namespace GoveKits.Runtime.Storage
 {
+    /// <summary>
+    /// 音频资源配置项，用于在编辑器中定义音频参数。
+    /// </summary>
     [CreateAssetMenu(fileName = "AudioSO", menuName = "GoveKits/AudioSO")]
     public class AudioSO : ScriptableObject
     {
-        [SerializeField] private AudioChannel channel = AudioChannel.SFX;
-        [SerializeField] private AudioClip clip;
-        [SerializeField, Range(0f, 1f)] private float volume = 1f;
-        [SerializeField, Range(0.1f, 3f)] private float pitch = 1f;
-        [SerializeField, Range(0f, 1f)] private float pitchRandomRange = 0f;
-        [SerializeField] private bool loop = false; // 扩展：是否循环播放
+        /// <summary>音频通道（私有序列化字段）。</summary>
+        [SerializeField] private AudioChannel _channel = AudioChannel.SFX;
 
-        public AudioChannel Channel => channel;
-        public AudioClip ClipPath => clip;
-        public float Volume => volume;
-        public float Pitch => pitch;
-        public float PitchRandomRange => pitchRandomRange;
-        public bool Loop => loop;
+        /// <summary>音频剪辑（私有序列化字段）。</summary>
+        [SerializeField] private AudioClip _clip;
+
+        /// <summary>音量（私有序列化字段，范围 0~1）。</summary>
+        [SerializeField, Range(0f, 1f)] private float _volume = 1f;
+
+        /// <summary>音调（私有序列化字段，范围 0.1~3）。</summary>
+        [SerializeField, Range(0.1f, 3f)] private float _pitch = 1f;
+
+        /// <summary>音调随机范围（私有序列化字段，用于随机化音调产生变化）。</summary>
+        [SerializeField, Range(0f, 1f)] private float _pitchRandomRange = 0f;
+
+        /// <summary>是否循环播放（私有序列化字段）。</summary>
+        [SerializeField] private bool _loop = false;
+
+        /// <summary>
+        /// 获取音频通道。
+        /// </summary>
+        public AudioChannel Channel => _channel;
+
+        /// <summary>
+        /// 获取音频剪辑。
+        /// </summary>
+        public AudioClip Clip => _clip;
+
+        /// <summary>
+        /// 获取音量值（范围 0~1）。
+        /// </summary>
+        public float Volume => _volume;
+
+        /// <summary>
+        /// 获取音调值（范围 0.1~3）。
+        /// </summary>
+        public float Pitch => _pitch;
+
+        /// <summary>
+        /// 获取音调随机范围，用于在播放时产生音调变化。
+        /// </summary>
+        public float PitchRandomRange => _pitchRandomRange;
+
+        /// <summary>
+        /// 获取是否循环播放。
+        /// </summary>
+        public bool Loop => _loop;
     }
 }

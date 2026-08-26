@@ -1,56 +1,64 @@
+using System;
 using System.Collections.Generic;
-
 
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// MVVM 模式中的 ViewModel 基类
+    /// MVVM 模式中的 ViewModel 基类。
+    /// 维护对多个 ViewPanel 的引用，支持通过 key 通知所有绑定的视图更新。
     /// </summary>
     public abstract class ViewModel
     {
-        protected readonly List<ViewPanel> views = new List<ViewPanel>();
+        /// <summary>绑定的视图列表，通过倒序遍历防止集合修改异常。</summary>
+        protected readonly List<ViewPanel> _views = new List<ViewPanel>();
 
+        /// <summary>
+        /// 初始化回调，在 ViewModel 创建后由 UICore.GetVM 自动调用。
+        /// 子类可重写此方法进行数据初始化。
+        /// </summary>
         public virtual void OnInit()
         {
-            // 初始化数据
+            // 子类可在此初始化数据
         }
 
         /// <summary>
-        /// 绑定 ViewModel 和 View 的关系
-        /// 在 ViewModel 中维护一个 View 列表，支持多 View 绑定同一 ViewModel
+        /// 绑定视图。在 ViewModel 中维护一个视图列表，支持多视图绑定同一 ViewModel。
         /// </summary>
-        public void BindView(ViewPanel view)
+        public void AttachView(ViewPanel view)
         {
-            if (!views.Contains(view))
+            if (!_views.Contains(view))
             {
-                views.Add(view);
+                _views.Add(view);
             }
         }
 
         /// <summary>
-        /// 解绑 ViewModel 和 View 的关系
-        /// 当 View 销毁或不再需要更新时调用，避免内存泄漏
+        /// 解绑所有视图。当视图销毁或不再需要更新时调用，避免内存泄漏。
         /// </summary>
-        public void UnbindView(ViewPanel view)
+        public void DetachView(ViewPanel view)
         {
-            if (views.Contains(view))
-            {
-                views.Remove(view);
-            }
+            _views.Remove(view);
         }
 
         /// <summary>
-        /// 通知所有绑定的 View 更新
+        /// 解除所有绑定的视图引用，用于 Close 时清理。
         /// </summary>
-        /// <param name="key">属性名称</param>
+        public void DetachAllViews()
+        {
+            _views.Clear();
+        }
+
+        /// <summary>
+        /// 通知所有绑定的视图更新。
+        /// 倒序遍历，防止在更新过程中视图卸载导致集合修改异常。
+        /// </summary>
+        /// <param name="key">更新键值，标识哪个数据发生了变化</param>
         protected void NotifyViews(string key)
         {
-            // 倒序遍历，防止在更新过程中 View 卸载（调用 UnbindView）导致集合修改异常
-            for (int i = views.Count - 1; i >= 0; i--)
+            for (int i = _views.Count - 1; i >= 0; i--)
             {
-                views[i].OnNotify(key);
+                _views[i].OnNotify(key);
             }
         }
     }
-
 }

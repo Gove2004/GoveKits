@@ -1,30 +1,41 @@
-
 using System;
 using System.Collections.Generic;
-using GoveKits.Runtime.Core;
 
 namespace GoveKits.Runtime.Core
 {
+    /// <summary>
+    /// 时间轮定时器调度器，基于环形槽位 + 链表实现高精度定时。
+    /// 支持暂停、恢复、取消和循环定时器。
+    /// 定时器对象由 PoolCore 池化管理以减少 GC 压力。
+    /// </summary>
     public class TimeWheel
     {
         private readonly float _tickDuration;
         private readonly int _wheelSize;
         private readonly LinkedList<Timer>[] _slots;
-        
+
         private long _currentTick;
         private float _accumulatedTime;
-        
-        // 待回收队列（避免在遍历过程中回收）
-        private readonly Queue<Timer> _recycleQueue = new Queue<Timer>(32);
-        // 待移除队列（Cancel 时标记）
-        private readonly HashSet<Timer> _pendingRemove = new HashSet<Timer>();
-        
+
+        private readonly Queue<Timer> _recycleQueue = new(32);
+        /// <summary>
+        /// 在处理当前槽位期间通过 AddTimer 加入的新定时器暂存于此。
+        /// 等当前槽位处理完毕后再统一插入目标位置，避免修改正在遍历的链表。
+        /// </summary>
+        private readonly List<(Timer timer, float delay)> _pendingTimers = new();
+
+        /// <summary>当前时间轮已经过的 tick 总数。</summary>
         public long CurrentTick => _currentTick;
+        /// <summary>每次 tick 的时间跨度（秒）。</summary>
         public float TickDuration => _tickDuration;
-        
-        // 标记是否正在处理槽位（用于 Cancel 判断）
+        /// <summary>是否正在处理某个槽位的定时器。</summary>
         public bool IsProcessing { get; private set; }
 
+        /// <summary>
+        /// 创建指定精度和容量的时间轮。
+        /// </summary>
+        /// <param name="tickDuration">每次 tick 的时间跨度（秒），默认 50ms</param>
+        /// <param name="wheelSize">环形槽位数量，默认 512</param>
         public TimeWheel(float tickDuration = 0.05f, int wheelSize = 512)
         {
             _tickDuration = tickDuration;
@@ -35,15 +46,30 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 添加新定时器。
+        /// 向时间轮中添加一个定时器。
+        /// 若在 Tick 处理过程中调用，定时器会被暂存并在当前槽位处理完后插入。
         /// </summary>
+        /// <param name="timer">要调度的定时器对象</param>
+        /// <param name="delay">延迟时间（秒），负数自动修正为零</param>
         public void AddTimer(Timer timer, float delay)
         {
             if (delay < 0) delay = 0;
-            
+
+            if (IsProcessing)
+            {
+                // 正在处理 slot 时，延迟添加到目标 slot，避免修改正在遍历的链表
+                _pendingTimers.Add((timer, delay));
+                return;
+            }
+
+            InsertTimer(timer, delay);
+        }
+
+        private void InsertTimer(Timer timer, float delay)
+        {
             long ticks = (long)(delay / _tickDuration);
             long targetTick = _currentTick + ticks;
-            
+
             timer.Rounds = (int)(ticks / _wheelSize);
             timer.TargetTick = targetTick;
             timer.BelongsToWheel = this;
@@ -56,30 +82,31 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 重新调度（Resume 或 Loop 时用）。
+        /// 安排一个定时器在指定延迟后执行。
+        /// 会先清除定时器原有的链表节点引用。
         /// </summary>
+        /// <param name="timer">要安排的定时器</param>
+        /// <param name="delay">延迟时间（秒）</param>
         public void Schedule(Timer timer, float delay)
         {
-            // 清除旧节点引用，重新加入
             timer.LinkNode = null;
             AddTimer(timer, delay);
         }
 
         /// <summary>
-        /// 计算剩余时间并从时间轮移除（Pause 用，不回收）。
+        /// 从时间轮中移除定时器并计算剩余时间。
         /// </summary>
+        /// <param name="timer">要移除的定时器</param>
+        /// <returns>剩余等待时间（秒）</returns>
         public float RemoveAndCalcRemaining(Timer timer)
         {
             long ticksRemaining = timer.TargetTick - _currentTick;
             if (ticksRemaining < 0) ticksRemaining = 0;
-            
+
             RemoveFromSlot(timer);
             return ticksRemaining * _tickDuration;
         }
 
-        /// <summary>
-        /// 从槽位移除（不回收对象）。
-        /// </summary>
         private void RemoveFromSlot(Timer timer)
         {
             if (timer.LinkNode?.List != null)
@@ -90,8 +117,9 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 标记待移除（Cancel 时用，延迟到 Process 时回收）。
+        /// 标记定时器为已取消并从链表中移除，加入回收队列。
         /// </summary>
+        /// <param name="timer">要取消的定时器</param>
         public void MarkForRemove(Timer timer)
         {
             if (timer.LinkNode?.List != null)
@@ -104,56 +132,64 @@ namespace GoveKits.Runtime.Core
         }
 
         /// <summary>
-        /// 驱动更新。
+        /// 驱动时间轮前进指定增量时间，触发到期的定时器回调。
         /// </summary>
+        /// <param name="deltaTime">距上一帧的增量时间（秒）</param>
         public void Tick(float deltaTime)
         {
-            // 先处理上一轮残留的待回收对象
             ProcessRecycleQueue();
-            
+
             _accumulatedTime += deltaTime;
-            
+
             while (_accumulatedTime >= _tickDuration)
             {
                 _accumulatedTime -= _tickDuration;
                 ProcessCurrentSlot();
                 _currentTick++;
             }
-            
-            // 处理本轮产生的待回收对象
+
+            // 将延迟添加的定时器插入目标 slot
+            FlushPendingTimers();
             ProcessRecycleQueue();
         }
 
-        /// <summary>
-        /// 处理当前槽位的所有定时器。
-        /// </summary>
+        private void FlushPendingTimers()
+        {
+            for (int i = 0; i < _pendingTimers.Count; i++)
+            {
+                var (timer, delay) = _pendingTimers[i];
+                InsertTimer(timer, delay);
+            }
+            _pendingTimers.Clear();
+        }
+
         private void ProcessCurrentSlot()
         {
             IsProcessing = true;
-            int slotIndex = (int)(_currentTick % _wheelSize);
-            var list = _slots[slotIndex];
-
-            var node = list.First;
-            while (node != null)
+            try
             {
-                var timer = node.Value;
-                var next = node.Next;
+                int slotIndex = (int)(_currentTick % _wheelSize);
+                var list = _slots[slotIndex];
 
-                // 统一处理入口
-                ProcessTimer(timer, list, node);
+                var node = list.First;
+                while (node != null)
+                {
+                    var timer = node.Value;
+                    var next = node.Next;
 
-                node = next;
+                    ProcessTimer(timer, list, node);
+
+                    node = next;
+                }
             }
-            
-            IsProcessing = false;
+            finally
+            {
+                IsProcessing = false;
+            }
         }
 
-        /// <summary>
-        /// 统一处理单个定时器的状态机。
-        /// </summary>
         private void ProcessTimer(Timer timer, LinkedList<Timer> list, LinkedListNode<Timer> node)
         {
-            // 1. 已取消 -> 直接回收
             if (timer.IsCancelled)
             {
                 list.Remove(node);
@@ -162,35 +198,25 @@ namespace GoveKits.Runtime.Core
                 return;
             }
 
-            // 2. 还有圈数 -> 减圈数
             if (timer.Rounds > 0)
             {
                 timer.Rounds--;
                 return;
             }
 
-            // 3. 到达触发点
             list.Remove(node);
             timer.LinkNode = null;
 
-            // 4. 已暂停 -> 不回调，但保留状态等待 Resume
-            //    实际上 Pause 时已经从 Wheel 移除了，这里主要是防御性编程
             if (timer.IsPaused)
             {
-                EnqueueRecycle(timer);
+                Schedule(timer, timer.Interval);
                 return;
             }
 
-            // 5. 执行回调
             ExecuteCallback(timer);
-
-            // 6. 处理后续生命周期
             HandlePostExecute(timer);
         }
 
-        /// <summary>
-        /// 执行回调（带异常保护）。
-        /// </summary>
         private void ExecuteCallback(Timer timer)
         {
             try
@@ -203,27 +229,20 @@ namespace GoveKits.Runtime.Core
             }
         }
 
-        /// <summary>
-        /// 处理执行后的状态（循环 or 结束）。
-        /// </summary>
         private void HandlePostExecute(Timer timer)
         {
-            // 检查是否需要循环
             bool shouldLoop = timer.LoopCount != 0 && !timer.IsCancelled;
-            
+
             if (!shouldLoop)
             {
-                // 结束生命周期
                 timer.IsDone = true;
                 EnqueueRecycle(timer);
                 return;
             }
 
-            // 处理循环计数
-            if (timer.LoopCount > 0) 
+            if (timer.LoopCount > 0)
                 timer.LoopCount--;
 
-            // 检查循环结束后是否还有次数
             if (timer.LoopCount == 0)
             {
                 timer.IsDone = true;
@@ -231,22 +250,15 @@ namespace GoveKits.Runtime.Core
                 return;
             }
 
-            // 重新调度
             Schedule(timer, timer.Interval);
         }
 
-        /// <summary>
-        /// 加入回收队列（延迟回收避免遍历中修改）。
-        /// </summary>
         private void EnqueueRecycle(Timer timer)
         {
             timer.BelongsToWheel = null;
             _recycleQueue.Enqueue(timer);
         }
 
-        /// <summary>
-        /// 统一回收处理。
-        /// </summary>
         private void ProcessRecycleQueue()
         {
             while (_recycleQueue.Count > 0)
@@ -256,9 +268,7 @@ namespace GoveKits.Runtime.Core
             }
         }
 
-        /// <summary>
-        /// 清空所有定时器。
-        /// </summary>
+        /// <summary>清空时间轮中所有定时器并释放资源。</summary>
         public void Clear()
         {
             for (int i = 0; i < _wheelSize; i++)
@@ -269,18 +279,19 @@ namespace GoveKits.Runtime.Core
                 {
                     var timer = node.Value;
                     var next = node.Next;
-                    
+
                     timer.IsCancelled = true;
                     EnqueueRecycle(timer);
-                    
+
                     node = next;
                 }
                 list.Clear();
             }
-            
+
             ProcessRecycleQueue();
             _currentTick = 0;
             _accumulatedTime = 0;
+            _pendingTimers.Clear();
         }
     }
 }
