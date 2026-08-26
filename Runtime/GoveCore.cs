@@ -30,8 +30,7 @@ namespace GoveKits.Runtime.Core
 
             // 4. 生成和场景（无需初始化）
 
-            // 5. HTTP（需要创建 HttpEngine）
-            HttpCore.Setup();
+            // 5. HTTP — UnityWebRequest 无状态，无需初始化
 
             // 6. 配置表解析器（在 Initialize 前由用户调用 AddParser）
 
@@ -57,7 +56,6 @@ namespace GoveKits.Runtime.Core
             PrefsCore.Close();
 
             // 网络由 Mirror 自行管理，无需 GoveKits 关闭
-            HttpCore.Close();
             UICore.Close();
             SpawnCore.Close();
 

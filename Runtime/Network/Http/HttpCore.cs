@@ -1,80 +1,125 @@
-using System.Threading;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Core;
+using Newtonsoft.Json;
+using UnityEngine.Networking;
 
 namespace GoveKits.Runtime.Network
 {
     /// <summary>
-    /// HTTP 网络模块的门面类。
-    /// 封装请求构建器工厂、内置缓存、并发节流以及底层引擎的访问入口。
-    /// 所有 HTTP 请求都应通过此类提供的 Get/Post/Put/Delete 方法发起。
+    /// HTTP 门面（v3.0.0 起基于 UnityWebRequest + UniTask，不再自研引擎/缓存/构建器）。
+    /// 所有方法均为异步，统一返回 <see cref="HttpResponse"/>。
     /// </summary>
     public static class HttpCore
     {
-        private static readonly HttpCache _cache = new();
-        private static readonly SemaphoreSlim _throttle = new(5);
-        private static HttpEngine _engine;
+        /// <summary>默认请求超时（秒）。</summary>
+        public const float DefaultTimeout = 30f;
 
-        /// <summary>
-        /// 初始化 HTTP 核心引擎及内部缓存、节流组件。
-        /// 必须在首次发起任何 HTTP 请求之前调用。
-        /// </summary>
-        public static void Setup()
+        /// <summary>最大并发请求数（超出后排队等待）。</summary>
+        public const int MaxConcurrent = 8;
+
+        /// <summary>并发信号量，避免 UWR 请求数过多。</summary>
+        private static readonly System.Threading.SemaphoreSlim _throttle = new(MaxConcurrent);
+
+        /// <summary>发起 GET 请求。</summary>
+        public static UniTask<HttpResponse> GetAsync(string url, Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+            => SendAsync(UnityWebRequest.Get(url), headers, timeout);
+
+        /// <summary>发起 POST 请求（原始字节体）。</summary>
+        public static UniTask<HttpResponse> PostAsync(string url, byte[] body, string contentType = "application/octet-stream",
+            Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
         {
-            _engine = new HttpEngine(_cache, _throttle);
+            var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST)
+            {
+                uploadHandler = new UploadHandlerRaw(body ?? Array.Empty<byte>()),
+                downloadHandler = new DownloadHandlerBuffer()
+            };
+            if (!string.IsNullOrEmpty(contentType))
+                request.SetRequestHeader("Content-Type", contentType);
+            return SendAsync(request, headers, timeout);
+        }
+
+        /// <summary>发起 POST 请求（JSON 字符串体）。</summary>
+        public static UniTask<HttpResponse> PostJsonAsync(string url, string json,
+            Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+            => PostAsync(url, Encoding.UTF8.GetBytes(json ?? "{}"), "application/json", headers, timeout);
+
+        /// <summary>发起 POST 请求（对象自动序列化为 JSON）。</summary>
+        public static UniTask<HttpResponse> PostJsonAsync(string url, object payload,
+            Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+            => PostJsonAsync(url, JsonConvert.SerializeObject(payload), headers, timeout);
+
+        /// <summary>发起 PUT 请求（JSON 字符串体）。</summary>
+        public static UniTask<HttpResponse> PutAsync(string url, byte[] body, string contentType = "application/octet-stream",
+            Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+        {
+            var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPUT)
+            {
+                uploadHandler = new UploadHandlerRaw(body ?? Array.Empty<byte>()),
+                downloadHandler = new DownloadHandlerBuffer()
+            };
+            if (!string.IsNullOrEmpty(contentType))
+                request.SetRequestHeader("Content-Type", contentType);
+            return SendAsync(request, headers, timeout);
+        }
+
+        /// <summary>发起 DELETE 请求。</summary>
+        public static UniTask<HttpResponse> DeleteAsync(string url, Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+            => SendAsync(UnityWebRequest.Delete(url), headers, timeout);
+
+        /// <summary>发起 GET 并反序列化 JSON 响应。请求失败时返回 default(T) 并记录错误日志。</summary>
+        public static async UniTask<T> GetJsonAsync<T>(string url, Dictionary<string, string> headers = null, float timeout = DefaultTimeout)
+        {
+            var response = await GetAsync(url, headers, timeout);
+            if (!response.IsSuccess)
+            {
+                LogCore.Error(nameof(HttpCore), $"GET {url} 失败: {response.ErrorMsg}");
+                return default;
+            }
+            try
+            {
+                return JsonConvert.DeserializeObject<T>(response.Text);
+            }
+            catch (Exception e)
+            {
+                LogCore.Error(nameof(HttpCore), $"GET {url} JSON 解析失败: {e.Message}");
+                return default;
+            }
         }
 
         /// <summary>
-        /// 内部 HTTP 引擎实例，供 HttpRequestBuilder 在执行请求时调用。
+        /// 发送 UnityWebRequest 并等待结果。
+        /// 统一处理：请求头、超时、并发限制、结果判定与资源释放。
         /// </summary>
-        internal static HttpEngine Engine { get; private set; }
-
-        /// <summary>
-        /// 内置的 HTTP 响应缓存实例，供引擎内部读写使用。
-        /// </summary>
-        internal static HttpCache Cache => _cache;
-
-        /// <summary>
-        /// 控制并发请求数量的节流信号量，默认最大并发数为 5。
-        /// </summary>
-        internal static SemaphoreSlim Throttle => _throttle;
-
-        /// <summary>
-        /// 创建 GET 请求构建器，指定目标 URL。
-        /// </summary>
-        /// <param name="url">请求的目标地址。</param>
-        /// <returns>配置用的 HttpRequestBuilder 实例。</returns>
-        public static HttpRequestBuilder Get(string url) => new HttpRequestBuilder(HttpMethod.GET, url);
-
-        /// <summary>
-        /// 创建 POST 请求构建器，指定目标 URL。
-        /// </summary>
-        /// <param name="url">请求的目标地址。</param>
-        /// <returns>配置用的 HttpRequestBuilder 实例。</returns>
-        public static HttpRequestBuilder Post(string url) => new HttpRequestBuilder(HttpMethod.POST, url);
-
-        /// <summary>
-        /// 创建 PUT 请求构建器，指定目标 URL。
-        /// </summary>
-        /// <param name="url">请求的目标地址。</param>
-        /// <returns>配置用的 HttpRequestBuilder 实例。</returns>
-        public static HttpRequestBuilder Put(string url) => new HttpRequestBuilder(HttpMethod.PUT, url);
-
-        /// <summary>
-        /// 创建 DELETE 请求构建器，指定目标 URL。
-        /// </summary>
-        /// <param name="url">请求的目标地址。</param>
-        /// <returns>配置用的 HttpRequestBuilder 实例。</returns>
-        public static HttpRequestBuilder Delete(string url) => new HttpRequestBuilder(HttpMethod.DELETE, url);
-
-        /// <summary>
-        /// 关闭 HTTP 核心：清空响应缓存、释放节流信号量并将引擎置空。
-        /// 在不再需要 HTTP 功能或应用退出时调用。
-        /// </summary>
-        public static void Close()
+        private static async UniTask<HttpResponse> SendAsync(UnityWebRequest request, Dictionary<string, string> headers, float timeout)
         {
-            _cache.Clear();
-            _throttle.Dispose();
-            Engine = null;
+            if (headers != null)
+            {
+                foreach (var kvp in headers)
+                    request.SetRequestHeader(kvp.Key, kvp.Value);
+            }
+            request.timeout = Math.Max(1, (int)timeout);
+            await _throttle.WaitAsync();
+            try
+            {
+                await request.SendWebRequest();
+
+                if (request.result == UnityWebRequest.Result.Success)
+                    return HttpResponse.Success(request.responseCode, request.downloadHandler?.text);
+
+                return HttpResponse.Error(request.responseCode, request.error, request.downloadHandler?.text);
+            }
+            catch (Exception e)
+            {
+                return HttpResponse.FailException(e);
+            }
+            finally
+            {
+                request.Dispose();
+                _throttle.Release();
+            }
         }
     }
 }
