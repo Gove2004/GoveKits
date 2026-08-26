@@ -68,6 +68,7 @@ namespace GoveKits.Runtime.Storage
             LogCore.Success(nameof(HotfixCore), $"AOT 元数据补充成功: {location}");
             return true;
 #else
+            await UniTask.CompletedTask;
             LogCore.Info(nameof(HotfixCore), $"编辑器模式跳过 AOT 元数据补充: {location}");
             return true;
 #endif
@@ -112,6 +113,7 @@ namespace GoveKits.Runtime.Storage
                 return null;
             }
 #else
+            await UniTask.CompletedTask;
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
             foreach (var ass in assemblies)
             {

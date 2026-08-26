@@ -116,6 +116,14 @@ namespace GoveKits.Runtime.Unit
             finally
             {
                 IsExecuting = false;
+
+                // 执行期间被替换（AbilityContainer.AddAbility → MarkForPendingDestroy）时，
+                // 待执行结束才真正释放，避免在技能执行过程中销毁自身。
+                if (_pendingDestroy)
+                {
+                    _pendingDestroy = false;
+                    Dispose();
+                }
             }
         }
 

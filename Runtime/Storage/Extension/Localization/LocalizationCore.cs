@@ -10,13 +10,15 @@ namespace GoveKits.Runtime.Storage
     public static class LocalizationCore
     {
         private const string LanguagePrefKey = "Localization.Language";
-        private const string FontConfigResourcePath = "Config/LocalizationConfig";
 
         private static readonly Dictionary<string, ILocalizationConfigData> _rawRows = new();
         private static readonly Dictionary<string, string> _currentLangCache = new();
         private static readonly Dictionary<(Type t, string field), System.Reflection.FieldInfo> _fieldCache = new();
 
+#if TMP_PRESENT
+        private const string FontConfigResourcePath = "Config/LocalizationConfig";
         private static LocalizationConfig _fontConfig;
+#endif
         private static LanguageCode _currentLanguage = LanguageCode.ChineseCN;
 
         public static event Action OnLanguageChanged;
