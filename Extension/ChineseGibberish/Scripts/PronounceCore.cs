@@ -2,7 +2,7 @@
 using UnityEngine;
 using PinYinSpell;
 using System.Collections;
-using GoveKits.Runtime.Util;
+using GoveKits.Runtime.Core;
 
 [System.Serializable]
 public class AllSoundClips
