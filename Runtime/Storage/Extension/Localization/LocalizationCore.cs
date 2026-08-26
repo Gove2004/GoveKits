@@ -155,7 +155,9 @@ namespace GoveKits.Runtime.Storage
             _currentLangCache.Clear();
             _rawRows.Clear();
             OnLanguageChanged = null;
+#if TMP_PRESENT
             _fontConfig = null;
+#endif
         }
     }
 }
