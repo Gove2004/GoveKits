@@ -39,14 +39,6 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
-        /// 解除绑定的界面引用，用于清理。
-        /// </summary>
-        public void DetachAllViews()
-        {
-            _view = null;
-        }
-
-        /// <summary>
         /// 通知绑定的界面更新。
         /// </summary>
         /// <param name="key">更新键值，标识哪个数据发生了变化；传 null 表示全量刷新</param>

@@ -87,10 +87,6 @@ namespace GoveKits.Runtime.UI
         /// </summary>
         public static void Close()
         {
-            foreach (var vm in _viewModels.Values)
-            {
-                vm.DetachAllViews();
-            }
             _views.Clear();
             _viewModels.Clear();
         }
