@@ -6,25 +6,25 @@ using UnityEngine;
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// 界面基类（View 层）。
-    /// 一个界面 = 一个完整的业务界面（如登录主界面），绑定一个 ViewModel，包含多个 UIPanel。
+    /// 界面基类（UIView 层）。
+    /// 一个界面 = 一个完整的业务界面（如登录主界面），绑定一个专属 UIViewModel，包含多个 UIPanel。
     ///
-    /// 层级：View（界面，绑 VM）→ UIPanel（面板，挂 UIElements）→ UIWidget（小组件）
+    /// 层级：UIView（界面，绑 VM）→ UIPanel（面板，挂 UIElements）→ UIWidget（小组件）
     ///
     /// 生命周期（由 UICore.Show/Hide 驱动）：
     ///   Show: OnReceiveShowParam(param) → 激活(自动绑定 VM + 全量刷新) → OnShow()
     ///   Hide: OnHide() → 失活(自动解绑 VM)
     ///
     /// 面板管理：Awake 自动收集子级 UIPanel，通过 ShowPanel / HidePanel / SwitchPanel 切换。
-    /// VM 通知：VM.Notify(key) → View.OnNotify(key) → 转发给所有已激活的面板。
+    /// VM 通知：VM.Notify(key) → UIView.OnNotify(key) → 转发给所有已激活的面板。
     /// </summary>
-    public abstract class View : MonoBehaviour
+    public abstract class UIView : MonoBehaviour
     {
         /// <summary>子级面板字典 - 按类型索引（Awake 自动收集）。</summary>
         protected readonly Dictionary<Type, UIPanel> _panels = new();
 
-        /// <summary>当前绑定的 ViewModel，由泛型子类赋值，未绑定返回 null。</summary>
-        public abstract ViewModel GetVM();
+        /// <summary>本界面绑定的 ViewModel（与界面一一对应），由泛型子类持有，未绑定返回 null。</summary>
+        public abstract UIViewModel GetVM();
 
         protected virtual void Awake()
         {
@@ -101,20 +101,29 @@ namespace GoveKits.Runtime.UI
     }
 
     /// <summary>
-    /// 泛型界面基类，自动关联指定类型的 ViewModel。
-    /// 激活时自动绑定 VM 并全量刷新，失活时自动解绑，无需手动管理。
+    /// 泛型界面基类，与指定类型的 UIViewModel 一一对应。
+    /// 每个界面实例持有自己专属的 VM（首次绑定时惰性创建），激活时自动绑定并全量刷新，失活时自动解绑。
     /// </summary>
     /// <typeparam name="TVM">ViewModel 类型</typeparam>
-    public abstract class View<TVM> : View where TVM : ViewModel, new()
+    public abstract class UIView<TVM> : UIView where TVM : UIViewModel, new()
     {
-        /// <summary>关联的 ViewModel 实例，激活时自动绑定。</summary>
-        public TVM VM { get; private set; }
+        private TVM _vm;
 
-        public override ViewModel GetVM() => VM;
+        /// <summary>本界面专属的 ViewModel 实例（惰性创建，与界面一一对应）。</summary>
+        public TVM VM => _vm ??= CreateVM();
+
+        public override UIViewModel GetVM() => VM;
+
+        /// <summary>创建专属 ViewModel 实例并初始化，子类可重写。</summary>
+        protected virtual TVM CreateVM()
+        {
+            var vm = new TVM();
+            vm.OnInit();
+            return vm;
+        }
 
         protected virtual void OnEnable()
         {
-            VM = UICore.GetVM<TVM>();
             VM.AttachView(this);    // 绑定即全量刷新（触发 OnNotify(null)）
         }
 

@@ -8,11 +8,11 @@ namespace GoveKits.Runtime.UI
     /// 一个面板 = 界面中的一个功能区（如登录面板、注册面板）。
     /// 挂载 UIElements 收集本面板的 UI 组件，并自动检测注册子级 UIWidget。
     ///
-    /// 层级：View（界面）→ UIPanel（面板）→ UIWidget（小组件）
+    /// 层级：UIView（界面）→ UIPanel（面板）→ UIWidget（小组件）
     ///
     /// 组件访问：Elements.Buttons["BtnName"]、Elements.ButtonClicked 等
     /// Widget 访问：GetWidget&lt;T&gt;("UserNameInput")
-    /// 数据访问：GetVM&lt;T&gt;() 从父级 View 获取 ViewModel
+    /// 数据访问：GetVM&lt;T&gt;() 从父级 UIView 获取 UIViewModel
     /// </summary>
     [RequireComponent(typeof(UIElements))]
     public abstract class UIPanel : MonoBehaviour
@@ -21,7 +21,7 @@ namespace GoveKits.Runtime.UI
         [SerializeField] protected UIElements Elements;
 
         /// <summary>父级界面，Awake 时获取。</summary>
-        public View View { get; private set; }
+        public UIView ParentView { get; private set; }
 
         /// <summary>子级 Widget 字典 - 按名称索引（Awake 自动收集）。</summary>
         protected readonly Dictionary<string, UIWidget> _widgets = new();
@@ -29,7 +29,7 @@ namespace GoveKits.Runtime.UI
         protected virtual void Awake()
         {
             if (Elements == null) Elements = GetComponent<UIElements>();
-            View = GetComponentInParent<View>();
+            ParentView = GetComponentInParent<UIView>();
 
             foreach (var widget in GetComponentsInChildren<UIWidget>(true))
             {
@@ -45,9 +45,9 @@ namespace GoveKits.Runtime.UI
         protected T GetWidget<T>(string name) where T : UIWidget
             => GetWidget(name) as T;
 
-        /// <summary>从父级界面获取 ViewModel。</summary>
-        protected T GetVM<T>() where T : ViewModel
-            => View?.GetVM() as T;
+        /// <summary>从父级界面获取 UIViewModel。</summary>
+        protected T GetVM<T>() where T : UIViewModel
+            => ParentView?.GetVM() as T;
 
         /// <summary>界面转发来的 VM 通知，子类按 key 刷新本面板。key 传 null 表示全量刷新。</summary>
         public virtual void OnNotify(string key) { }

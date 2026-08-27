@@ -5,17 +5,17 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// MVVM 模式中的 ViewModel 基类。
-    /// 维护对多个 View（界面）的引用，数据变化时通过 Notify(key) 通知所有绑定的界面。
+    /// 与 UIView 一一对应，每个界面持有自己的专属实例，数据变化时通过 Notify(key) 通知绑定的界面。
     ///
     /// 约定：key 传 null 表示全量刷新（界面绑定 VM 时自动触发一次）。
     /// </summary>
-    public abstract class ViewModel
+    public abstract class UIViewModel
     {
         /// <summary>绑定的视图列表，通过倒序遍历防止集合修改异常。</summary>
-        protected readonly List<View> _views = new List<View>();
+        protected readonly List<UIView> _views = new List<UIView>();
 
         /// <summary>
-        /// 初始化回调，在 ViewModel 创建后由 UICore.GetVM 自动调用。
+        /// 初始化回调，在 VM 首次创建时由 UIView 自动调用（一一对应，仅一次）。
         /// 子类可重写此方法进行数据初始化。
         /// </summary>
         public virtual void OnInit()
@@ -27,7 +27,7 @@ namespace GoveKits.Runtime.UI
         /// 绑定视图。绑定后立即推送一次全量刷新（OnNotify(null)），
         /// 使视图按当前数据完成初始渲染，无需手动初始化。
         /// </summary>
-        public void AttachView(View view)
+        public void AttachView(UIView view)
         {
             if (!_views.Contains(view))
             {
@@ -39,13 +39,13 @@ namespace GoveKits.Runtime.UI
         /// <summary>
         /// 解绑视图。当视图失活或销毁时调用，避免内存泄漏。
         /// </summary>
-        public void DetachView(View view)
+        public void DetachView(UIView view)
         {
             _views.Remove(view);
         }
 
         /// <summary>
-        /// 解除所有绑定的视图引用，用于 Close 时清理。
+        /// 解除所有绑定的视图引用，用于清理。
         /// </summary>
         public void DetachAllViews()
         {
