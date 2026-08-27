@@ -60,7 +60,7 @@ namespace GoveKits.Runtime.UI
 
         #endregion
 
-        #region 组件字典（按名称索引访问，懒初始化）
+        #region 组件字典（按名称索引访问）
 
         /// <summary>按钮字典 - 按键名访问：Elements.Buttons["LoginBtn"]</summary>
         protected Dictionary<string, Button> Buttons => _buttons ??= new Dictionary<string, Button>();

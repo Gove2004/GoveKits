@@ -77,11 +77,11 @@ https://github.com/Gove2004/GoveKits.git
 | 模块 | 说明 | 详细文档 |
 |------|------|---------|
 | **Util** | 基础能力：日志、对象池、随机数(RNG)、事件总线、时间轮、实体生成、通用工具 | [Runtime/Util/README.md](./Runtime/Util/README.md) |
-| **Storage** | 存储集成：资源加载(YooAsset)、配置表、存档、热更新(HybridCLR)、音频、多语言 | [Runtime/Storage/README.md](./Runtime/Storage/README.md) |
-| **Unit** | 类 GAS 能力系统：属性、技能、标记(Buff/Debuff)、反应链、效果、序列化 | [Runtime/Unit/README.md](./Runtime/Unit/README.md) |
-| **UI** | MVVM 面板框架：ViewModel 绑定、ViewPanel、自动组件收集 | [Runtime/UI/README.md](./Runtime/UI/README.md) |
-| **Network** | 网络：Mirror 通信（内置）+ UnityWebRequest HTTP 封装 | [Runtime/Network/README.md](./Runtime/Network/README.md) |
-| **Window** | Editor 调试工具链：13 个可视化窗口，覆盖 Util/Storage/Network/Unit 实时监控 | [Editor/README.md](./Editor/README.md) |
+| **Storage** | 存储集成：资源加载(YooAsset)、配置表、存档、热更新(HybridCLR)、音频、多语言 | 待编写 |
+| **Unit** | 类 GAS 能力系统：属性、技能、标记(Buff/Debuff)、反应链、效果、序列化 | 待编写 |
+| **UI** | MVVM 界面框架：组件收集(UIElements)、界面面板(ViewPanel)、小组件(UIItem)、数据驱动(ViewModel) | [Runtime/UI/README.md](./Runtime/UI/README.md) |
+| **Network** | 网络：Mirror 通信（内置）+ UnityWebRequest HTTP 封装 | 待编写 |
+| **Window** | Editor 调试工具链：13 个可视化窗口，覆盖 Util/Storage/Network/Unit 实时监控 | 待编写 |
 
 ## 快速开始
 
@@ -99,7 +99,7 @@ GoveKits/
 │   │   └── More/             #     通用工具（单例、RNG、贝塞尔曲线、DisposeAction）
 │   ├── Storage/              #   存储与集成（资源、配置、存档、热更、音频、本地化）
 │   ├── Unit/                 #   类 GAS 能力系统（属性、技能、标记、反应）
-│   ├── UI/                   #   MVVM 面板框架
+│   ├── UI/                   #   MVVM 界面框架（收集/层级/生命周期/MVVM）
 │   ├── Network/              #   网络（Mirror 接入层 + HTTP 封装）
 │   │   ├── Http/             #     UnityWebRequest 封装
 │   │   └── Mirror/           #     Mirror 接入层（GoveKits.Mirror 程序集）

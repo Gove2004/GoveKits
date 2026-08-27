@@ -30,7 +30,7 @@ namespace GoveKits.Runtime.Util
         /// 创建指定精度和容量的时间轮。
         /// </summary>
         /// <param name="tickDuration">每次 tick 的时间跨度（秒），默认 50ms</param>
-        /// <param name="wheelSize">环形槽位数量，默认 512</param>
+        /// <param name="wheelSize">时间轮槽位数量，默认 512</param>
         public TimeWheel(float tickDuration = 0.05f, int wheelSize = 512)
         {
             _tickDuration = tickDuration;
@@ -52,7 +52,6 @@ namespace GoveKits.Runtime.Util
 
             if (IsProcessing)
             {
-                // 正在处理 slot 时，延迟添加到目标 slot，避免修改正在遍历的链表
                 _pendingTimers.Add((timer, delay));
                 return;
             }
@@ -78,7 +77,6 @@ namespace GoveKits.Runtime.Util
 
         /// <summary>
         /// 安排一个定时器在指定延迟后执行。
-        /// 会先清除定时器原有的链表节点引用。
         /// </summary>
         /// <param name="timer">要安排的定时器</param>
         /// <param name="delay">延迟时间（秒）</param>
@@ -112,7 +110,7 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
-        /// 标记定时器为已取消并从链表中移除，加入回收队列。
+        /// 标记定时器为已取消并回收（由 Timer.Cancel 调用）。
         /// </summary>
         /// <param name="timer">要取消的定时器</param>
         public void MarkForRemove(Timer timer)
