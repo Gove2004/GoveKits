@@ -24,7 +24,7 @@ namespace GoveKits.Runtime.UI
     /// 将本组件挂到面板 GameObject 上，在编辑器中勾选需要的 UI 组件类型，
     /// 外部通过 Elements.Buttons["BtnName"] 等方式访问组件，通过 Elements.ButtonClicked 订阅交互事件。
     /// </summary>
-    public class UIElementCollection : MonoBehaviour
+    public class UIElements : MonoBehaviour
     {
         #region 收集开关（在编辑器中勾选需要的组件类型）
 
@@ -202,7 +202,7 @@ namespace GoveKits.Runtime.UI
                 return true;
             }
 
-            Debug.LogWarning($"[UIElementCollection] <{gameObject.name}> 存在同名的同类 UI 组件: {name} ({typeof(T).Name})。可能会导致事件路由和获取混乱，请检查层级！");
+            Debug.LogWarning($"[UIElements] <{gameObject.name}> 存在同名的同类 UI 组件: {name} ({typeof(T).Name})。可能会导致事件路由和获取混乱，请检查层级！");
             return false;
         }
 

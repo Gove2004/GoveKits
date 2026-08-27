@@ -41,21 +41,21 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
-        /// 显示面板。触发 OnBindVM -> OnReceiveShowParam -> OnShow 生命周期。
+        /// 显示面板。流程：OnReceiveShowParam(param) → 激活(自动绑定 VM + 全量刷新) → OnShow()。
         /// </summary>
         public static void Show<T>(object param = null) where T : ViewPanel => Show(typeof(T), param);
         public static void Show(Type type, object param = null)
         {
             if (_viewPanels.TryGetValue(type, out var panel))
             {
-                panel.OnBindVM();
                 panel.OnReceiveShowParam(param);
+                panel.gameObject.SetActive(true);   // 触发 OnEnable → 泛型面板自动绑定 VM 并全量刷新
                 panel.OnShow();
             }
         }
 
         /// <summary>
-        /// 隐藏面板。触发 OnHide -> OnUnbindVM 生命周期。
+        /// 隐藏面板。流程：OnHide() → 失活(自动解绑 VM)。
         /// </summary>
         public static void Hide<T>() where T : ViewPanel => Hide(typeof(T));
         public static void Hide(Type type)
@@ -63,7 +63,7 @@ namespace GoveKits.Runtime.UI
             if (_viewPanels.TryGetValue(type, out var panel))
             {
                 panel.OnHide();
-                panel.OnUnbindVM();
+                panel.gameObject.SetActive(false);  // 触发 OnDisable → 泛型面板自动解绑 VM
             }
         }
 

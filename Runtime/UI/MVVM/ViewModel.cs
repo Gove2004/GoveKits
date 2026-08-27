@@ -5,7 +5,9 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// MVVM 模式中的 ViewModel 基类。
-    /// 维护对多个 ViewPanel 的引用，支持通过 key 通知所有绑定的视图更新。
+    /// 维护对多个 ViewPanel 的引用，数据变化时通过 Notify(key) 通知所有绑定的视图。
+    ///
+    /// 约定：key 传 null 表示全量刷新（视图绑定 VM 时自动触发一次）。
     /// </summary>
     public abstract class ViewModel
     {
@@ -22,18 +24,20 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
-        /// 绑定视图。在 ViewModel 中维护一个视图列表，支持多视图绑定同一 ViewModel。
+        /// 绑定视图。绑定后立即推送一次全量刷新（OnNotify(null)），
+        /// 使视图按当前数据完成初始渲染，无需手动初始化。
         /// </summary>
         public void AttachView(ViewPanel view)
         {
             if (!_views.Contains(view))
             {
                 _views.Add(view);
+                view.OnNotify(null);
             }
         }
 
         /// <summary>
-        /// 解绑所有视图。当视图销毁或不再需要更新时调用，避免内存泄漏。
+        /// 解绑视图。当视图失活或销毁时调用，避免内存泄漏。
         /// </summary>
         public void DetachView(ViewPanel view)
         {
@@ -52,8 +56,8 @@ namespace GoveKits.Runtime.UI
         /// 通知所有绑定的视图更新。
         /// 倒序遍历，防止在更新过程中视图卸载导致集合修改异常。
         /// </summary>
-        /// <param name="key">更新键值，标识哪个数据发生了变化</param>
-        protected void NotifyViews(string key)
+        /// <param name="key">更新键值，标识哪个数据发生了变化；传 null 表示全量刷新</param>
+        protected void Notify(string key)
         {
             for (int i = _views.Count - 1; i >= 0; i--)
             {
