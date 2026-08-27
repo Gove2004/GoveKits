@@ -170,10 +170,10 @@ namespace GoveKits.Runtime.UI
 
             foreach (var behaviour in uiBehaviours)
             {
-                // 跳过位于 UIWidget 内部的组件（Widget 内部由 Widget 自身管理，不纳入本收集器）
-                // 本收集器自身挂在 Widget 上时不跳过（widgetParent.transform == transform）
-                var widgetParent = behaviour.GetComponentInParent<UIWidget>();
-                if (widgetParent != null && widgetParent.transform != transform) continue;
+                // 跳过位于 UIItem 内部的组件（Item 内部由 Item 自身的 UIElements 收集，不纳入本收集器）
+                // 本收集器自身挂在 Item 上时不跳过（itemParent.transform == transform）
+                var itemParent = behaviour.GetComponentInParent<UIItem>();
+                if (itemParent != null && itemParent.transform != transform) continue;
 
                 string compName = behaviour.name;
 
