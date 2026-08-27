@@ -2,8 +2,9 @@ using GoveKits.Runtime.Network;
 using GoveKits.Runtime.Storage;
 using GoveKits.Runtime.UI;
 using GoveKits.Runtime.Unit;
+using GoveKits.Runtime.Util;
 
-namespace GoveKits.Runtime.Util
+namespace GoveKits.Runtime
 {
     /// <summary>
     /// GoveKits 运行时组合根（静态类）。

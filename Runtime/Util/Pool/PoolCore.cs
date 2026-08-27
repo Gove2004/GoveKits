@@ -11,7 +11,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public static class PoolCore
     {
+        /// <summary>CSharp 对象池注册表，以对象类型为键，同类型仅一个池。</summary>
         private static readonly Dictionary<Type, IPool> csharpPools = new();
+        /// <summary>GameObject 对象池注册表，以预制体 InstanceID 为键。</summary>
         private static readonly Dictionary<int, GameObjectPool> gameObjectPools = new();
 
         #region CSharpPool

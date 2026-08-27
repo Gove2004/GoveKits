@@ -2,7 +2,9 @@ using UnityEngine;
 
 namespace GoveKits.Runtime.Util
 {
-    // 贝塞尔曲线相关算法。
+    /// <summary>
+    /// 贝塞尔曲线静态工具，提供 n 次贝塞尔曲线的点位计算（Vector3 / Vector2）。
+    /// </summary>
     public static class Bezier
     {
         /// <summary>

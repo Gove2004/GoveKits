@@ -8,10 +8,9 @@ namespace GoveKits.Runtime.Util
     public class UnityLogger : ILogger
     {
         /// <summary>
-        /// 将日志输出到 Unity 控制台，使用 rich text 格式渲染颜色和加粗标签。
-        /// Verbose/Debug/Info 映射到 Debug.Log，Warning 映射到 Debug.LogWarning，Error 映射到 Debug.LogError。
+        /// 将日志输出到 Unity 控制台，使用 rich text 渲染颜色和加粗标签。
         /// </summary>
-        /// <param name="level">日志等级。</param>
+        /// <param name="level">日志等级，决定使用 Debug.Log/LogWarning/LogError。</param>
         /// <param name="tag">日志标签。</param>
         /// <param name="message">日志消息内容。</param>
         /// <param name="colorHex">颜色的十六进制值，默认为白色。</param>

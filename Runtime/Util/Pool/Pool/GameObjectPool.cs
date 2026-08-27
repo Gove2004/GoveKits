@@ -20,7 +20,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public class GameObjectPool : IPool, IPool<GameObject>
     {
+        /// <summary>池的预制体模板，实例化新对象时使用。</summary>
         private readonly GameObject prefab;
+        /// <summary>缓存的未激活对象栈。</summary>
         private readonly Stack<GameObject> stack = new();
 
         /// <summary>池中当前缓存的激活对象数量。</summary>

@@ -19,7 +19,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public static class LogCore
     {
+        /// <summary>当前最低日志等级，低于此等级的日志将被过滤。</summary>
         private static LogLevel logLevel = LogLevel.Debug;
+        /// <summary>已注册的日志后端列表，按注册顺序依次输出。</summary>
         private static List<ILogger> loggers = new();
 
         /// <summary>
@@ -27,7 +29,6 @@ namespace GoveKits.Runtime.Util
         /// 参数依次为：日志等级、标签、消息内容、颜色代码。
         /// </summary>
         public static event Action<LogLevel, string, string, string> OnLog;
-
 
         public static void Close()
         {

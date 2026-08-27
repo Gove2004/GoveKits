@@ -30,7 +30,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public abstract class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
+        /// <summary>单例实例，首次访问 Instance 时从场景查找或自动创建。</summary>
         private static T _instance;
+        /// <summary>标记 Init 是否已调用，避免重复初始化。</summary>
         private bool _initialized;
 
         public static T Instance

@@ -1,5 +1,3 @@
-
-
 namespace GoveKits.Runtime.Util
 {
     /// <summary>

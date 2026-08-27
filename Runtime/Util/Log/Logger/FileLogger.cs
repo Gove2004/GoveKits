@@ -22,8 +22,7 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
-        /// 将日志写入文件，格式为 "[时间戳] [等级] [标签] 消息"。
-        /// 支持 Verbose/Debug/Info/Warning/Error 五个等级。
+        /// 将日志以纯文本追加写入文件，格式为 "[时间戳] [等级] [标签] 消息"。
         /// </summary>
         /// <param name="level">日志等级。</param>
         /// <param name="tag">日志标签。</param>

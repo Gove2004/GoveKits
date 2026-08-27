@@ -10,6 +10,7 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public class NormalRNG : IRNG
     {
+        /// <summary>底层随机数源，Reseed 时重建以重置序列。</summary>
         private Random _random;
 
         /// <summary>当前种子值。</summary>

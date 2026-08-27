@@ -9,6 +9,7 @@ namespace GoveKits.Runtime.Util
     /// <typeparam name="T">必须是无参构造函数且实现 IPoolable 的引用类型</typeparam>
     public class CSharpPool<T> : IPool, IPool<T> where T : class, IPoolable, new()
     {
+        /// <summary>缓存的空闲对象栈。</summary>
         private readonly Stack<T> stack;
 
         /// <summary>池中当前缓存的对象数量。</summary>

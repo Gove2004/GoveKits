@@ -6,7 +6,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public abstract class CSharpSingleton<T> where T : CSharpSingleton<T>, new()
     {
+        /// <summary>单例实例，首次访问 Instance 时惰性创建。</summary>
         private static T _instance;
+        /// <summary>标记 Init 是否已调用，避免重复初始化。</summary>
         private static bool _initialized;
 
         public static T Instance
