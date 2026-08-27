@@ -39,7 +39,8 @@ namespace GoveKits.Runtime.Util
                 }
                 catch (Exception e)
                 {
-                    throw new Exception($"Logger {logger.GetType().Name} 关闭失败: {e.Message}", e);
+                    // 单个 logger 关闭失败不影响其余 logger 的关闭（直连 Debug 防递归）
+                    UnityEngine.Debug.LogError($"[LogCore] Logger {logger.GetType().Name} 关闭失败: {e.Message}");
                 }
             }
             loggers.Clear();
@@ -94,7 +95,8 @@ namespace GoveKits.Runtime.Util
                 }
                 catch (Exception e)
                 {
-                    throw new Exception($"Logger {loggers[i].GetType().Name} 日志输出失败: {e.Message}", e);
+                    // 单个 logger 异常不影响其他 logger（直连 Debug 防递归）
+                    UnityEngine.Debug.LogError($"[LogCore] Logger {loggers[i].GetType().Name} 日志输出失败: {e.Message}");
                 }
             }
         }

@@ -34,6 +34,8 @@ namespace GoveKits.Runtime.Util
         /// </summary>
         public static void Publish<TEvent>(TEvent evt) where TEvent : EventData, new()
         {
+            if (bus == null) return;
+
             try
             {
                 bus.Publish(evt);
@@ -49,7 +51,7 @@ namespace GoveKits.Runtime.Util
         /// </summary>
         public static IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener) where TEvent : EventData
         {
-            return bus.Subscribe(listener);
+            return bus?.Subscribe(listener);
         }
 
         /// <summary>

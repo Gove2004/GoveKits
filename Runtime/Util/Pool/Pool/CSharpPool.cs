@@ -5,7 +5,6 @@ namespace GoveKits.Runtime.Util
     /// <summary>
     /// 纯 C# 泛型对象池，基于 Stack 实现。
     /// 适用于实现了 IPoolable 接口的纯托管引用类型（如数据对象、事件等）。
-    /// 线程安全：Get 和 Return 均使用锁保护。
     /// </summary>
     /// <typeparam name="T">必须是无参构造函数且实现 IPoolable 的引用类型</typeparam>
     public class CSharpPool<T> : IPool, IPool<T> where T : class, IPoolable, new()

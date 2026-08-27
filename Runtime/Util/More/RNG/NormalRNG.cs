@@ -5,8 +5,8 @@ using System.Linq;
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 标准随机数生成器，基于 System.Random 实现，线程安全。
-    /// 所有公共方法通过锁保护，可在多线程环境中安全使用。
+    /// 标准随机数生成器，基于 System.Random 实现。
+    /// 适用于单线程（主线程）环境，多线程场景请自行加锁或各线程独立实例。
     /// </summary>
     public class NormalRNG : IRNG
     {

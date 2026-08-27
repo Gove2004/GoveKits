@@ -16,9 +16,6 @@ namespace GoveKits.Runtime.Util
                 if (_instance != null)
                     return _instance;
 
-                if (_instance != null)
-                    return _instance;
-
                 _instance = new T();
                 _instance.Init();
                 _initialized = true;

@@ -65,6 +65,7 @@ namespace GoveKits.Runtime.Util
         public static void Close()
         {
             wheel?.Clear();
+            wheel = null;
         }
 
         private static Timer CreateTimer(float delay, float interval, int loopCount, Action callback)
