@@ -4,32 +4,32 @@ using UnityEngine;
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// 自动将所有子物体上的 ViewPanel 注册到 UICore。
+    /// 自动将所有子物体上的 View（界面）注册到 UICore。
     /// 将此组件挂在场景中任意 GameObject 上即可，无需手动调用 Register。
     /// </summary>
     public class AutoUIRegister : MonoBehaviour
     {
-        private ViewPanel[] _panels;
+        private View[] _views;
 
         private void Awake()
         {
-            _panels = GetComponentsInChildren<ViewPanel>(true);
-            foreach (var panel in _panels)
+            _views = GetComponentsInChildren<View>(true);
+            foreach (var view in _views)
             {
-                UICore.Register(panel.GetType(), panel);
+                UICore.Register(view.GetType(), view);
             }
         }
 
         private void OnDestroy()
         {
-            foreach (var panel in _panels)
+            foreach (var view in _views)
             {
-                if (panel != null)
+                if (view != null)
                 {
-                    UICore.Unregister(panel.GetType());
+                    UICore.Unregister(view.GetType());
                 }
             }
-            _panels = null;
+            _views = null;
         }
     }
 }

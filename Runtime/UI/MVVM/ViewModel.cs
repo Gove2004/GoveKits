@@ -5,14 +5,14 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// MVVM 模式中的 ViewModel 基类。
-    /// 维护对多个 ViewPanel 的引用，数据变化时通过 Notify(key) 通知所有绑定的视图。
+    /// 维护对多个 View（界面）的引用，数据变化时通过 Notify(key) 通知所有绑定的界面。
     ///
-    /// 约定：key 传 null 表示全量刷新（视图绑定 VM 时自动触发一次）。
+    /// 约定：key 传 null 表示全量刷新（界面绑定 VM 时自动触发一次）。
     /// </summary>
     public abstract class ViewModel
     {
         /// <summary>绑定的视图列表，通过倒序遍历防止集合修改异常。</summary>
-        protected readonly List<ViewPanel> _views = new List<ViewPanel>();
+        protected readonly List<View> _views = new List<View>();
 
         /// <summary>
         /// 初始化回调，在 ViewModel 创建后由 UICore.GetVM 自动调用。
@@ -27,7 +27,7 @@ namespace GoveKits.Runtime.UI
         /// 绑定视图。绑定后立即推送一次全量刷新（OnNotify(null)），
         /// 使视图按当前数据完成初始渲染，无需手动初始化。
         /// </summary>
-        public void AttachView(ViewPanel view)
+        public void AttachView(View view)
         {
             if (!_views.Contains(view))
             {
@@ -39,7 +39,7 @@ namespace GoveKits.Runtime.UI
         /// <summary>
         /// 解绑视图。当视图失活或销毁时调用，避免内存泄漏。
         /// </summary>
-        public void DetachView(ViewPanel view)
+        public void DetachView(View view)
         {
             _views.Remove(view);
         }

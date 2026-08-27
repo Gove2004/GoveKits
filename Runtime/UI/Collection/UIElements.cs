@@ -127,6 +127,11 @@ namespace GoveKits.Runtime.UI
 
             foreach (var behaviour in uiBehaviours)
             {
+                // 跳过位于 UIWidget 内部的组件（Widget 内部由 Widget 自身管理，不纳入本收集器）
+                // 本收集器自身挂在 Widget 上时不跳过（widgetParent.transform == transform）
+                var widgetParent = behaviour.GetComponentInParent<UIWidget>();
+                if (widgetParent != null && widgetParent.transform != transform) continue;
+
                 string compName = behaviour.name;
 
                 switch (behaviour)
