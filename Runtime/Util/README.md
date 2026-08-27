@@ -182,17 +182,16 @@ AudioManager.Instance;                          // 获取（场景中已有则�
 实体生成与销毁的统一管理（工厂注册 + 全局 ID + 生命周期事件）。
 
 ```csharp
-// 1. 实体实现 ISpawnable（构造注入 ID）
+// 1. 实体实现 ISpawnable（ObjectId 由工厂在 Spawn 时赋值）
 public class Enemy : ISpawnable
 {
     public string SpawnKey => "enemy";
-    public uint ObjectId { get; }
-    public Enemy(uint id) => ObjectId = id;
+    public uint ObjectId { get; set; }
 }
 
 // 2. 注册工厂与销毁回调
 SpawnCore.Register("enemy",
-    (id, data) => new Enemy(id),                        // 工厂（Spawn 时传入分配的 ID）
+    (id, data) => new Enemy { ObjectId = id },          // 工厂（Spawn 时传入分配的 ID）
     e => /* 清理资源 */);                                // 销毁回调
 
 // 3. 生成 / 销毁 / 查询
