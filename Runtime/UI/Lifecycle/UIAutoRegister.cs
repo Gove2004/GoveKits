@@ -4,8 +4,10 @@ using UnityEngine;
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// 自动将所有子物体上的 ViewPanel（界面）注册到 UICore。
-    /// 将此组件挂在场景中任意 GameObject 上即可，无需手动调用 Register。
+    /// 界面自动注册器。挂在场景中任意 GameObject 上，
+    /// 自动扫描并注册所有子物体上的 ViewPanel 到 UICore，销毁时自动注销。
+    ///
+    /// 用法：场景根物体挂一个本组件，之后即可通过 UICore.Show&lt;T&gt;() 打开任意注册过的界面，无需手动注册。
     /// </summary>
     public class UIAutoRegister : MonoBehaviour
     {

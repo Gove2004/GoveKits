@@ -8,131 +8,121 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// UI 元素自动收集组件。
-    /// 独立挂载在任意 GameObject 上，扫描子物体中的 UI 组件（Button/Text 等）与 UIItem 小组件，按名称索引，供其他逻辑访问。
+    /// 挂在任意 GameObject 上，自动扫描子物体中的 UI 组件与 UIItem 小组件，按名称索引供外部访问。
     ///
-    /// 核心功能：
-    /// 1. 按开关扫描子对象中的指定 UI 组件
-    /// 2. 自动收集子级 UIItem 小组件（Item 内部组件由 Item 自身的收集器管理）
-    /// 3. 按名称索引存储到字典中，便于代码访问
-    /// 4. 自动绑定事件监听，通过 C# 事件对外暴露（ButtonClicked 等）
-    /// 5. 支持原生 UI 和 TextMeshPro 组件
+    /// 用法：
+    /// 1. 在界面/面板上挂本组件（ViewPanel 已通过 RequireComponent 自动添加）
+    /// 2. 在 Inspector 中勾选需要收集的组件类型开关（如 enableButtons）
+    /// 3. 子物体按名称命名（如 "LoginBtn"），即可用 Elements.Buttons["LoginBtn"] 访问
+    /// 4. 交互事件通过 Elements.ButtonClicked 等订阅
     ///
-    /// 性能优化：
-    /// 通过 enableXXX 开关控制是否需要扫描某类组件，避免不必要的字典和监听器开销。
-    /// 在编辑器中勾选需要的组件类型即可。
-    ///
-    /// 使用方式：
-    /// 将本组件挂到面板 GameObject 上，在编辑器中勾选需要的 UI 组件类型，
-    /// 外部通过 Elements.Buttons["BtnName"]、Elements.GetItem&lt;T&gt;("ItemName") 等方式访问组件，
-    /// 通过 Elements.ButtonClicked 订阅交互事件。
+    /// 访问方式：
+    /// - 组件：Elements.Buttons["名字"] / Elements.TMPTexts["名字"] ...
+    /// - 小组件：Elements.GetItem&lt;T&gt;("名字")
+    /// - 交互：Elements.ButtonClicked += 处理函数
     /// </summary>
     public class UIElements : MonoBehaviour
     {
-        #region 收集开关（在编辑器中勾选需要的组件类型）
+        #region 收集开关（在 Inspector 中勾选需要收集的组件类型）
 
-        /// <summary>是否需要收集 Button 组件。未勾选则跳过扫描和事件绑定。</summary>
+        /// <summary>勾选后收集子级 Button，点击时触发 ButtonClicked 事件。</summary>
         public bool enableButtons = false;
 
-        /// <summary>是否需要收集 Toggle 组件。</summary>
+        /// <summary>勾选后收集子级 Toggle，状态变化时触发 ToggleChanged 事件。</summary>
         public bool enableToggles = false;
 
-        /// <summary>是否需要收集 Slider 组件。</summary>
+        /// <summary>勾选后收集子级 Slider，值变化时触发 SliderChanged 事件。</summary>
         public bool enableSliders = false;
 
-        /// <summary>是否需要收集 Dropdown 组件。</summary>
+        /// <summary>勾选后收集子级原生 Dropdown，选择变化时触发 DropdownChanged 事件。</summary>
         public bool enableDropdowns = false;
 
-        /// <summary>是否需要收集 Image 组件。</summary>
+        /// <summary>勾选后收集子级 Image 组件。</summary>
         public bool enableImages = false;
 
-        /// <summary>是否需要收集 RawImage 组件。</summary>
+        /// <summary>勾选后收集子级 RawImage 组件。</summary>
         public bool enableRawImages = false;
 
-        /// <summary>是否需要收集原生 Text 组件。</summary>
+        /// <summary>勾选后收集子级原生 Text 组件。</summary>
         public bool enableTexts = false;
 
-        /// <summary>是否需要收集原生 InputField 组件。</summary>
+        /// <summary>勾选后收集子级原生 InputField，内容变化时触发 InputChanged 事件。</summary>
         public bool enableInputFields = false;
 
-        /// <summary>是否需要收集 TMP Text 组件。</summary>
+        /// <summary>勾选后收集子级 TMP 文本组件。</summary>
         public bool enableTMPTexts = false;
 
-        /// <summary>是否需要收集 TMP InputField 组件。</summary>
+        /// <summary>勾选后收集子级 TMP 输入框，内容变化时触发 TMPInputChanged 事件。</summary>
         public bool enableTMPInputFields = false;
 
-        /// <summary>是否需要收集 TMP Dropdown 组件。</summary>
+        /// <summary>勾选后收集子级 TMP 下拉框，选择变化时触发 TMPDropdownChanged 事件。</summary>
         public bool enableTMPDropdowns = false;
 
         #endregion
 
-        #region 组件字典（懒初始化，按需分配）
+        #region 组件字典（按名称索引访问，懒初始化）
 
-        private Dictionary<string, Button> _buttons;
-        /// <summary>按钮组件字典 - 按名称索引</summary>
+        /// <summary>按钮字典 - 按键名访问：Elements.Buttons["LoginBtn"]</summary>
         protected Dictionary<string, Button> Buttons => _buttons ??= new Dictionary<string, Button>();
+        private Dictionary<string, Button> _buttons;
 
-        private Dictionary<string, Toggle> _toggles;
-        /// <summary>开关组件字典 - 按名称索引</summary>
+        /// <summary>开关字典 - 按键名访问：Elements.Toggles["SoundToggle"]</summary>
         protected Dictionary<string, Toggle> Toggles => _toggles ??= new Dictionary<string, Toggle>();
+        private Dictionary<string, Toggle> _toggles;
 
-        private Dictionary<string, Slider> _sliders;
-        /// <summary>滑块组件字典 - 按名称索引</summary>
+        /// <summary>滑块字典 - 按键名访问：Elements.Sliders["VolumeSlider"]</summary>
         protected Dictionary<string, Slider> Sliders => _sliders ??= new Dictionary<string, Slider>();
+        private Dictionary<string, Slider> _sliders;
 
-        private Dictionary<string, Dropdown> _dropdowns;
-        /// <summary>原生下拉框组件字典 - 按名称索引</summary>
+        /// <summary>原生下拉框字典 - 按键名访问</summary>
         protected Dictionary<string, Dropdown> Dropdowns => _dropdowns ??= new Dictionary<string, Dropdown>();
+        private Dictionary<string, Dropdown> _dropdowns;
 
-        private Dictionary<string, Image> _images;
-        /// <summary>图片组件字典 - 按名称索引</summary>
+        /// <summary>图片字典 - 按键名访问</summary>
         protected Dictionary<string, Image> Images => _images ??= new Dictionary<string, Image>();
+        private Dictionary<string, Image> _images;
 
-        private Dictionary<string, RawImage> _rawImages;
-        /// <summary>原始图片组件字典 - 按名称索引</summary>
+        /// <summary>原始图片字典 - 按键名访问</summary>
         protected Dictionary<string, RawImage> RawImages => _rawImages ??= new Dictionary<string, RawImage>();
+        private Dictionary<string, RawImage> _rawImages;
 
-        private Dictionary<string, Text> _texts;
-        /// <summary>原生文本组件字典 - 按名称索引</summary>
+        /// <summary>原生文本字典 - 按键名访问</summary>
         protected Dictionary<string, Text> Texts => _texts ??= new Dictionary<string, Text>();
+        private Dictionary<string, Text> _texts;
 
-        private Dictionary<string, InputField> _inputFields;
-        /// <summary>原生输入框字典 - 按名称索引</summary>
+        /// <summary>原生输入框字典 - 按键名访问</summary>
         protected Dictionary<string, InputField> InputFields => _inputFields ??= new Dictionary<string, InputField>();
+        private Dictionary<string, InputField> _inputFields;
 
-        private Dictionary<string, TextMeshProUGUI> _tmpTexts;
-        /// <summary>TMP 文本组件字典 - 按名称索引</summary>
+        /// <summary>TMP 文本字典 - 按键名访问</summary>
         protected Dictionary<string, TextMeshProUGUI> TMPTexts => _tmpTexts ??= new Dictionary<string, TextMeshProUGUI>();
+        private Dictionary<string, TextMeshProUGUI> _tmpTexts;
 
-        private Dictionary<string, TMP_InputField> _tmpInputFields;
-        /// <summary>TMP 输入框字典 - 按名称索引</summary>
+        /// <summary>TMP 输入框字典 - 按键名访问</summary>
         protected Dictionary<string, TMP_InputField> TMPInputFields => _tmpInputFields ??= new Dictionary<string, TMP_InputField>();
+        private Dictionary<string, TMP_InputField> _tmpInputFields;
 
-        private Dictionary<string, TMP_Dropdown> _tmpDropdowns;
-        /// <summary>TMP 下拉框字典 - 按名称索引</summary>
+        /// <summary>TMP 下拉框字典 - 按键名访问</summary>
         protected Dictionary<string, TMP_Dropdown> TMPDropdowns => _tmpDropdowns ??= new Dictionary<string, TMP_Dropdown>();
+        private Dictionary<string, TMP_Dropdown> _tmpDropdowns;
 
-        private Dictionary<string, UIItem> _items;
-        /// <summary>子级 Item（小组件）字典 - 按名称索引（自动收集，Item 内部组件由 Item 自身的收集器管理）</summary>
+        /// <summary>子级 Item（小组件）字典 - 按键名访问：Elements.Items["UserNameInput"]</summary>
         public Dictionary<string, UIItem> Items => _items ??= new Dictionary<string, UIItem>();
+        private Dictionary<string, UIItem> _items;
 
         #endregion
-
-        protected virtual void Awake()
-        {
-            AutoBindUIElements();
-        }
 
         /// <summary>按名称获取 Item，未注册返回 null。</summary>
         public UIItem GetItem(string name)
             => Items.TryGetValue(name, out var item) ? item : null;
 
-        /// <summary>按名称获取指定类型的 Item。</summary>
+        /// <summary>按名称获取指定类型的 Item，未注册或类型不符返回 null。</summary>
         public T GetItem<T>(string name) where T : UIItem
             => GetItem(name) as T;
 
         /// <summary>
-        /// 重新收集并绑定所有启用的 UI 元素。
-        /// 运行时动态新增/删除 UI 组件后调用，可重复调用（自动先清除旧绑定）。
+        /// 重新收集所有启用的 UI 元素。
+        /// 运行时动态新增/删除 UI 组件或 Item 后调用，会先清除旧绑定再重新收集。
         /// </summary>
         public void Rebind()
         {
@@ -140,10 +130,6 @@ namespace GoveKits.Runtime.UI
             AutoBindUIElements();
         }
 
-        /// <summary>
-        /// 清除所有已收集组件与监听器，并置空对外事件引用。
-        /// 由 Rebind 与 OnDestroy 复用。
-        /// </summary>
         private void ClearBindings()
         {
             if (_buttons != null) { foreach (var b in _buttons.Values) { if (b) b.onClick.RemoveAllListeners(); } _buttons.Clear(); _buttons = null; }
@@ -169,24 +155,23 @@ namespace GoveKits.Runtime.UI
             TMPInputChanged = null;
         }
 
+        protected virtual void Awake()
+        {
+            AutoBindUIElements();
+        }
+
         protected virtual void OnDestroy()
         {
             ClearBindings();
         }
 
-        /// <summary>
-        /// 自动绑定所有启用的 UI 元素。
-        /// 单次遍历统一提取，根据开关决定是否缓存和绑定事件。
-        /// </summary>
         private void AutoBindUIElements()
         {
-            // 单次遍历所有 UIBehaviour，按开关分发到对应字典
             var uiBehaviours = GetComponentsInChildren<UnityEngine.EventSystems.UIBehaviour>(true);
 
             foreach (var behaviour in uiBehaviours)
             {
-                // 跳过位于 UIItem 内部的组件（Item 内部由 Item 自身的 UIElements 收集，不纳入本收集器）
-                // 本收集器自身挂在 Item 上时不跳过（itemParent.transform == transform）
+                // 跳过位于 UIItem 内部的组件（Item 内部组件由 Item 自身的 UIElements 收集）
                 var itemParent = behaviour.GetComponentInParent<UIItem>();
                 if (itemParent != null && itemParent.transform != transform) continue;
 
@@ -251,17 +236,15 @@ namespace GoveKits.Runtime.UI
                 }
             }
 
-            // 收集子级 UIItem（小组件），按名称索引；Item 内部组件由 Item 自身的收集器管理
+            // 收集子级 UIItem（小组件），Item 内部组件由 Item 自身的收集器管理
             foreach (var item in GetComponentsInChildren<UIItem>(true))
             {
-                if (item.transform == transform) continue;   // 不收集自身
+                if (item.transform == transform) continue;
                 TryCache(ref _items, item.name, item);
             }
         }
 
-        /// <summary>
-        /// 辅助缓存方法，同时避免同名组件被静默覆盖。
-        /// </summary>
+        /// <summary>按键名缓存组件；同名重复时输出警告并忽略，避免静默覆盖。</summary>
         private bool TryCache<T>(ref Dictionary<string, T> dict, string name, T component) where T : Component
         {
             dict ??= new Dictionary<string, T>();
@@ -276,27 +259,27 @@ namespace GoveKits.Runtime.UI
             return false;
         }
 
-        #region 对外交互事件（任意逻辑可订阅）
+        #region 交互事件（订阅面板 UI 的交互回调）
 
-        /// <summary>按钮点击事件 - 参数为按钮名称</summary>
+        /// <summary>按钮点击事件 - 参数为被点击按钮的名称。</summary>
         public event Action<string> ButtonClicked;
 
-        /// <summary>开关状态改变事件 - 参数为开关名称与状态</summary>
+        /// <summary>开关状态改变事件 - 参数为开关名称与新状态。</summary>
         public event Action<string, bool> ToggleChanged;
 
-        /// <summary>滑块值改变事件 - 参数为滑块名称与值</summary>
+        /// <summary>滑块值改变事件 - 参数为滑块名称与新值。</summary>
         public event Action<string, float> SliderChanged;
 
-        /// <summary>原生下拉框选择改变事件 - 参数为下拉框名称与选项索引</summary>
+        /// <summary>原生下拉框选择改变事件 - 参数为下拉框名称与选中索引。</summary>
         public event Action<string, int> DropdownChanged;
 
-        /// <summary>TMP 下拉框选择改变事件 - 参数为下拉框名称与选项索引</summary>
+        /// <summary>TMP 下拉框选择改变事件 - 参数为下拉框名称与选中索引。</summary>
         public event Action<string, int> TMPDropdownChanged;
 
-        /// <summary>原生输入框内容改变事件 - 参数为输入框名称与内容</summary>
+        /// <summary>原生输入框内容改变事件 - 参数为输入框名称与当前内容。</summary>
         public event Action<string, string> InputChanged;
 
-        /// <summary>TMP 输入框内容改变事件 - 参数为输入框名称与内容</summary>
+        /// <summary>TMP 输入框内容改变事件 - 参数为输入框名称与当前内容。</summary>
         public event Action<string, string> TMPInputChanged;
 
         #endregion
