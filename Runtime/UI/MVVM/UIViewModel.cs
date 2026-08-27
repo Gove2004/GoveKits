@@ -15,7 +15,7 @@ namespace GoveKits.Runtime.UI
         protected readonly List<UIView> _views = new List<UIView>();
 
         /// <summary>
-        /// 初始化回调，在 VM 首次创建时由 UIView 自动调用（一一对应，仅一次）。
+        /// 初始化回调，在 VM 首次被 UICore.GetVM 创建时自动调用（与界面类型一一对应，仅一次）。
         /// 子类可重写此方法进行数据初始化。
         /// </summary>
         public virtual void OnInit()

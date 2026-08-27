@@ -23,7 +23,7 @@ namespace GoveKits.Runtime.UI
         /// <summary>子级面板字典 - 按类型索引（Awake 自动收集）。</summary>
         protected readonly Dictionary<Type, UIPanel> _panels = new();
 
-        /// <summary>本界面绑定的 ViewModel（与界面一一对应），由泛型子类持有，未绑定返回 null。</summary>
+        /// <summary>本界面绑定的 ViewModel（由 UICore 按类型持有，与界面一一对应），未绑定返回 null。</summary>
         public abstract UIViewModel GetVM();
 
         protected virtual void Awake()
@@ -102,25 +102,18 @@ namespace GoveKits.Runtime.UI
 
     /// <summary>
     /// 泛型界面基类，与指定类型的 UIViewModel 一一对应。
-    /// 每个界面实例持有自己专属的 VM（首次绑定时惰性创建），激活时自动绑定并全量刷新，失活时自动解绑。
+    /// VM 实例由 UICore 按类型持有（外部也可通过 UICore.GetVM 访问），
+    /// 本界面激活时自动绑定并全量刷新，失活时自动解绑。
     /// </summary>
     /// <typeparam name="TVM">ViewModel 类型</typeparam>
     public abstract class UIView<TVM> : UIView where TVM : UIViewModel, new()
     {
         private TVM _vm;
 
-        /// <summary>本界面专属的 ViewModel 实例（惰性创建，与界面一一对应）。</summary>
-        public TVM VM => _vm ??= CreateVM();
+        /// <summary>本界面绑定的 ViewModel 实例（由 UICore 持有，与界面类型一一对应）。</summary>
+        public TVM VM => _vm ??= UICore.GetVM<TVM>();
 
         public override UIViewModel GetVM() => VM;
-
-        /// <summary>创建专属 ViewModel 实例并初始化，子类可重写。</summary>
-        protected virtual TVM CreateVM()
-        {
-            var vm = new TVM();
-            vm.OnInit();
-            return vm;
-        }
 
         protected virtual void OnEnable()
         {

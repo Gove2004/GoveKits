@@ -117,6 +117,49 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
+        /// 重新收集并绑定所有启用的 UI 元素。
+        /// 运行时动态新增/删除 UI 组件后调用，可重复调用（自动先清除旧绑定）。
+        /// </summary>
+        public void Rebind()
+        {
+            ClearBindings();
+            AutoBindUIElements();
+        }
+
+        /// <summary>
+        /// 清除所有已收集组件与监听器，并置空对外事件引用。
+        /// 由 Rebind 与 OnDestroy 复用。
+        /// </summary>
+        private void ClearBindings()
+        {
+            if (_buttons != null) { foreach (var b in _buttons.Values) { if (b) b.onClick.RemoveAllListeners(); } _buttons.Clear(); _buttons = null; }
+            if (_toggles != null) { foreach (var t in _toggles.Values) { if (t) t.onValueChanged.RemoveAllListeners(); } _toggles.Clear(); _toggles = null; }
+            if (_sliders != null) { foreach (var s in _sliders.Values) { if (s) s.onValueChanged.RemoveAllListeners(); } _sliders.Clear(); _sliders = null; }
+            if (_dropdowns != null) { foreach (var d in _dropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _dropdowns.Clear(); _dropdowns = null; }
+            if (_tmpDropdowns != null) { foreach (var d in _tmpDropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _tmpDropdowns.Clear(); _tmpDropdowns = null; }
+            if (_inputFields != null) { foreach (var i in _inputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _inputFields.Clear(); _inputFields = null; }
+            if (_tmpInputFields != null) { foreach (var i in _tmpInputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _tmpInputFields.Clear(); _tmpInputFields = null; }
+
+            _texts?.Clear(); _texts = null;
+            _tmpTexts?.Clear(); _tmpTexts = null;
+            _images?.Clear(); _images = null;
+            _rawImages?.Clear(); _rawImages = null;
+
+            ButtonClicked = null;
+            ToggleChanged = null;
+            SliderChanged = null;
+            DropdownChanged = null;
+            TMPDropdownChanged = null;
+            InputChanged = null;
+            TMPInputChanged = null;
+        }
+
+        protected virtual void OnDestroy()
+        {
+            ClearBindings();
+        }
+
+        /// <summary>
         /// 自动绑定所有启用的 UI 元素。
         /// 单次遍历统一提取，根据开关决定是否缓存和绑定事件。
         /// </summary>
@@ -209,23 +252,6 @@ namespace GoveKits.Runtime.UI
 
             Debug.LogWarning($"[UIElements] <{gameObject.name}> 存在同名的同类 UI 组件: {name} ({typeof(T).Name})。可能会导致事件路由和获取混乱，请检查层级！");
             return false;
-        }
-
-        protected virtual void OnDestroy()
-        {
-            // 清理已启用的组件字典，移除所有监听器
-            if (enableButtons && _buttons != null) { foreach (var b in _buttons.Values) { if (b) b.onClick.RemoveAllListeners(); } _buttons.Clear(); _buttons = null; }
-            if (enableToggles && _toggles != null) { foreach (var t in _toggles.Values) { if (t) t.onValueChanged.RemoveAllListeners(); } _toggles.Clear(); _toggles = null; }
-            if (enableSliders && _sliders != null) { foreach (var s in _sliders.Values) { if (s) s.onValueChanged.RemoveAllListeners(); } _sliders.Clear(); _sliders = null; }
-            if (enableDropdowns && _dropdowns != null) { foreach (var d in _dropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _dropdowns.Clear(); _dropdowns = null; }
-            if (enableTMPDropdowns && _tmpDropdowns != null) { foreach (var d in _tmpDropdowns.Values) { if (d) d.onValueChanged.RemoveAllListeners(); } _tmpDropdowns.Clear(); _tmpDropdowns = null; }
-            if (enableInputFields && _inputFields != null) { foreach (var i in _inputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _inputFields.Clear(); _inputFields = null; }
-            if (enableTMPInputFields && _tmpInputFields != null) { foreach (var i in _tmpInputFields.Values) { if (i) i.onValueChanged.RemoveAllListeners(); } _tmpInputFields.Clear(); _tmpInputFields = null; }
-
-            _texts?.Clear(); _texts = null;
-            _tmpTexts?.Clear(); _tmpTexts = null;
-            _images?.Clear(); _images = null;
-            _rawImages?.Clear(); _rawImages = null;
         }
 
         #region 对外交互事件（任意逻辑可订阅）

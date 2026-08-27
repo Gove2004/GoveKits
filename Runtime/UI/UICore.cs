@@ -6,13 +6,14 @@ using UnityEngine;
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// UI 系统门面，统一管理界面注册/显示。
+    /// UI 系统门面，统一管理界面注册/显示与 ViewModel。
     /// 注册与显示以 UIView（界面）为单位，UIPanel/UIWidget 由 UIView 内部管理。
-    /// ViewModel 与界面一一对应，由 UIView 自身持有管理，本门面不介入。
+    /// ViewModel 按类型由本门面持有单例（与界面类型一一对应），外部可通过 GetVM 随时访问。
     /// </summary>
     public static class UICore
     {
         private static readonly Dictionary<Type, UIView> _views = new();
+        private static readonly Dictionary<Type, UIViewModel> _viewModels = new();
 
         /// <summary>
         /// 注册界面实例。界面必须在场景中存在并通过 UIAutoRegister 或其他方式注册。
@@ -67,11 +68,31 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
-        /// 关闭所有界面注册，释放资源。
+        /// 获取指定类型的 ViewModel 单例（首次访问时创建并调用 OnInit）。
+        /// 与界面类型一一对应：LoginView 绑定 LoginVM，外部逻辑也可直接访问同一实例。
+        /// </summary>
+        public static TVM GetVM<TVM>() where TVM : UIViewModel, new()
+        {
+            var type = typeof(TVM);
+            if (!_viewModels.ContainsKey(type))
+            {
+                _viewModels[type] = new TVM();
+                _viewModels[type].OnInit();
+            }
+            return _viewModels[type] as TVM;
+        }
+
+        /// <summary>
+        /// 关闭所有界面注册与 ViewModel，释放资源。
         /// </summary>
         public static void Close()
         {
+            foreach (var vm in _viewModels.Values)
+            {
+                vm.DetachAllViews();
+            }
             _views.Clear();
+            _viewModels.Clear();
         }
     }
 }
