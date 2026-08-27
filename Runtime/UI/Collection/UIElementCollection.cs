@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,12 +7,13 @@ using TMPro;
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// UI 元素自动收集与路由基类
+    /// UI 元素自动收集组件。
+    /// 独立挂载在任意 GameObject 上，扫描子物体中的指定 UI 组件并按名称索引，供其他逻辑访问。
     ///
     /// 核心功能：
     /// 1. 按开关扫描子对象中的指定 UI 组件
     /// 2. 按名称索引存储到字典中，便于代码访问
-    /// 3. 自动绑定事件监听，路由到虚方法供子类重写
+    /// 3. 自动绑定事件监听，通过 C# 事件对外暴露（ButtonClicked 等）
     /// 4. 支持原生 UI 和 TextMeshPro 组件
     ///
     /// 性能优化：
@@ -19,10 +21,10 @@ namespace GoveKits.Runtime.UI
     /// 在编辑器中勾选需要的组件类型即可。
     ///
     /// 使用方式：
-    /// 继承此类后，在编辑器中勾选需要的 UI 组件类型，子类可直接通过 Buttons["BtnName"] 等方式访问组件。
-    /// 重写 OnButtonClicked 等虚方法处理交互逻辑。
+    /// 将本组件挂到面板 GameObject 上，在编辑器中勾选需要的 UI 组件类型，
+    /// 外部通过 Elements.Buttons["BtnName"] 等方式访问组件，通过 Elements.ButtonClicked 订阅交互事件。
     /// </summary>
-    public abstract class UIElementCollection : MonoBehaviour
+    public class UIElementCollection : MonoBehaviour
     {
         #region 收集开关（在编辑器中勾选需要的组件类型）
 
@@ -131,37 +133,37 @@ namespace GoveKits.Runtime.UI
                 {
                     case Button btn:
                         if (enableButtons && TryCache(ref _buttons, compName, btn))
-                            btn.onClick.AddListener(() => OnButtonClicked(compName));
+                            btn.onClick.AddListener(() => ButtonClicked?.Invoke(compName));
                         break;
 
                     case Toggle tog:
                         if (enableToggles && TryCache(ref _toggles, compName, tog))
-                            tog.onValueChanged.AddListener(val => OnToggleChanged(compName, val));
+                            tog.onValueChanged.AddListener(val => ToggleChanged?.Invoke(compName, val));
                         break;
 
                     case Slider slider:
                         if (enableSliders && TryCache(ref _sliders, compName, slider))
-                            slider.onValueChanged.AddListener(val => OnSliderChanged(compName, val));
+                            slider.onValueChanged.AddListener(val => SliderChanged?.Invoke(compName, val));
                         break;
 
                     case Dropdown dp:
                         if (enableDropdowns && TryCache(ref _dropdowns, compName, dp))
-                            dp.onValueChanged.AddListener(val => OnDropdownChanged(compName, val));
+                            dp.onValueChanged.AddListener(val => DropdownChanged?.Invoke(compName, val));
                         break;
 
                     case TMP_Dropdown tmpDp:
                         if (enableTMPDropdowns && TryCache(ref _tmpDropdowns, compName, tmpDp))
-                            tmpDp.onValueChanged.AddListener(val => OnTMPDropdownChanged(compName, val));
+                            tmpDp.onValueChanged.AddListener(val => TMPDropdownChanged?.Invoke(compName, val));
                         break;
 
                     case InputField input:
                         if (enableInputFields && TryCache(ref _inputFields, compName, input))
-                            input.onValueChanged.AddListener(val => OnInputChanged(compName, val));
+                            input.onValueChanged.AddListener(val => InputChanged?.Invoke(compName, val));
                         break;
 
                     case TMP_InputField tmpInput:
                         if (enableTMPInputFields && TryCache(ref _tmpInputFields, compName, tmpInput))
-                            tmpInput.onValueChanged.AddListener(val => OnTMPInputChanged(compName, val));
+                            tmpInput.onValueChanged.AddListener(val => TMPInputChanged?.Invoke(compName, val));
                         break;
 
                     case Text txt:
@@ -221,28 +223,28 @@ namespace GoveKits.Runtime.UI
             _rawImages?.Clear(); _rawImages = null;
         }
 
-        #region 供子类重写的交互回调
+        #region 对外交互事件（任意逻辑可订阅）
 
-        /// <summary>按钮点击回调 - 子类重写处理具体逻辑</summary>
-        protected virtual void OnButtonClicked(string btnName) { }
+        /// <summary>按钮点击事件 - 参数为按钮名称</summary>
+        public event Action<string> ButtonClicked;
 
-        /// <summary>开关状态改变回调</summary>
-        protected virtual void OnToggleChanged(string togName, bool val) { }
+        /// <summary>开关状态改变事件 - 参数为开关名称与状态</summary>
+        public event Action<string, bool> ToggleChanged;
 
-        /// <summary>滑块值改变回调</summary>
-        protected virtual void OnSliderChanged(string sName, float val) { }
+        /// <summary>滑块值改变事件 - 参数为滑块名称与值</summary>
+        public event Action<string, float> SliderChanged;
 
-        /// <summary>原生下拉框选择改变回调</summary>
-        protected virtual void OnDropdownChanged(string dName, int val) { }
+        /// <summary>原生下拉框选择改变事件 - 参数为下拉框名称与选项索引</summary>
+        public event Action<string, int> DropdownChanged;
 
-        /// <summary>TMP 下拉框选择改变回调</summary>
-        protected virtual void OnTMPDropdownChanged(string dName, int val) { }
+        /// <summary>TMP 下拉框选择改变事件 - 参数为下拉框名称与选项索引</summary>
+        public event Action<string, int> TMPDropdownChanged;
 
-        /// <summary>原生输入框内容改变回调</summary>
-        protected virtual void OnInputChanged(string iName, string val) { }
+        /// <summary>原生输入框内容改变事件 - 参数为输入框名称与内容</summary>
+        public event Action<string, string> InputChanged;
 
-        /// <summary>TMP 输入框内容改变回调</summary>
-        protected virtual void OnTMPInputChanged(string iName, string val) { }
+        /// <summary>TMP 输入框内容改变事件 - 参数为输入框名称与内容</summary>
+        public event Action<string, string> TMPInputChanged;
 
         #endregion
     }

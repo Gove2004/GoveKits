@@ -1,13 +1,27 @@
 using GoveKits.Runtime.Util;
+using UnityEngine;
 
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
-    /// UI 面板视图基类。
-    /// 子类继承后重写生命周期方法，通过 enableXXX 开关控制需要收集的 UI 组件类型。
+    /// UI 面板视图基类，负责面板生命周期。
+    /// 组件收集由独立的 UIElementCollection 负责，通过 Elements 属性组合访问。
+    /// 子类继承后重写生命周期方法。
     /// </summary>
-    public abstract class ViewPanel : UIElementCollection
+    public abstract class ViewPanel : MonoBehaviour
     {
+        /// <summary>
+        /// 组件收集器。同 GameObject 上的 UIElementCollection 组件，
+        /// 子类通过 Elements.Buttons["BtnName"] 等方式访问 UI 组件，通过 Elements.ButtonClicked 等订阅交互事件。
+        /// 若无收集需求可忽略。
+        /// </summary>
+        protected UIElementCollection Elements { get; private set; }
+
+        protected virtual void Awake()
+        {
+            Elements = GetComponent<UIElementCollection>();
+        }
+
         /// <summary>
         /// ViewModel 通知视图更新时调用。子类根据 key 分支处理不同数据变化。
         /// </summary>
@@ -23,10 +37,10 @@ namespace GoveKits.Runtime.UI
         public virtual void OnReceiveShowParam(object param) { }
 
         /// <summary>面板显示，激活 GameObject。</summary>
-        public virtual void OnShow() => this.gameObject.SetActive(true);
+        public virtual void OnShow() => gameObject.SetActive(true);
 
         /// <summary>面板隐藏，禁用 GameObject。</summary>
-        public virtual void OnHide() => this.gameObject.SetActive(false);
+        public virtual void OnHide() => gameObject.SetActive(false);
     }
 
     /// <summary>
