@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace GoveKits.Runtime.UI
 {
     /// <summary>
@@ -11,8 +8,8 @@ namespace GoveKits.Runtime.UI
     /// </summary>
     public abstract class ViewModel
     {
-        /// <summary>绑定的视图列表，通过倒序遍历防止集合修改异常。</summary>
-        protected readonly List<ViewPanel> _views = new List<ViewPanel>();
+        /// <summary>绑定的界面（一个 ViewModel 仅对应一个 ViewPanel）。</summary>
+        private ViewPanel _view;
 
         /// <summary>
         /// 初始化回调，在 VM 首次被 UICore.GetVM 创建时自动调用（与界面类型一一对应，仅一次）。
@@ -24,45 +21,38 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
-        /// 绑定视图。绑定后立即推送一次全量刷新（OnNotify(null)），
-        /// 使视图按当前数据完成初始渲染，无需手动初始化。
+        /// 绑定界面。绑定后立即推送一次全量刷新（OnNotify(null)），
+        /// 使界面按当前数据完成初始渲染，无需手动初始化。
         /// </summary>
         public void AttachView(ViewPanel view)
         {
-            if (!_views.Contains(view))
-            {
-                _views.Add(view);
-                view.OnNotify(null);
-            }
+            _view = view;
+            view.OnNotify(null);
         }
 
         /// <summary>
-        /// 解绑视图。当视图失活或销毁时调用，避免内存泄漏。
+        /// 解绑界面。当界面失活或销毁时调用，避免内存泄漏。
         /// </summary>
         public void DetachView(ViewPanel view)
         {
-            _views.Remove(view);
+            if (_view == view) _view = null;
         }
 
         /// <summary>
-        /// 解除所有绑定的视图引用，用于清理。
+        /// 解除绑定的界面引用，用于清理。
         /// </summary>
         public void DetachAllViews()
         {
-            _views.Clear();
+            _view = null;
         }
 
         /// <summary>
-        /// 通知所有绑定的视图更新。
-        /// 倒序遍历，防止在更新过程中视图卸载导致集合修改异常。
+        /// 通知绑定的界面更新。
         /// </summary>
         /// <param name="key">更新键值，标识哪个数据发生了变化；传 null 表示全量刷新</param>
         protected void Notify(string key)
         {
-            for (int i = _views.Count - 1; i >= 0; i--)
-            {
-                _views[i].OnNotify(key);
-            }
+            _view?.OnNotify(key);
         }
     }
 }

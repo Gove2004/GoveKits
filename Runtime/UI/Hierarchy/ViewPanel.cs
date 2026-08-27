@@ -28,9 +28,6 @@ namespace GoveKits.Runtime.UI
             if (Elements == null) Elements = GetComponent<UIElements>();
         }
 
-        /// <summary>本界面绑定的 ViewModel（由 UICore 按类型持有，与界面一一对应），未绑定返回 null。</summary>
-        public abstract ViewModel GetVM();
-
         /// <summary>VM 通知入口，子类按 key 刷新界面。key 传 null 表示全量刷新。</summary>
         public virtual void OnNotify(string key) { }
 
@@ -56,8 +53,6 @@ namespace GoveKits.Runtime.UI
 
         /// <summary>本界面绑定的 ViewModel 实例（由 UICore 持有，与界面类型一一对应）。</summary>
         public TVM VM => _vm ??= UICore.GetVM<TVM>();
-
-        public override ViewModel GetVM() => VM;
 
         protected virtual void OnEnable()
         {
