@@ -1,6 +1,6 @@
 # Runtime/UI —— UI 框架
 
-MVVM 风格的 UI 框架：一个界面（`ViewPanel`）绑定一个数据模型（`ViewModel`），界面内的 UI 组件与可复用小组件（`UIItem`）由 `UIElements` 自动收集，`UICore` 统一开关界面。
+MVVM 风格的 UI 框架：一个界面（`ViewPanel`）绑定一个数据模型（`ViewModel`），界面内的 UI 组件与可复用小组件（`UIItem`）由 `UIElements` 自动收集，`UICore` 统一注册与开关界面。
 
 ## 模块架构
 
@@ -21,12 +21,13 @@ Runtime/UI/
 ## 场景搭建
 
 ```
+场景根: UIAutoRegister（自动注册所有 ViewPanel）
+
 LoginPanel (挂 LoginPanel 脚本，自动补 UIElements，勾选 enableButtons / enableTMPTexts)
 ├── LoginBtn            (Button)
 ├── StatusText          (TMP Text)
 └── UserNameInput       (挂 InputItem 脚本，自动补 UIElements)
     └── InputField      (TMP_InputField)
-场景根: UIAutoRegister
 ```
 
 ## UIElements —— 组件收集
@@ -52,8 +53,7 @@ Elements.GetItem("GoldBar");                                 // 按名称取 UII
 Elements.Rebind();
 ```
 
-- 支持的组件：Button / Toggle / Slider / Dropdown / Image / RawImage / Text / InputField / TMP 文本 / TMP 输入框 / TMP 下拉框，各有一个 Inspector 开关
-- 同名组件自动报警告并忽略（避免静默覆盖）
+支持的组件：Button / Toggle / Slider / Dropdown / Image / RawImage / Text / InputField / TMP 文本 / TMP 输入框 / TMP 下拉框，各有一个 Inspector 开关。同名组件自动报警告并忽略。
 
 ## ViewPanel —— 界面
 
@@ -108,61 +108,169 @@ Hide: OnHide() → 失活(自动解绑 VM)
 
 ## UIItem —— 可复用小组件
 
-可复用的 UI 部件，内部组件由自身 UIElements 收集，被父级界面自动收集注册。
+可复用的 UI 部件：内部组件由自身 UIElements 收集（自包含），父级界面的 UIElements 自动收集并注册它（按名称索引）。适合输入框、数量选择器、金币条、道具格子等。
 
 ```csharp
+// 1. 定义小组件 —— 内部组件勾选 enableTMPInputFields 即可使用
 public class InputItem : UIItem
 {
-    // 勾选 enableTMPInputFields 后：
     public string Value => Elements.TMPInputFields["InputField"].text;
+    public void SetValue(string v) => Elements.TMPInputFields["InputField"].text = v;
     public void Clear() => Elements.TMPInputFields["InputField"].text = "";
 }
-// 面板内：Elements.GetItem<InputItem>("UserNameInput").Value
+
+// 2. 定义带交互的小组件 —— 内部按钮勾选 enableButtons，订阅自身事件
+public class QuantityItem : UIItem
+{
+    [SerializeField] private int _max = 99;
+
+    public int Value { get; private set; } = 1;
+
+    protected override void Awake()
+    {
+        base.Awake();                                     // 必须调用
+        Elements.ButtonClicked += OnClick;                // 订阅内部按钮
+    }
+
+    protected override void OnDestroy()
+    {
+        Elements.ButtonClicked -= OnClick;                // 防泄漏
+    }
+
+    private void OnClick(string btn)
+    {
+        if (btn == "AddBtn") Value = Mathf.Min(Value + 1, _max);
+        if (btn == "SubBtn") Value = Mathf.Max(Value - 1, 1);
+        OnValueChanged?.Invoke(Value);                    // 对外事件
+    }
+
+    public event Action<int> OnValueChanged;              // 面板可订阅
+}
+
+// 3. 面板内访问（父级 UIElements 自动收集）
+Elements.GetItem<InputItem>("UserNameInput").Value;
+Elements.GetItem<QuantityItem>("CountItem").OnValueChanged += n => { ... };
 ```
+
+- `UIItem` 挂到界面内子物体上，RequireComponent 自动补 UIElements，勾选开关即可用 `Elements` 访问内部组件
+- 父级界面的收集器**自动跳过 Item 内部组件**（内部由 Item 自身的收集器管），互不干扰
+- Item 被父级按名称注册：`Elements.Items["UserNameInput"]`
 
 ## ViewModel —— 数据驱动
 
-界面数据与业务逻辑，与 ViewPanel 一一对应。数据变化 → `Notify(key)` → 界面 `OnNotify(key)` 刷新。
+界面数据与业务逻辑，与 ViewPanel 一一对应（由 UICore 按类型持有）。
 
 ```csharp
 public class LoginVM : ViewModel
 {
+    public string UserName { get; private set; }
+    public string Password { get; private set; }
     public string Status { get; private set; }
+    public bool IsBusy { get; private set; }
 
-    public override void OnInit() { /* 首次创建时初始化（读存档等） */ }
+    // 首次创建时自动调用一次（读存档、预加载等）
+    public override void OnInit() { Status = "待登录"; }
 
-    public void TryLogin()
+    // 数据变化 → Notify(key) → 界面 OnNotify(key) 刷新
+    public void SetInput(string user, string pwd)
     {
-        Status = "登录中..."; Notify("status");
-        // ... 登录逻辑
-        Status = "登录成功";   Notify("status");
+        UserName = user; Password = pwd;
+        Notify("input");                                 // 局部刷新
+    }
+
+    public async void TryLogin()
+    {
+        IsBusy = true; Status = "登录中...";
+        Notify("status");                                // 通知界面刷新状态区
+
+        await UniTask.Delay(500);                        // 模拟请求
+
+        IsBusy = false;
+        Status = UserName == "admin" ? "登录成功" : "用户名或密码错误";
+        Notify("status");
     }
 }
 ```
 
-- VM 实例由 `UICore` 按类型持有：界面内 `VM` 属性、界面外 `UICore.GetVM<LoginVM>()` 拿到**同一实例**
-- `Notify(null)` = 全量刷新；界面绑定 VM 时自动触发一次全量刷新
+方法一览：
+
+| 方法 | 谁调用 | 作用 |
+|---|---|---|
+| `OnInit()` | UICore.GetVM 首次创建 | 初始化数据（重写） |
+| `Notify(key)` | VM 内部（protected） | 通知界面刷新；key=null 全量刷新 |
+| `AttachView(view)` | ViewPanel 自动 | 绑定界面 + 推一次全量刷新 |
+| `DetachView(view)` | ViewPanel 自动 | 解绑界面 |
+
+- 界面内：`VM` 属性直接访问；界面外：`UICore.GetVM<LoginVM>()` 拿到**同一实例**
+- 多个界面切换时 VM 各自独立持有，互不污染
 
 ## UICore —— 门面
 
 ```csharp
-UICore.Show<LoginPanel>();                // 打开界面（可传参：Show<LoginPanel>(userData)）
+UICore.Show<LoginPanel>();                // 打开界面
+UICore.Show<LoginPanel>(userData);        // 带参数打开（OnReceiveShowParam 接收）
 UICore.Hide<LoginPanel>();                // 关闭界面
 UICore.GetVM<LoginVM>().Status;           // 界面外读写数据（同一实例）
 ```
 
-## 完整示例（登录界面）
+## 多界面切换
+
+界面之间切换 = 一个 Show + 一个 Hide，生命周期自动衔接（旧界面 OnHide → 失活解绑，新界面 OnReceiveShowParam → 激活绑定 → OnShow）。
 
 ```csharp
-// 1. VM —— 数据与逻辑
+// 登录成功 → 关闭登录界面，打开主菜单
+public class LoginPanel : ViewPanel<LoginVM>
+{
+    private void OnClick(string btn)
+    {
+        if (btn == "LoginBtn")
+        {
+            VM.TryLogin();
+            if (VM.Status == "登录成功")
+            {
+                UICore.Hide<LoginPanel>();
+                UICore.Show<MainMenuPanel>(VM.UserName);   // 登录名传给主菜单
+            }
+        }
+    }
+}
+
+// 主菜单接收参数
+public class MainMenuPanel : ViewPanel<MainMenuVM>
+{
+    public override void OnReceiveShowParam(object param)
+    {
+        VM.PlayerName = (string)param;
+    }
+    // OnNotify(null) 绑定即全量刷新 → 显示玩家名
+}
+```
+
+其他常见模式：
+
+```csharp
+// 返回上一界面
+UICore.Hide<MainMenuPanel>();
+UICore.Show<LoginPanel>();
+
+// 界面独立存在时直接切换（同类型重复 Show 会被去重，先 Hide 再 Show）
+UICore.Hide<SettingsPanel>();
+UICore.Show<SettingsPanel>();
+```
+
+## 完整示例（登录 → 主菜单）
+
+```csharp
+// 1. VM
 public class LoginVM : ViewModel
 {
     public string UserName { get; private set; }
     public string Status { get; private set; }
     public void Login(string user) { UserName = user; Status = "登录中..."; Notify("status"); }
+    public void Complete() { Status = "登录成功"; Notify("status"); }
 }
 
-// 2. Panel —— 界面
+// 2. Panel —— 登录界面
 public class LoginPanel : ViewPanel<LoginVM>
 {
     protected override void OnEnable()
@@ -177,17 +285,48 @@ public class LoginPanel : ViewPanel<LoginVM>
     }
     public override void OnNotify(string key)
     {
-        if (key == null)
+        if (key == null || key == "status")
             Elements.TMPTexts["StatusText"].text = VM.Status;
     }
     private void OnClick(string btn)
     {
-        if (btn == "LoginBtn")
-            VM.Login(Elements.GetItem<InputItem>("UserNameInput").Value);
+        if (btn != "LoginBtn") return;
+        VM.Login(Elements.GetItem<InputItem>("UserNameInput").Value);
+        VM.Complete();
+        UICore.Hide<LoginPanel>();                        // 切换：关登录
+        UICore.Show<MainMenuPanel>(VM.UserName);          // 开主菜单并传参
     }
 }
 
-// 3. 打开界面
+// 3. Panel —— 主菜单界面
+public class MainMenuPanel : ViewPanel<MainMenuVM>
+{
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        Elements.ButtonClicked += OnClick;
+    }
+    protected override void OnDisable()
+    {
+        base.OnDisable();
+        Elements.ButtonClicked -= OnClick;
+    }
+    public override void OnNotify(string key)
+    {
+        if (key == null)                                  // 绑定即全量刷新
+            Elements.TMPTexts["WelcomeText"].text = $"欢迎，{VM.PlayerName}";
+    }
+    public override void OnReceiveShowParam(object param)
+    {
+        VM.PlayerName = (string)param;
+    }
+    private void OnClick(string btn)
+    {
+        if (btn == "LogoutBtn") { UICore.Hide<MainMenuPanel>(); UICore.Show<LoginPanel>(); }
+    }
+}
+
+// 4. 启动
 UICore.Show<LoginPanel>();
 ```
 
