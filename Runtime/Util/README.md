@@ -107,8 +107,10 @@ PoolCore.Close();
 批量定时器调度，适合冷却、Buff 倒计时、周期性任务；与 UniTask 互补（一次性异步流程用 UniTask，系统级调度用本模块）。
 
 ```csharp
-// 初始化 + 每帧驱动（TimeCore.Setup 只调用一次，Tick 每帧调用）
+// 初始化（TimeCore.Setup 全局只调用一次）
 TimeCore.Setup();                               // 默认 50ms 精度
+
+// 每帧驱动（放在任意 MonoBehaviour 的 Update 中）
 void Update() => TimeCore.Tick(Time.deltaTime);
 
 // 一次性定时
@@ -180,16 +182,17 @@ AudioManager.Instance;                          // 获取（场景中已有则�
 实体生成与销毁的统一管理（工厂注册 + 全局 ID + 生命周期事件）。
 
 ```csharp
-// 1. 实体实现 ISpawnable
+// 1. 实体实现 ISpawnable（构造注入 ID）
 public class Enemy : ISpawnable
 {
     public string SpawnKey => "enemy";
-    public uint ObjectId { get; private set; }
+    public uint ObjectId { get; }
+    public Enemy(uint id) => ObjectId = id;
 }
 
 // 2. 注册工厂与销毁回调
 SpawnCore.Register("enemy",
-    (id, data) => new Enemy { ObjectId = id },          // 工厂
+    (id, data) => new Enemy(id),                        // 工厂（Spawn 时传入分配的 ID）
     e => /* 清理资源 */);                                // 销毁回调
 
 // 3. 生成 / 销毁 / 查询
