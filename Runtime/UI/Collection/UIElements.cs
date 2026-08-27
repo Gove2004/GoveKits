@@ -8,13 +8,14 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// UI 元素自动收集组件。
-    /// 独立挂载在任意 GameObject 上，扫描子物体中的指定 UI 组件并按名称索引，供其他逻辑访问。
+    /// 独立挂载在任意 GameObject 上，扫描子物体中的 UI 组件（Button/Text 等）与 UIItem 小组件，按名称索引，供其他逻辑访问。
     ///
     /// 核心功能：
     /// 1. 按开关扫描子对象中的指定 UI 组件
-    /// 2. 按名称索引存储到字典中，便于代码访问
-    /// 3. 自动绑定事件监听，通过 C# 事件对外暴露（ButtonClicked 等）
-    /// 4. 支持原生 UI 和 TextMeshPro 组件
+    /// 2. 自动收集子级 UIItem 小组件（Item 内部组件由 Item 自身的收集器管理）
+    /// 3. 按名称索引存储到字典中，便于代码访问
+    /// 4. 自动绑定事件监听，通过 C# 事件对外暴露（ButtonClicked 等）
+    /// 5. 支持原生 UI 和 TextMeshPro 组件
     ///
     /// 性能优化：
     /// 通过 enableXXX 开关控制是否需要扫描某类组件，避免不必要的字典和监听器开销。
@@ -22,7 +23,8 @@ namespace GoveKits.Runtime.UI
     ///
     /// 使用方式：
     /// 将本组件挂到面板 GameObject 上，在编辑器中勾选需要的 UI 组件类型，
-    /// 外部通过 Elements.Buttons["BtnName"] 等方式访问组件，通过 Elements.ButtonClicked 订阅交互事件。
+    /// 外部通过 Elements.Buttons["BtnName"]、Elements.GetItem&lt;T&gt;("ItemName") 等方式访问组件，
+    /// 通过 Elements.ButtonClicked 订阅交互事件。
     /// </summary>
     public class UIElements : MonoBehaviour
     {
@@ -109,12 +111,24 @@ namespace GoveKits.Runtime.UI
         /// <summary>TMP 下拉框字典 - 按名称索引</summary>
         protected Dictionary<string, TMP_Dropdown> TMPDropdowns => _tmpDropdowns ??= new Dictionary<string, TMP_Dropdown>();
 
+        private Dictionary<string, UIItem> _items;
+        /// <summary>子级 Item（小组件）字典 - 按名称索引（自动收集，Item 内部组件由 Item 自身的收集器管理）</summary>
+        public Dictionary<string, UIItem> Items => _items ??= new Dictionary<string, UIItem>();
+
         #endregion
 
         protected virtual void Awake()
         {
             AutoBindUIElements();
         }
+
+        /// <summary>按名称获取 Item，未注册返回 null。</summary>
+        public UIItem GetItem(string name)
+            => Items.TryGetValue(name, out var item) ? item : null;
+
+        /// <summary>按名称获取指定类型的 Item。</summary>
+        public T GetItem<T>(string name) where T : UIItem
+            => GetItem(name) as T;
 
         /// <summary>
         /// 重新收集并绑定所有启用的 UI 元素。
@@ -144,6 +158,7 @@ namespace GoveKits.Runtime.UI
             _tmpTexts?.Clear(); _tmpTexts = null;
             _images?.Clear(); _images = null;
             _rawImages?.Clear(); _rawImages = null;
+            _items?.Clear(); _items = null;
 
             ButtonClicked = null;
             ToggleChanged = null;
@@ -234,6 +249,13 @@ namespace GoveKits.Runtime.UI
                             TryCache(ref _rawImages, compName, rawImg);
                         break;
                 }
+            }
+
+            // 收集子级 UIItem（小组件），按名称索引；Item 内部组件由 Item 自身的收集器管理
+            foreach (var item in GetComponentsInChildren<UIItem>(true))
+            {
+                if (item.transform == transform) continue;   // 不收集自身
+                TryCache(ref _items, item.name, item);
             }
         }
 

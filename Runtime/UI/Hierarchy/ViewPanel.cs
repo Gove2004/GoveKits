@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using GoveKits.Runtime.Util;
 using UnityEngine;
 
@@ -6,7 +5,7 @@ namespace GoveKits.Runtime.UI
 {
     /// <summary>
     /// 界面面板基类（ViewPanel 层）。
-    /// 一个界面 = 一个面板（如登录界面），绑定一个 ViewModel，包含若干可复用的 UIItem。
+    /// 一个界面 = 一个面板（如登录界面），绑定一个 ViewModel，UI 组件与 UIItem 均由 UIElements 收集。
     ///
     /// 层级：ViewPanel（界面，挂 UIElements）→ UIItem（小组件，自挂 UIElements）
     ///
@@ -15,38 +14,22 @@ namespace GoveKits.Runtime.UI
     ///   Hide: OnHide() → 失活(自动解绑 VM)
     ///
     /// 组件访问：Elements.Buttons["BtnName"]、Elements.ButtonClicked 等
-    /// Item 访问：GetItem&lt;T&gt;("UserNameInput")
+    /// Item 访问：Elements.GetItem&lt;T&gt;("UserNameInput")
     /// 数据访问：VM（泛型版直接持有）
     /// </summary>
     [RequireComponent(typeof(UIElements))]
     public abstract class ViewPanel : MonoBehaviour
     {
-        /// <summary>组件收集器，Inspector 自动填充（RequireComponent 保证存在）。</summary>
+        /// <summary>组件收集器（收集本面板的 UI 组件与子级 UIItem），Inspector 自动填充。</summary>
         [SerializeField] protected UIElements Elements;
-
-        /// <summary>子级 Item 字典 - 按名称索引（Awake 自动收集）。</summary>
-        protected readonly Dictionary<string, UIItem> _items = new();
-
-        /// <summary>本界面绑定的 ViewModel（由 UICore 按类型持有，与界面一一对应），未绑定返回 null。</summary>
-        public abstract ViewModel GetVM();
 
         protected virtual void Awake()
         {
             if (Elements == null) Elements = GetComponent<UIElements>();
-
-            foreach (var item in GetComponentsInChildren<UIItem>(true))
-            {
-                _items.TryAdd(item.name, item);
-            }
         }
 
-        /// <summary>按名称获取 Item，未注册返回 null。</summary>
-        protected UIItem GetItem(string name)
-            => _items.TryGetValue(name, out var item) ? item : null;
-
-        /// <summary>按名称获取指定类型的 Item。</summary>
-        protected T GetItem<T>(string name) where T : UIItem
-            => GetItem(name) as T;
+        /// <summary>本界面绑定的 ViewModel（由 UICore 按类型持有，与界面一一对应），未绑定返回 null。</summary>
+        public abstract ViewModel GetVM();
 
         /// <summary>VM 通知入口，子类按 key 刷新界面。key 传 null 表示全量刷新。</summary>
         public virtual void OnNotify(string key) { }
