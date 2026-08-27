@@ -19,17 +19,16 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public static class LogCore
     {
-        /// <summary>当前最低日志等级，低于此等级的日志将被过滤。</summary>
         private static LogLevel logLevel = LogLevel.Debug;
-        /// <summary>已注册的日志后端列表，按注册顺序依次输出。</summary>
         private static List<ILogger> loggers = new();
 
         /// <summary>
-        /// 日志分发事件。在所有日志发送给 ILogger 后端之前触发。
+        /// 日志分发事件。在日志发送给各后端之前触发，
         /// 参数依次为：日志等级、标签、消息内容、颜色代码。
         /// </summary>
         public static event Action<LogLevel, string, string, string> OnLog;
 
+        /// <summary>关闭所有已注册的日志后端（由 GoveCore.Close 调用）。</summary>
         public static void Close()
         {
             foreach (var logger in loggers)
@@ -40,7 +39,6 @@ namespace GoveKits.Runtime.Util
                 }
                 catch (Exception e)
                 {
-                    // 单个 logger 关闭失败不影响其余 logger 的关闭（直连 Debug 防递归）
                     UnityEngine.Debug.LogError($"[LogCore] Logger {logger.GetType().Name} 关闭失败: {e.Message}");
                 }
             }
@@ -75,10 +73,6 @@ namespace GoveKits.Runtime.Util
             loggers.Add(logger);
         }
 
-        /// <summary>
-        /// 核心日志分发逻辑：检查等级阈值、触发 OnLog 事件、逐个调用已注册的 ILogger。
-        /// 单个 logger 抛出异常不会影响其他 logger 的执行。
-        /// </summary>
         private static void DispatchLog(LogLevel level, string tag, string message, string colorHex)
         {
             if (level < logLevel)
@@ -96,7 +90,6 @@ namespace GoveKits.Runtime.Util
                 }
                 catch (Exception e)
                 {
-                    // 单个 logger 异常不影响其他 logger（直连 Debug 防递归）
                     UnityEngine.Debug.LogError($"[LogCore] Logger {loggers[i].GetType().Name} 日志输出失败: {e.Message}");
                 }
             }

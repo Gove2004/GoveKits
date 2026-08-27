@@ -4,30 +4,19 @@ using System.Collections.Generic;
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 时间轮定时器调度器，基于环形槽位 + 链表实现高精度定时。
-    /// 支持暂停、恢复、取消和循环定时器。
-    /// 定时器对象由 PoolCore 池化管理以减少 GC 压力。
+    /// 时间轮定时器调度器，支持高精度定时、暂停、恢复、取消和循环定时器。
+    /// 内部实现类，外部通过 TimeCore 使用，通常无需直接操作。
     /// </summary>
     public class TimeWheel
     {
-        /// <summary>每次 tick 的时间跨度（秒），决定定时精度。</summary>
         private readonly float _tickDuration;
-        /// <summary>环形槽位数量，决定单轮可容纳的 tick 数。</summary>
         private readonly int _wheelSize;
-        /// <summary>环形槽位链表数组，每个槽位挂载该 tick 到期的定时器。</summary>
         private readonly LinkedList<Timer>[] _slots;
 
-        /// <summary>当前已推进的 tick 总数（单调递增）。</summary>
         private long _currentTick;
-        /// <summary>未满一个 tick 的累积增量时间。</summary>
         private float _accumulatedTime;
 
-        /// <summary>待回收定时器队列，统一归还 PoolCore 以复用 Timer 对象。</summary>
         private readonly Queue<Timer> _recycleQueue = new(32);
-        /// <summary>
-        /// 在处理当前槽位期间通过 AddTimer 加入的新定时器暂存于此。
-        /// 等当前槽位处理完毕后再统一插入目标位置，避免修改正在遍历的链表。
-        /// </summary>
         private readonly List<(Timer timer, float delay)> _pendingTimers = new();
 
         /// <summary>当前时间轮已经过的 tick 总数。</summary>

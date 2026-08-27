@@ -3,13 +3,12 @@ using System.Collections.Generic;
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 纯 C# 泛型对象池，基于 Stack 实现。
-    /// 适用于实现了 IPoolable 接口的纯托管引用类型（如数据对象、事件等）。
+    /// 纯 C# 泛型对象池，适用于实现了 IPoolable 接口的纯托管引用类型（如数据对象、事件等）。
+    /// 通过 PoolCore 创建与使用（自动预热、按类型单例），通常无需直接实例化。
     /// </summary>
     /// <typeparam name="T">必须是无参构造函数且实现 IPoolable 的引用类型</typeparam>
     public class CSharpPool<T> : IPool, IPool<T> where T : class, IPoolable, new()
     {
-        /// <summary>缓存的空闲对象栈。</summary>
         private readonly Stack<T> stack;
 
         /// <summary>池中当前缓存的对象数量。</summary>

@@ -24,17 +24,15 @@ namespace GoveKits.Runtime.Util
     }
 
     /// <summary>
-    /// MonoBehaviour 单例基类。
-    /// 场景中已有实例则复用；否则首次访问 Instance 时自动创建。
-    /// 实例统一挂到 DontDestroyOnLoad 容器下。
+    /// MonoBehaviour 单例基类。首次访问 Instance 时从场景查找或自动创建，实例统一挂到 DontDestroyOnLoad 容器下。
+    /// 适用于需要 MonoBehaviour 生命周期（Update/协程等）的全局单例。
     /// </summary>
     public abstract class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
-        /// <summary>单例实例，首次访问 Instance 时从场景查找或自动创建。</summary>
         private static T _instance;
-        /// <summary>标记 Init 是否已调用，避免重复初始化。</summary>
         private bool _initialized;
 
+        /// <summary>单例实例，首次访问时自动创建（场景中已有则复用）。</summary>
         public static T Instance
         {
             get

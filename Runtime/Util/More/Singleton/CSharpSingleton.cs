@@ -1,16 +1,15 @@
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 纯 C# 单例基类。
-    /// 首次访问 Instance 时创建，DestroyInstance 时销毁。
+    /// 纯 C# 单例基类。首次访问 Instance 时创建，DestroyInstance 时销毁。
+    /// 适用于不依赖 MonoBehaviour 的纯逻辑单例。
     /// </summary>
     public abstract class CSharpSingleton<T> where T : CSharpSingleton<T>, new()
     {
-        /// <summary>单例实例，首次访问 Instance 时惰性创建。</summary>
         private static T _instance;
-        /// <summary>标记 Init 是否已调用，避免重复初始化。</summary>
         private static bool _initialized;
 
+        /// <summary>单例实例，首次访问时自动创建并调用 Init。</summary>
         public static T Instance
         {
             get
@@ -25,6 +24,7 @@ namespace GoveKits.Runtime.Util
             }
         }
 
+        /// <summary>销毁单例实例，销毁前自动调用 Uninit。</summary>
         public static void DestroyInstance()
         {
             if (_instance == null)

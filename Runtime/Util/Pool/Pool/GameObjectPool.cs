@@ -15,21 +15,20 @@ namespace GoveKits.Runtime.Util
 
 
     /// <summary>
-    /// Unity GameObject 对象池，基于 Stack 实现。
-    /// 支持预热、容量上限控制，回收时自动递归调用子物体上所有 IPoolable.OnRecycle。
+    /// Unity GameObject 对象池，支持预热、容量上限控制，回收时自动递归调用子物体上所有 IPoolable.OnRecycle。
+    /// 通过 PoolCore 创建与使用（按预制体单例），通常无需直接实例化。
     /// </summary>
     public class GameObjectPool : IPool, IPool<GameObject>
     {
-        /// <summary>池的预制体模板，实例化新对象时使用。</summary>
         private readonly GameObject prefab;
-        /// <summary>缓存的未激活对象栈。</summary>
         private readonly Stack<GameObject> stack = new();
 
-        /// <summary>池中当前缓存的激活对象数量。</summary>
+        /// <summary>池中当前缓存的对象数量。</summary>
         public int Count => stack.Count;
         /// <summary>对象池的最大容量，超出容量的对象在归还时将被销毁。</summary>
         public int Capacity { get; private set; }
 
+        /// <summary>创建指定预制体与容量的 GameObject 对象池（通常由 PoolCore 调用）。</summary>
         public GameObjectPool(GameObject prefab, int maxSize)
         {
             this.prefab = prefab;
@@ -38,7 +37,6 @@ namespace GoveKits.Runtime.Util
 
         /// <summary>
         /// 预热池，预先实例化并缓存指定数量的对象。
-        /// 新实例的SetActive 设为 false 以节省性能。
         /// </summary>
         /// <param name="count">要预热的对象数量</param>
         public void Warmup(int count)

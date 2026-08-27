@@ -5,17 +5,13 @@ namespace GoveKits.Runtime.Util
 {
     /// <summary>
     /// 实体生成与销毁的统一管理器。
-    /// 管理工厂注册、实体生命周期追踪和全局 ID 分配。
+    /// 通过 Register 注册工厂，Spawn/Despawn 创建与销毁实体，实体生命周期由本模块统一追踪。
     /// </summary>
     public static class SpawnCore
     {
-        /// <summary>实体工厂注册表，以 SpawnKey 为键，用于创建实体实例。</summary>
         private static Dictionary<string, Func<uint, ISpawnData, ISpawnable>> spawnFactories = new();
-        /// <summary>实体销毁回调注册表，以 SpawnKey 为键，用于清理实体资源。</summary>
         private static Dictionary<string, Action<ISpawnable>> despawnActions = new();
-        /// <summary>当前存活实体表，以 ObjectId 为键。</summary>
         private static Dictionary<uint, ISpawnable> spawnedEntities = new();
-        /// <summary>全局对象 ID 计数器，从 100 开始递增。</summary>
         private static uint idCounter = 100;
 
         /// <summary>实体生成后触发，携带刚生成的实体引用。</summary>

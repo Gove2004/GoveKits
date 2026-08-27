@@ -5,19 +5,18 @@ using System.Linq;
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 标准随机数生成器，基于 System.Random 实现。
-    /// 适用于单线程（主线程）环境，多线程场景请自行加锁或各线程独立实例。
+    /// 标准随机数生成器，System.Random 实现。
+    /// 适用于单线程（主线程）环境，多线程场景请各线程独立实例。
     /// </summary>
     public class NormalRNG : IRNG
     {
-        /// <summary>底层随机数源，Reseed 时重建以重置序列。</summary>
         private Random _random;
 
         /// <summary>当前种子值。</summary>
         public int Seed { get; private set; }
 
         /// <summary>
-        /// 使用指定种子创建 NormalRNG 实例。
+        /// 使用指定种子创建实例。同一种子产生相同随机序列，可用于结果复现。
         /// </summary>
         /// <param name="seed">随机种子</param>
         public NormalRNG(int seed)
@@ -26,7 +25,7 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
-        /// 重新设置种子，创建一个新的 Random 实例以重置随机序列。
+        /// 重新设置种子，重置随机序列。
         /// </summary>
         /// <param name="seed">新的种子值</param>
         public void Reseed(int seed)

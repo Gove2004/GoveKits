@@ -1,236 +1,205 @@
-# Util 模块
+# Runtime/Util —— 基础工具库
 
-> 命名空间：`GoveKits.Runtime.Util` | 位置：`Runtime/Util/`
->
-> 基础能力集合：日志、事件、对象池、时间调度、实体生成与通用工具。不依赖任何其他 GoveKits 模块，由 `GoveCore.Setup()` 自动就绪。
+面向游戏运行时的轻量基础能力：事件、日志、对象池、时间轮与通用工具，全部以静态 `*Core` 门面为统一入口。
 
-## Event 事件系统
+## 模块架构
 
-强类型 + 池化的事件总线：事件对象复用对象池，发布零 GC；支持优先级排序、过滤、中断传播。
+```
+Runtime/Util/
+├── Event/          事件系统 —— 池化事件 + 优先级/过滤/中断分发
+├── Log/            日志系统 —— 等级过滤 + 多后端输出（Console/文件/自定义）
+├── Pool/           对象池   —— C# 对象池 + GameObject 对象池
+├── Time/           时间轮   —— 一次性/循环定时器，可暂停恢复取消
+└── More/           工具集   —— DisposeAction / Bezier / RNG / Singleton / Spawn
+```
 
-**定义事件**（继承 `EventData`）：
+## Event —— 事件系统
+
+池化事件，发布自动回收零 GC；支持优先级（Priority 越大越先）、过滤（OnFilter）和中断（IsBreak）。
 
 ```csharp
+// 1. 定义事件数据（继承 EventData，实现 OnRecycle 重置状态）
 public class DamageEvent : EventData
 {
+    public int Damage;
     public int TargetId;
-    public int Amount;
-
-    // 归还池时调用，必须重置所有字段，防止复用脏数据
-    public override void OnRecycle()
-    {
-        TargetId = 0;
-        Amount = 0;
-    }
+    public override void OnRecycle() { Damage = 0; TargetId = 0; IsBreak = false; }
 }
-```
 
-**发布**（Get 与 Publish 配对，框架自动池化）：
-
-```csharp
-var evt = EventCore.Pick<DamageEvent>();   // 从池取，不要 new
-evt.TargetId = enemy.Id;
-evt.Amount = 50;
-EventCore.Publish(evt);                        // 分发后自动归还池
-```
-
-**订阅**（实现 `IEventListener<T>`，返回取消凭证）：
-
-```csharp
-public class CombatListener : IEventListener<DamageEvent>
+// 2. 实现监听器（或用 Subscribe 的 IEventListener）
+public class DamageLogger : IEventListener<DamageEvent>
 {
-    public int Priority => 100;                              // 越大越先执行
-    public bool OnFilter(DamageEvent e) => e.Amount > 0;     // 返回 false 则跳过
-    public void OnEvent(DamageEvent e) { /* 处理 */ }
+    public int Priority => 0;                              // 越大越先执行
+    public bool OnFilter(DamageEvent evt) => evt.Damage > 0;  // 返回 false 跳过
+    public void OnEvent(DamageEvent evt) => LogCore.Info("战斗", $"目标{evt.TargetId} 受击 {evt.Damage}");
 }
 
-IDisposable handle = EventCore.Subscribe(new CombatListener());
-handle.Dispose();   // 取消订阅
+// 3. 订阅 / 取消订阅
+var sub = EventCore.Subscribe<DamageEvent>(new DamageLogger());
+sub.Dispose();                                            // 取消订阅
+
+// 4. 发布（Pick 从池取，Publish 自动归还，禁止 new）
+var evt = EventCore.Pick<DamageEvent>();
+evt.Damage = 10; evt.TargetId = 3;
+EventCore.Publish(evt);                                   // 发布后自动回收
+
+// 中断传播：监听器内 evt.IsBreak = true 可阻止后续监听器执行
 ```
 
-**要点**
-- 事件对象一律走 `Pick` / `Publish`，禁止 `new`、禁止手动归还
-- `OnRecycle` 重置所有字段（引用类型置 null），否则会读到上一条事件的脏数据
-- 监听器中把 `eventData.IsBreak = true` 可中断后续监听器
-- 高频事件（伤害/击杀/状态变化）优先用它；低频跨模块广播也适用
+## Log —— 日志系统
 
-## Log 日志
-
-统一日志入口，等级过滤 + 多后端分发。框架内日志一律走 `LogCore`。
-
-**基础用法**：
+统一日志入口，按等级过滤，可注入多个输出后端。
 
 ```csharp
-LogCore.SetLogLevel(LogLevel.Debug);          // 低于此等级的不输出
+// 基本用法（tag 标识来源模块，colorHex 控制 Console 颜色）
+LogCore.Debug("模块A", "调试信息");
+LogCore.Info("模块A", "运行消息");
+LogCore.Warning("模块A", "潜在问题");
+LogCore.Error("模块A", "功能异常");
+LogCore.Success("模块A", "操作成功");          // 绿色
+LogCore.Highlight("模块A", "重点消息");        // 青色
+LogCore.Log("快捷日志");                        // 默认 Info + "Log" 标签
 
-LogCore.Verbose("Tag", "琐碎信息");
-LogCore.Debug("Tag", "流程跟踪");
-LogCore.Info("Battle", "回合开始");
-LogCore.Warning("Config", $"缺少配置: {id}");
-LogCore.Error("Network", "连接超时");
+// 过滤：只输出 Warning 及以上（默认 Debug，全部输出）
+LogCore.SetLogLevel(LogLevel.Warning);
 
-LogCore.Log("无标签快捷日志");
-LogCore.Success("Save", "存档完成");           // 绿色
-LogCore.Highlight("UI", "重点信息");           // 青色
-LogCore.Temp("Dev", "临时调试");               // 紫色
-```
-
-**自定义后端**（实现 `ILogger`，多个后端并存）：
-
-```csharp
+// 自定义输出后端：实现 ILogger 即可
 public class MyLogger : ILogger
 {
-    public void Log(LogLevel level, string tag, string message, string colorHex = null)
-    {
-        // colorHex 为富文本颜色（文件等后端可忽略）
-    }
-    public void Close() { }   // 释放文件句柄等资源
+    public void Log(LogLevel level, string tag, string message, string colorHex = null) { /* 发送到服务器 */ }
+    public void Close() { }
 }
+LogCore.AddLogger(new MyLogger());              // 可同时挂多个后端
 
-LogCore.AddLogger(new MyLogger());
-LogCore.AddLogger(new FileLogger(Path.Combine(Application.persistentDataPath, "log.txt")));
+// 拦截日志（发送给后端之前触发）
+LogCore.OnLog += (level, tag, msg, color) => { /* 采集分析 */ };
 ```
 
-**要点**
-- 业务代码不直接 `Debug.Log`，统一走 `LogCore` 便于等级过滤与多端输出
-- 单个后端抛异常不影响其他后端（已隔离）
-- `OnLog` 事件可在分发前拦截/采集（如上报服务器）
+## Pool —— 对象池
 
-## Pool 对象池
-
-双池架构：C# 纯托管对象池 + GameObject 池，降低高频创建/销毁的 GC 与实例化开销。
-
-**C# 对象池**（实现 `IPoolable` 的托管对象）：
+C# 对象池（减少 GC 分配）与 GameObject 对象池（复用实例化）。
 
 ```csharp
+// C# 对象池：对象实现 IPoolable，归还时自动 OnRecycle
 public class BulletData : IPoolable
 {
-    public Vector3 Dir;
-
-    public void OnRecycle() { Dir = Vector3.zero; }   // 归还时重置
+    public int Damage;
+    public void OnRecycle() => Damage = 0;      // 归还时重置状态
 }
 
-var data = PoolCore.Get<BulletData>();    // 首次调用自动建池 + 预热 8 个
-PoolCore.Return(data);                    // 归还，自动调 OnRecycle
+var data = PoolCore.Get<BulletData>();          // 获取（自动创建/预热池）
+data.Damage = 50;
+PoolCore.Return(data);                          // 归还（自动 OnRecycle）
+PoolCore.Clear<BulletData>();                   // 清理该类型池
+
+// GameObject 对象池
+var go = PoolCore.Get(bulletPrefab);            // 获取实例（自动激活）
+// ... 使用后归还
+PoolCore.Return(go);                            // 归还（自动失活，子物体 OnRecycle）
+PoolCore.Clear(bulletPrefab);                   // 清理该预制体池
+
+// 生命周期内统一关闭（通常由 GoveCore.Close 调用）
+PoolCore.Close();
 ```
 
-**GameObject 池**（预制体复用，归还自动归还原池）：
+## Time —— 时间轮
+
+批量定时器调度，适合冷却、Buff 倒计时、周期性任务；与 UniTask 互补（一次性异步流程用 UniTask，系统级调度用本模块）。
 
 ```csharp
-GameObjectPool pool = PoolCore.Create(bulletPrefab, count: 16, maxSize: 64);
-GameObject go = PoolCore.Get(bulletPrefab);   // 池空自动实例化
-PoolCore.Return(go);                          // 自动归还原池；无归属则销毁
-```
-
-**要点**
-- 池化对象归还时自动调 `OnRecycle`，必须在里面重置状态
-- 同类型/同预制体只建一个池，重复 `Create` 拿的是已有池
-- 超出 `maxSize` 的对象在归还时被销毁（不保留）
-- 弹幕、特效、飘字、纯数据对象适合池化；归还时子物体上的 `IPoolable` 会被递归调用
-
-## Time 定时调度
-
-基于时间轮的批量定时器，Timer 对象池化。适合冷却、Buff、周期任务等**需要统一管理**的调度场景。
-
-```csharp
-// 一次性：2 秒后触发一次
-Timer t1 = TimeCore.Once(2f, () => LogCore.Log("2秒后触发"));
-
-// 循环：每 0.5 秒一次，共 3 次（loopCount = -1 无限循环）
-Timer t2 = TimeCore.Loop(0.5f, () => LogCore.Log("tick"), loopCount: 3);
-
-// 控制：暂停 / 恢复 / 取消
-t1.Pause();
-t1.Resume();
-t1.Cancel();
-```
-
-**每帧驱动**（时间轮需要推进，放在任意 `MonoBehaviour.Update`）：
-
-```csharp
+// 初始化 + 每帧驱动（TimeCore.Setup 只调用一次，Tick 每帧调用）
+TimeCore.Setup();                               // 默认 50ms 精度
 void Update() => TimeCore.Tick(Time.deltaTime);
+
+// 一次性定时
+var t1 = TimeCore.Once(2f, () => LogCore.Log("2秒后触发"));
+
+// 循环定时（无限循环 / 指定次数）
+var t2 = TimeCore.Loop(1f, () => LogCore.Log("每秒一次"));        // loopCount=-1 无限
+var t3 = TimeCore.Loop(0.5f, OnTick, 10);                        // 10 次后自动停止
+
+// 暂停 / 恢复 / 取消
+t2.Pause();                                     // 暂停倒计时
+t2.Resume();                                    // 继续
+t3.Cancel();                                    // 取消并回收
 ```
 
-**要点**
-- 创建的 `Timer` 务必持有引用，否则无法中途 `Cancel`
-- 一次性异步流程（等 2 秒做某事）用 UniTask，冷却/周期/Buff 用 `TimeCore`，各司其职
-- 回调里再创建定时器是安全的（内部已做延迟插入处理）
-- 单定时器回调抛异常不影响其他定时器
+## More —— 工具集
 
-## Spawn 实体生成
-
-工厂注册制管理业务实体的生成与销毁，实体持有全局唯一 `ObjectId`。
+### DisposeAction
+把任意动作包装成 IDisposable，用于订阅凭证等场景。
 
 ```csharp
-// 启动时注册（同 key 重复注册会覆盖并告警）
-SpawnCore.Register("Enemy",
-    (id, data) => new EnemyEntity(id, (EnemySpawnData)data),   // 工厂
-    e => ((EnemyEntity)e).Release());                          // 销毁回调
-
-// 生成 / 销毁 / 查询
-ISpawnable entity = SpawnCore.Spawn("Enemy", new EnemySpawnData { Hp = 100 });
-uint id = entity.ObjectId;
-SpawnCore.Despawn(id);
-ISpawnable found = SpawnCore.GetEntity(id);
-
-// 遍历存活实体
-List<EnemyEntity> enemies = SpawnCore.GetAllEntitiesOfType<EnemyEntity>();
-
-// 生命周期事件
-SpawnCore.OnEntitySpawned += e => { /* 实体生成 */ };
-SpawnCore.OnEntityDespawned += e => { /* 实体销毁 */ };
+var sub = new DisposeAction(() => LogCore.Log("释放时执行"));
+sub.Dispose();                                  // 触发动作
 ```
 
-**要点**
-- 与 Pool 的分工：**Pool 管渲染对象复用**（弹幕/特效），**Spawn 管业务实体**（带 ID、有工厂与销毁逻辑）
-- `Spawn` 可传 `predefinedId` 用于服务器权威的 ID 同步
-- `Despawn` 幂等，重复销毁仅告警
-
-## More 通用工具
-
-无门面的独立工具，按需取用：
+### Bezier
+n 次贝塞尔曲线点位计算（Vector3 / Vector2）。
 
 ```csharp
-// DisposeAction —— 订阅凭证等场景，Dispose 时执行回调（struct，零闭包分配）
-IDisposable handle = new DisposeAction(() => LogCore.Log("disposed"));
+Vector3[] points = { start, control, end };
+Vector3 pos = Bezier.Calculate(0.5f, points);  // t ∈ [0,1]，曲线上的点
+```
 
-// Bezier —— n 次贝塞尔曲线点位
-Vector3 pos = Bezier.Calculate(0.5f, p0, p1, p2);
+### RNG
+可注入、可复现种子的随机数生成器（IRNG 接口 + NormalRNG 默认实现）。
 
-// IRNG / NormalRNG —— 可注入随机数，种子可控可复现
-IRNG rng = new NormalRNG(seed: 42);       // 可复现场景用独立实例
-rng.Reseed(20260827);                     // 重设种子重置序列
-int n = rng.Range(0, 100);
-float g = rng.NextGaussian(mean: 0f, stdDev: 1f);
-var picked = rng.Pick(weaponList);        // 等概率抽取
-var subset = rng.PickMultiple(monsterList, 3);   // 无放回抽取
-var winner = rng.PickWeighted(items, i => i.Weight);  // 权重轮盘赌
-rng.Shuffle(cards);                       // Fisher-Yates 洗牌
+```csharp
+var rng = new NormalRNG(seed: 42);              // 同种子 = 同序列，可复现
+int n = rng.Range(1, 100);                      // [1, 99] 整数
+float f = rng.Range(0f, 1f);                    // [0, 1] 浮点
+bool hit = rng.Chance(0.3f);                    // 30% 概率
+var item = rng.Pick(itemList);                  // 等概率抽取
+var drops = rng.PickMultiple(pool, 3);          // 无放回抽 3 个
+var winner = rng.PickWeighted(items, x => x.Weight);  // 按权重轮盘赌
+rng.Shuffle(cards);                             // 原地洗牌
+float g = rng.NextGaussian(0f, 1f);             // 正态分布
+```
 
-// CSharpSingleton —— 纯 C# 单例
+### Singleton
+CSharpSingleton（纯逻辑）与 MonoSingleton（挂 GameObject，DontDestroyOnLoad）。
+
+```csharp
+// 纯逻辑单例
 public class GameConfig : CSharpSingleton<GameConfig>
 {
-    protected override void Init() { }     // 首次创建后调用一次
+    protected override void Init() { }          // 首次创建时调用
 }
-GameConfig.Instance.DoSomething();
+GameConfig.Instance;                            // 获取
 
-// MonoSingleton —— MonoBehaviour 单例，自动挂载 DontDestroyOnLoad 容器
+// MonoBehaviour 单例（需要 Update/协程时用）
 public class AudioManager : MonoSingleton<AudioManager>
 {
-    protected override void Init() { }     // Awake 中首次调用
+    protected override void Init() { }          // 首次创建时调用
 }
-AudioManager.Instance.PlayBgm();
+AudioManager.Instance;                          // 获取（场景中已有则复用，否则自动创建）
 ```
 
-**要点**
-- 可复现场景（肉鸽生成、战斗随机）用 `NormalRNG` 独立实例 + 种子；不要依赖 `UnityEngine.Random`（全局序列不可控）
-- 纯逻辑用 `CSharpSingleton`，需要 MonoBehaviour 生命周期（Update/协程）才用 `MonoSingleton`
-- `DisposeAction` 是 struct，`EventCore.Subscribe` 返回的即是它，无需手动释放
+### Spawn
+实体生成与销毁的统一管理（工厂注册 + 全局 ID + 生命周期事件）。
 
-## 与外部库的分工
+```csharp
+// 1. 实体实现 ISpawnable
+public class Enemy : ISpawnable
+{
+    public string SpawnKey => "enemy";
+    public uint ObjectId { get; private set; }
+}
 
-| 库 | 分工 |
-|---|---|
-| UniTask | 一次性异步流程（等待、协程替代），与 `TimeCore` 互补 |
-| DOTween | 补间动画，与 `Bezier`（几何曲线）用途不同 |
-| UnityEngine.Random | 非种子可控的临时随机，正式玩法逻辑用 `IRNG` |
+// 2. 注册工厂与销毁回调
+SpawnCore.Register("enemy",
+    (id, data) => new Enemy { ObjectId = id },          // 工厂
+    e => /* 清理资源 */);                                // 销毁回调
+
+// 3. 生成 / 销毁 / 查询
+var enemy = SpawnCore.Spawn("enemy");                   // 生成（自动分配 ID）
+uint id = enemy.ObjectId;
+SpawnCore.Despawn(id);                                  // 销毁（触发销毁回调 + OnEntityDespawned）
+var e = SpawnCore.GetEntity(id);                        // 按 ID 查询
+var all = SpawnCore.GetAllEntitiesOfType<Enemy>();      // 按类型查询
+
+// 4. 生命周期事件
+SpawnCore.OnEntitySpawned += e => { };
+SpawnCore.OnEntityDespawned += e => { };
+```

@@ -4,19 +4,17 @@ using System.Collections.Generic;
 namespace GoveKits.Runtime.Util
 {
     /// <summary>
-    /// 事件总线，负责按事件类型管理和分发监听器。
-    /// 支持优先级排序、过滤器拦截和中断传播（IsBreak）。
-    /// 内部通过 object-dictionary 桥接泛型与非泛型注册表。
+    /// 事件总线，负责按事件类型管理和分发监听器（EventCore 内部使用，通常无需直接操作）。
+    /// 支持优先级排序（Priority 越大越先执行）、过滤器拦截（OnFilter）和中断传播（IsBreak）。
     /// </summary>
     public sealed class EventBus : IDisposable
     {
-        // Value 使用 object，实际存储的是 List<IEventListener<T>>
         private readonly Dictionary<Type, object> _listenerMaps = new();
         private readonly HashSet<Type> _dirtyTypes = new();
 
         /// <summary>
-        /// 订阅指定类型的事件，返回 IDisposable 用于取消订阅。
-        /// 监听器不会重复添加，且会在下次发布前按优先级重新排序。
+        /// 订阅指定类型的事件，返回 IDisposable，调用其 Dispose 即取消订阅。
+        /// 同一监听器不会重复添加。
         /// </summary>
         internal IDisposable Subscribe<TEvent>(IEventListener<TEvent> listener) where TEvent : EventData
         {
@@ -44,14 +42,12 @@ namespace GoveKits.Runtime.Util
             {
                 var listeners = (List<IEventListener<TEvent>>)listObj;
                 listeners.Remove(listener);
-                _dirtyTypes.Add(type); // 数量变化后需要重新排序
+                _dirtyTypes.Add(type);
             }
         }
 
         /// <summary>
-        /// 发布事件，按优先级降序依次调用监听器。
-        /// 每个监听器的 OnFilter 决定其是否接收该事件；
-        /// 事件数据的 IsBreak 为 true 时停止后续分发。
+        /// 发布事件，按优先级降序调用监听器；IsBreak 为 true 时停止后续分发。
         /// </summary>
         internal void Publish<TEvent>(TEvent eventData) where TEvent : EventData
         {
@@ -80,7 +76,7 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
-        /// 释放总线占用的所有资源，清除全部监听器。
+        /// 清空全部监听器。
         /// </summary>
         public void Dispose()
         {
