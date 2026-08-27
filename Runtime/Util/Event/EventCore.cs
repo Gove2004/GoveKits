@@ -8,21 +8,21 @@ namespace GoveKits.Runtime.Util
     /// 管理事件对象的池化复用和监听器分发。
     ///
     /// 典型用法：
-    ///   var evt = EventCore.GetEvent<MyEvent>();
+    ///   var evt = EventCore.Pick<MyEvent>();
     ///   evt.SomeData = value;
     ///   EventCore.Publish(evt);
-    /// （GetEvent 自动从 PoolCore 获取，Publish 自动归还，调用方无需手动池化）
+    /// （Pick 自动从 PoolCore 获取，Publish 自动归还，调用方无需手动池化）
     /// </summary>
     public static class EventCore
     {
         private static EventBus bus = new EventBus();
 
         /// <summary>
-        /// 从池中获取指定类型的事件对象。
+        /// 从池中取一个指定类型的事件对象。
         /// 事件类型必须实现 IPoolable 并提供默认构造函数。
-        /// 获取后填充事件数据，再调用 Publish 发布。
+        /// 取后填充事件数据，再调用 Publish 发布。
         /// </summary>
-        public static TEvent GetEvent<TEvent>() where TEvent : EventData, new()
+        public static TEvent Pick<TEvent>() where TEvent : EventData, new()
         {
             return PoolCore.Get<TEvent>();
         }

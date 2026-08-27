@@ -28,7 +28,7 @@ public class DamageEvent : EventData
 **发布**（Get 与 Publish 配对，框架自动池化）：
 
 ```csharp
-var evt = EventCore.GetEvent<DamageEvent>();   // 从池取，不要 new
+var evt = EventCore.Pick<DamageEvent>();   // 从池取，不要 new
 evt.TargetId = enemy.Id;
 evt.Amount = 50;
 EventCore.Publish(evt);                        // 分发后自动归还池
@@ -49,7 +49,7 @@ handle.Dispose();   // 取消订阅
 ```
 
 **要点**
-- 事件对象一律走 `GetEvent` / `Publish`，禁止 `new`、禁止手动归还
+- 事件对象一律走 `Pick` / `Publish`，禁止 `new`、禁止手动归还
 - `OnRecycle` 重置所有字段（引用类型置 null），否则会读到上一条事件的脏数据
 - 监听器中把 `eventData.IsBreak = true` 可中断后续监听器
 - 高频事件（伤害/击杀/状态变化）优先用它；低频跨模块广播也适用
