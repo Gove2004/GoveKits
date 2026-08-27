@@ -217,21 +217,41 @@ UICore.GetVM<LoginVM>().Status;           // 界面外读写数据（同一实�
 
 界面之间切换 = 一个 Show + 一个 Hide，生命周期自动衔接（旧界面 OnHide → 失活解绑，新界面 OnReceiveShowParam → 激活绑定 → OnShow）。
 
+**原则：导航（切换界面）属于业务逻辑，在 ViewModel 的方法里执行；View 只调 VM 方法，不直接操作 UICore。**
+
 ```csharp
-// 登录成功 → 关闭登录界面，打开主菜单
+// View 侧：只调 VM 方法
 public class LoginPanel : ViewPanel<LoginVM>
 {
     private void OnClick(string btn)
     {
         if (btn == "LoginBtn")
-        {
-            VM.TryLogin();
-            if (VM.Status == "登录成功")
-            {
-                UICore.Hide<LoginPanel>();
-                UICore.Show<MainMenuPanel>(VM.UserName);   // 登录名传给主菜单
-            }
-        }
+            VM.OnLoginClick(Elements.GetItem<InputItem>("UserNameInput").Value);
+    }
+}
+
+// VM 侧：业务逻辑 + 导航都在这里
+public class LoginVM : ViewModel
+{
+    public string UserName { get; private set; }
+    public string Status { get; private set; }
+
+    public void OnLoginClick(string user)
+    {
+        UserName = user;
+        Status = "登录中...";
+        Notify("status");
+
+        // ... 登录校验 / 请求逻辑 ...
+        bool success = user == "admin";
+
+        Status = success ? "登录成功" : "用户名或密码错误";
+        Notify("status");
+
+        if (!success) return;
+
+        UICore.Hide<LoginPanel>();                 // 导航：关登录
+        UICore.Show<MainMenuPanel>(UserName);      // 导航：开主菜单并传参
     }
 }
 
@@ -246,31 +266,46 @@ public class MainMenuPanel : ViewPanel<MainMenuVM>
 }
 ```
 
-其他常见模式：
+其他常见模式（同样写在 VM 方法里）：
 
 ```csharp
 // 返回上一界面
-UICore.Hide<MainMenuPanel>();
-UICore.Show<LoginPanel>();
+public void OnBackClick() { UICore.Hide<MainMenuPanel>(); UICore.Show<LoginPanel>(); }
 
 // 界面独立存在时直接切换（同类型重复 Show 会被去重，先 Hide 再 Show）
-UICore.Hide<SettingsPanel>();
-UICore.Show<SettingsPanel>();
+public void OnOpenSettings() { UICore.Hide<SettingsPanel>(); UICore.Show<SettingsPanel>(); }
 ```
 
 ## 完整示例（登录 → 主菜单）
 
 ```csharp
-// 1. VM
+// 1. VM —— 数据 + 业务 + 导航
 public class LoginVM : ViewModel
 {
     public string UserName { get; private set; }
     public string Status { get; private set; }
-    public void Login(string user) { UserName = user; Status = "登录中..."; Notify("status"); }
-    public void Complete() { Status = "登录成功"; Notify("status"); }
+
+    public void OnLoginClick(string user)
+    {
+        UserName = user;
+        Status = "登录中...";
+        Notify("status");
+
+        // ... 登录校验 / 请求逻辑 ...
+        bool success = user == "admin";
+
+        Status = success ? "登录成功" : "用户名或密码错误";
+        Notify("status");
+
+        if (success)
+        {
+            UICore.Hide<LoginPanel>();                 // 导航在 VM 里执行
+            UICore.Show<MainMenuPanel>(UserName);
+        }
+    }
 }
 
-// 2. Panel —— 登录界面
+// 2. Panel —— 登录界面（只调 VM 方法 + 渲染）
 public class LoginPanel : ViewPanel<LoginVM>
 {
     protected override void OnEnable()
@@ -290,11 +325,8 @@ public class LoginPanel : ViewPanel<LoginVM>
     }
     private void OnClick(string btn)
     {
-        if (btn != "LoginBtn") return;
-        VM.Login(Elements.GetItem<InputItem>("UserNameInput").Value);
-        VM.Complete();
-        UICore.Hide<LoginPanel>();                        // 切换：关登录
-        UICore.Show<MainMenuPanel>(VM.UserName);          // 开主菜单并传参
+        if (btn == "LoginBtn")
+            VM.OnLoginClick(Elements.GetItem<InputItem>("UserNameInput").Value);
     }
 }
 
@@ -322,7 +354,7 @@ public class MainMenuPanel : ViewPanel<MainMenuVM>
     }
     private void OnClick(string btn)
     {
-        if (btn == "LogoutBtn") { UICore.Hide<MainMenuPanel>(); UICore.Show<LoginPanel>(); }
+        if (btn == "LogoutBtn") VM.OnLogoutClick();       // 返回登录也走 VM
     }
 }
 
