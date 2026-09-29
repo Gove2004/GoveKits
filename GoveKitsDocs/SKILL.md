@@ -112,4 +112,4 @@ AttributeChangeEffect.Create().Set("hp", -10f).Apply(target);
 
 ## 详细文档
 
-每个模块目录下有 `README.md`（一句话定位 / 架构 / 完整使用代码），写业务前先读对应 README：`Runtime/{UI,Util,Storage,Network,Unit}/README.md`。
+本目录（GoveKitsDocs/）集中了全部模块文档，写业务前先读对应文件：`Util.md` / `UI.md` / `Storage.md` / `Network.md` / `Unit.md`（每份含一句话定位 / 架构 / 完整使用代码）。
