@@ -10,7 +10,7 @@ Runtime/Unit/
 ├── Attribute/        属性 —— 属性容器、属性值、修正器（Modifier）
 ├── Ability/          技能 —— 技能基类、技能容器、执行上下文、规则（冷却等）
 ├── Mark/             标记 —— Buff/Debuff 基类、Tick 标记、标记容器
-├── Reaction/         反应 —— 拦截 Intent 并产生效果的被动系统
+├── Reaction/         反应 —— 基于全局事件总线（EventCore）的被动监听系统
 ├── Tag/              标签 —— UnitTag（string 池化）与查询
 └── Extension/        扩展 —— 效果（Effect）、冷却（CD）、MonoBehaviour 载体
 ```
@@ -18,18 +18,36 @@ Runtime/Unit/
 ## 概念
 
 ```
-技能执行: Abilities.TryExecuteAsync → GenerateIntents 生成 Intent
-→ 反应系统 Reactions 拦截处理 Intent → 产生 Effect → Effect.OnApply 修改目标属性/标记
+主动方: 技能执行 Abilities.TryExecuteAsync → ExecuteAsync 里 EventCore.Publish(事件)
+                                    ↓
+被动方: 反应 UnitReaction<T> 订阅同一事件 → OnFilter 过滤 → OnEvent 产出 Effect
+                                    ↓
+效果: Effect.OnApply → 修改目标属性 / 挂标记 / 挂技能（即用即还池）
 ```
 
 - **UnitTag**：`"hp"` 隐式转 UnitTag（池化，相同字符串同一实例），全框架用它做键
 - **容器**：每个单位（`IUnit`）持有 4 个容器：属性 / 标记 / 技能 / 反应
 - **效果**：池化（`UnitEffect<T>`），`XxxEffect.Create().Set(...).Apply(target)` 即用即还
+- **事件**：池化（`EventData`），`EventCore.Pick<T>()` 取 → 填数据 → `EventCore.Publish(evt)` 发布并自动回收
+- **解耦**：技能不认识被动，被动也不认识技能，双方只通过事件类型约定耦合
 
 ## 完整示例（战士砍击：伤害 + 冷却 + 流血）
 
 ```csharp
-// 1. 单位（继承 UnitBehaviour，Awake 自动初始化四大容器）
+// 1. 事件：伤害事件（自定义事件继承 EventData，发布后自动入池回收）
+public class DamageEvent : EventData
+{
+    public IUnit Source;
+    public IUnit Target;
+    public float Damage;
+
+    public override void OnRecycle()        // 必须重置，避免复用时脏数据
+    {
+        Source = null; Target = null; Damage = 0f;
+    }
+}
+
+// 2. 单位（继承 UnitBehaviour，Awake 自动初始化四大容器）
 public class Hero : UnitBehaviour
 {
     protected override void Awake()
@@ -39,41 +57,52 @@ public class Hero : UnitBehaviour
         Attributes.Add("atk", 10);
 
         Abilities.AddAbility(UnitCore.CreateAbility<SlashAbility>());   // 挂技能
-        Reactions.AddReaction(UnitCore.CreateReaction<BleedReaction>()); // 挂反应
+    }
+}
+public class Enemy : UnitBehaviour
+{
+    protected override void Awake()
+    {
+        base.Awake();
+        Attributes.Add("hp", 200);
+        Reactions.AddReaction(UnitCore.CreateReaction<BleedReaction>()); // 挂被动（挂上即开始监听）
     }
 }
 
-// 2. 技能：砍击（生成伤害意图 → 反应系统处理）
+// 3. 技能：砍击（发布伤害事件，不关心谁会响应）
 public class SlashAbility : UnitAbility
 {
-    protected override async UniTask<IReadOnlyList<UnitIntent>> GenerateIntentsAsync(AbilityContext context, CancellationToken ct)
-    {
-        var dmg = context.Source.Attributes.GetValue("atk");
-        var intent = UnitCore.CreateIntent<SlashIntent>();   // 池化创建（勿直接 new）
-        intent.Damage = dmg;
-        return new UnitIntent[] { intent };
-    }
-}
-public class SlashIntent : UnitIntent
-{
-    public override UnitTag Type => "slash";     // 意图类型标签
-    public float Damage;
-}
+    public override UnitTag Name => "slash";
 
-// 3. 反应：拦截砍击意图，对目标施加伤害 + 流血标记
-public class BleedReaction : UnitReaction
-{
-    public override bool CanHandle(UnitIntent intent) => intent is SlashIntent;
+    protected override void OnInit() => AddRule(new CDRule("slash_cd", 3f));   // 3 秒冷却
 
-    public override void Handle(UnitIntent intent, IList<UnitEffect> effects)
+    public override UniTask ExecuteAsync(AbilityContext context, CancellationToken ct)
     {
-        var slash = (SlashIntent)intent;
-        effects.Add(AttributeChangeEffect.Create().Set("hp", -slash.Damage));   // 直接伤害
-        effects.Add(MarkAddEffect.Create().Set(UnitCore.CreateMark<BleedMark>())); // 挂流血
+        var evt = EventCore.Pick<DamageEvent>();        // 从池中取事件
+        evt.Source = Owner;
+        evt.Target = context.Target;
+        evt.Damage = Owner.Attributes.GetValue("atk");
+        EventCore.Publish(evt);                         // 发布 → 所有订阅者被触发，随后自动回收
+        return UniTask.CompletedTask;
     }
 }
 
-// 4. 标记：流血（每 1 秒掉 5 血，持续 3 秒）
+// 4. 反应：受击后结算伤害并挂流血（被动，无需技能感知）
+public class BleedReaction : UnitReaction<DamageEvent>
+{
+    public override UnitTag Name => "passive_bleed";
+    public override int Priority => 0;                             // 值越大越先执行
+
+    public override bool OnFilter(DamageEvent e) => e.Target == Owner;   // 只处理打自己的事件
+
+    public override void OnEvent(DamageEvent e)
+    {
+        AttributeChangeEffect.Create().Set("hp", -e.Damage).Apply(Owner);           // 结算伤害
+        MarkAddEffect.Create().Set(UnitCore.CreateMark<BleedMark>()).Apply(Owner);  // 挂流血
+    }
+}
+
+// 5. 标记：流血（每 1 秒掉 5 血，持续 3 秒）
 public class BleedMark : TickMark
 {
     public override UnitTag Name { get; protected set; } = "bleed";
@@ -83,15 +112,15 @@ public class BleedMark : TickMark
         Duration = 3f;                  // 持续 3 秒（protected set，子类可设）
         SetInterval(1f);                // 每 1 秒 tick 一次
     }
-    public override void OnUpdate(float deltaTime)  // 每 tick：掉血
+    protected override void OnTick()    // 每次 tick：掉血
         => AttributeChangeEffect.Create().Set("hp", -5f).Apply(Owner);
 }
 
-// 5. 使用
+// 6. 使用
 var hero = GetComponent<Hero>();
 var enemy = GetComponent<Enemy>();
 var ctx = new AbilityContext(hero, enemy);
-await hero.Abilities.TryExecuteAsync("slash", ctx);   // 执行技能 → 反应 → 效果自动应用
+await hero.Abilities.TryExecuteAsync("slash", ctx);   // 执行技能 → 发事件 → 被动响应 → 效果落地
 ```
 
 ## 各子模块用法
@@ -141,7 +170,7 @@ skill.RemoveRule(rule);
 
 var ctx = new AbilityContext(source, target);       // 执行上下文（可传参数）
 ctx.SetFloat("power", 2f);                          // 上下文传参
-await skill.TryExecuteAsync(ctx, cancellationToken);  // 执行（内部走规则检查 → 意图 → 反应）
+await skill.TryExecuteAsync(ctx, cancellationToken);  // 执行（内部先跑规则检查，再调 ExecuteAsync）
 ```
 
 ### Mark —— 标记（Buff/Debuff）
@@ -160,21 +189,37 @@ void Update() => unit.UpdateUnit(Time.deltaTime);
 
 标记生命周期：`OnApply`（施加）→ `OnUpdate`（每帧/tick）→ `OnStack`（叠层）→ `OnRemove`（移除）。
 
-### Reaction —— 反应（被动拦截）
+### Reaction —— 反应（被动，订阅全局事件）
+
+反应 = 常驻的事件监听器：继承 `UnitReaction<T>` 实现 `OnEvent` 即可，订阅与注销由容器自动完成。
 
 ```csharp
-public class DamageShield : UnitReaction
+// 写法一：继承（有状态、可复用，推荐）
+public class ThornsReaction : UnitReaction<DamageEvent>
 {
-    public override bool CanHandle(UnitIntent intent) => intent is SlashIntent;
-    public override void Handle(UnitIntent intent, IList<UnitEffect> effects)
-    {
-        // 拦截伤害：把伤害减半再交给后续
-        ((SlashIntent)intent).Damage *= 0.5f;
-    }
+    public override UnitTag Name => "passive_thorns";
+    public override int Priority => 10;                                  // 值越大越先执行
+    public override bool OnFilter(DamageEvent e) => e.Target == Owner;   // 只响应打自己的事件
+    public override void OnEvent(DamageEvent e)
+        => AttributeChangeEffect.Create().Set("hp", -10f).Apply(e.Source);   // 反弹 10 点
 }
-unit.Reactions.AddReaction(UnitCore.CreateReaction<DamageShield>());
-unit.Reactions.Enable("damage_shield", false);      // 开关反应
+
+// 写法二：委托流式装配（临时、轻量，无需新建类型）
+var thorns = new DelegateReaction<DamageEvent>()
+    .SetName("passive_thorns")
+    .SetPriority(10)
+    .SetFilter(e => e.Target == unit)
+    .SetAction(e => AttributeChangeEffect.Create().Set("hp", -10f).Apply(e.Source));
+
+// 挂载 / 开关 / 卸载（挂载即激活 = 开始监听，卸载自动注销）
+unit.Reactions.AddReaction(UnitCore.CreateReaction<ThornsReaction>());  // 或 AddReaction(thorns)
+unit.Reactions.Enable("passive_thorns", false);      // 封印度：注销订阅，暂停响应
+unit.Reactions.Enable("passive_thorns", true);       // 解封：重新订阅
+unit.Reactions.RemoveReaction("passive_thorns");     // 卸载并注销
 ```
+
+拦截/改写事件：`OnFilter` 里改字段（如把伤害减半）再放行，或直接 `e.IsBreak = true` 中断后续监听器执行。
+优先级说明：同一事件下按 `Priority` 从大到小依次调用，所以「减伤」这类反应应设高优先级，先于「结算伤害」执行。
 
 ### Effect —— 效果（池化，即用即还）
 

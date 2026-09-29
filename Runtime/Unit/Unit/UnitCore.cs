@@ -8,7 +8,7 @@ namespace GoveKits.Runtime.Unit
     /// Unit 组件全局注册与工厂中心。
     /// 将 UnitTag 映射到具体的 C# 类型，实现纯数据驱动的实例化流程。
     /// 所有技能、标记、反应的类型注册均通过此类完成。
-    /// Intent 和 Effect 的统一工厂也在此处，对外屏蔽对象池细节。
+    /// Effect 的统一工厂也在此处，对外屏蔽对象池细节。
     /// </summary>
     public static class UnitCore
     {
@@ -116,20 +116,7 @@ namespace GoveKits.Runtime.Unit
 
         #endregion
 
-        #region Intent / Effect 统一工厂
-
-        /// <summary>从对象池获取一个 Intent 实例并设置 Source/Target。</summary>
-        public static T CreateIntent<T>(IUnit source = null, IUnit target = null) where T : UnitIntent, new()
-        {
-            var intent = PoolCore.Get<T>();
-            intent.Source = source;
-            intent.Target = target;
-            return intent;
-        }
-
-        /// <summary>直接 new 一个 Intent 实例（不从对象池获取）。</summary>
-        public static T CreateIntentRaw<T>() where T : UnitIntent, new()
-            => new T();
+        #region Effect 统一工厂
 
         /// <summary>从对象池获取一个 Effect 实例。</summary>
         public static T CreateEffect<T>() where T : UnitEffect<T>, new()

@@ -1,68 +1,84 @@
-using System.Collections.Generic;
+using System;
+using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// 基于委托的快捷反应实现类。
-    /// 无需手动编写新类，即可通过代码流式装配一个 Intent 处理器。
+    /// 无需新建类型，直接在代码里流式装配一个事件监听被动。
+    ///
+    /// 用法：
+    /// <code>
+    /// var thorns = new DelegateReaction&lt;DamageEvent&gt;()
+    ///     .SetName("passive_thorns")
+    ///     .SetPriority(10)                                    // 越大越先执行
+    ///     .SetFilter(e => e.Target == unit)                    // 只处理打自己的事件
+    ///     .SetAction(e =&gt; AttributeChangeEffect.Create()
+    ///                             .Set("hp", -10f).Apply(e.Source));   // 反弹 10 点伤害
+    ///
+    /// unit.Reactions.AddReaction(thorns);
+    /// </code>
+    /// 需要携带状态、多字段配置或复用时，仍建议写成 <see cref="UnitReaction{T}"/> 子类。
     /// </summary>
-    public class DelegateReaction : UnitReaction
+    /// <typeparam name="T">监听的事件类型</typeparam>
+    public class DelegateReaction<T> : UnitReaction<T> where T : EventData, new()
     {
         private UnitTag _name;
         private int _priority;
-        private System.Func<UnitIntent, bool> _canHandle;
-        private System.Action<UnitIntent, IList<UnitEffect>> _action;
+        private Func<T, bool> _filterFunc;
+        private Action<T> _reactionAction;
 
-        /// <summary>反应的唯一标识</summary>
+        /// <summary>反应标识，由 <see cref="SetName"/> 指定</summary>
         public override UnitTag Name => _name;
 
-        /// <summary>处理优先级</summary>
+        /// <summary>执行优先级，由 <see cref="SetPriority"/> 指定，默认 0</summary>
         public override int Priority => _priority;
 
-        /// <summary>创建一个流式装配的 DelegateReaction</summary>
-        public static DelegateReaction Create() => new DelegateReaction();
+        public DelegateReaction() { }
 
-        private DelegateReaction() { }
+        #region 流式装配接口 (Fluent API)
 
-        /// <summary>设置反应名称</summary>
-        public DelegateReaction SetName(UnitTag name)
+        /// <summary>设置反应标识（必填，容器以它作为键）</summary>
+        public DelegateReaction<T> SetName(UnitTag name)
         {
             _name = name;
             return this;
         }
 
-        /// <summary>设置处理优先级（值越大越先执行）</summary>
-        public DelegateReaction SetPriority(int priority)
+        /// <summary>设置优先级，值越大越先执行；不设置则为 0</summary>
+        public DelegateReaction<T> SetPriority(int priority)
         {
             _priority = priority;
             return this;
         }
 
-        /// <summary>设置 Intent 过滤条件。返回 false 则跳过此 Reaction</summary>
-        public DelegateReaction SetCanHandle(System.Func<UnitIntent, bool> filter)
+        /// <summary>设置事件过滤条件，返回 false 时本次事件不进入 SetAction 逻辑</summary>
+        public DelegateReaction<T> SetFilter(Func<T, bool> filterFunc)
         {
-            _canHandle = filter;
+            _filterFunc = filterFunc;
             return this;
         }
 
-        /// <summary>设置核心处理逻辑。直接产出 Effect</summary>
-        public DelegateReaction SetAction(System.Action<UnitIntent, IList<UnitEffect>> action)
+        /// <summary>设置事件处理逻辑，在此产出 Effect</summary>
+        public DelegateReaction<T> SetAction(Action<T> reactionAction)
         {
-            _action = action;
+            _reactionAction = reactionAction;
             return this;
         }
 
-        /// <summary>
-        /// 检查此 Reaction 是否能够处理给定的 Intent。
-        /// 未设置过滤条件时默认返回 true。
-        /// </summary>
-        public override bool CanHandle(UnitIntent intent)
-            => _canHandle == null || _canHandle.Invoke(intent);
+        #endregion
 
-        /// <summary>
-        /// 处理 Intent，产出 Effect。
-        /// </summary>
-        public override void Handle(UnitIntent intent, IList<UnitEffect> effects)
-            => _action?.Invoke(intent, effects);
+        /// <summary>未设置过滤器时全放行，否则按过滤器结果决定</summary>
+        public override bool OnFilter(T eventData)
+        {
+            if (_filterFunc != null) return _filterFunc.Invoke(eventData);
+            return base.OnFilter(eventData);
+        }
+
+        /// <summary>执行装配时注入的处理逻辑</summary>
+        public override void OnEvent(T eventData)
+        {
+            _reactionAction?.Invoke(eventData);
+        }
     }
 }

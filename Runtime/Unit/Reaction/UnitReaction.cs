@@ -1,85 +1,107 @@
 using System;
-using System.Collections.Generic;
 using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Unit
 {
     /// <summary>
-    /// Unit 被动反应基类。
-    /// Reaction 是 Intent 的处理者：读取 Intent + Attribute + Mark，产出 Effect。
-    /// Reaction 不再监听全局事件，只响应投递到 Unit 的 Intent。
+    /// 第一层：Unit 反应基类（非泛型公共抽象层）。
+    /// 只提供生命周期管理与宿主注入，不关心具体监听哪种事件。
+    ///
+    /// 直接继承本类无意义（Activate/Deactivate 是抽象的），
+    /// 业务反应一律继承 <see cref="UnitReaction{T}"/>。
     /// </summary>
     public abstract class UnitReaction : IDisposable
     {
-        /// <summary>反应的唯一标识（通常与监听的事件或业务逻辑相关）</summary>
+        /// <summary>反应的唯一标识，容器以它作为字典键，同名反应会互相覆盖</summary>
         public abstract UnitTag Name { get; }
 
         /// <summary>
-        /// 决定在处理 Intent 时的调用先后顺序。值越大，优先级越高。
-        /// 高优先级反应先于低优先级反应执行。
+        /// 监听同一事件时的执行先后顺序，值越大越先执行。
+        /// 由事件总线按此值排序。
         /// </summary>
-        public virtual int Priority => 0;
-
-        /// <summary>
-        /// 此 Reaction 能处理的 Intent 类型 Tag 列表。
-        /// 默认只处理 Name 相同的 Intent。子类重写以指定更多类型。
-        /// </summary>
-        public virtual UnitTag[] CanHandleTypes => new[] { Name };
+        public abstract int Priority { get; }
 
         /// <summary>反应挂载的宿主单位（由 Container 注入）</summary>
         public IUnit Owner { get; private set; }
 
-        /// <summary>反应是否处于激活监听状态</summary>
+        /// <summary>当前是否已订阅事件（Activate 后为 true）</summary>
         public bool IsActive { get; protected set; }
 
         /// <summary>无参构造，满足反序列化工厂要求</summary>
         public UnitReaction() { }
 
-        /// <summary>
-        /// 由 ReactionContainer 在挂载瞬间调用，注入宿主引用。
-        /// </summary>
+        /// <summary>由 ReactionContainer 在挂载瞬间调用，注入宿主</summary>
         internal void Init(IUnit owner)
         {
             Owner = owner;
         }
 
-        /// <summary>激活反应，开始处理 Intent</summary>
-        public virtual void Activate()
-        {
-            IsActive = true;
-        }
+        /// <summary>激活：向全局 EventCore 订阅事件，重复调用无副作用</summary>
+        public abstract void Activate();
 
-        /// <summary>停用反应，停止处理 Intent</summary>
-        public virtual void Deactivate()
-        {
-            IsActive = false;
-        }
+        /// <summary>停用：从全局 EventCore 注销订阅，重复调用无副作用</summary>
+        public abstract void Deactivate();
 
-        /// <summary>
-        /// 检查此 Reaction 是否能够处理给定的 Intent。
-        /// 默认按 CanHandleTypes 数组匹配 intent.Type，子类可重写自定义过滤。
-        /// </summary>
-        public virtual bool CanHandle(UnitIntent intent)
-        {
-            var types = CanHandleTypes;
-            for (int i = 0; i < types.Length; i++)
-            {
-                if (types[i] == intent.Type) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 处理 Intent，产出 Effect。
-        /// 将生成的 Effect 追加到 effects 列表中，由 ReactionContainer 统一 Apply。
-        /// </summary>
-        public abstract void Handle(UnitIntent intent, IList<UnitEffect> effects);
-
-        /// <summary>释放反应资源，彻底断开与宿主的联系</summary>
+        /// <summary>释放反应资源，彻底断开与宿主及事件总线的联系</summary>
         public virtual void Dispose()
         {
             Deactivate();
             Owner = null;
         }
+    }
+
+    /// <summary>
+    /// 第二层：泛型 Unit 反应基类。
+    /// 继承它并实现 <see cref="OnEvent"/>，即得到一个常驻监听某个事件类型的被动能力。
+    ///
+    /// 用法：
+    /// <code>
+    /// public class ThornsReaction : UnitReaction&lt;DamageEvent&gt;
+    /// {
+    ///     public override UnitTag Name => "passive_thorns";
+    ///     public override int Priority => 10;                                   // 越大越先执行
+    ///     public override bool OnFilter(DamageEvent e) => e.Target == Owner;    // 只处理打自己的
+    ///     public override void OnEvent(DamageEvent e)
+    ///         => AttributeChangeEffect.Create().Set("hp", -10f).Apply(e.Source);
+    /// }
+    /// </code>
+    /// 订阅与注销由容器自动完成，业务代码不需要手写 Subscribe/Unsubscribe。
+    /// </summary>
+    /// <typeparam name="T">监听的事件类型</typeparam>
+    public abstract class UnitReaction<T> : UnitReaction, IEventListener<T> where T : EventData, new()
+    {
+        // 订阅凭证，Deactivate 时用它注销，避免单位销毁后仍被事件总线持有
+        private IDisposable _unsubscribeAction;
+
+        /// <summary>无参构造，满足反序列化工厂要求</summary>
+        public UnitReaction() { }
+
+        /// <summary>订阅全局事件总线，重复调用只订阅一次</summary>
+        public override void Activate()
+        {
+            if (IsActive) return;
+
+            _unsubscribeAction = EventCore.Subscribe<T>(this);
+            IsActive = true;
+        }
+
+        /// <summary>注销全局事件订阅，重复调用无副作用</summary>
+        public override void Deactivate()
+        {
+            if (!IsActive) return;
+
+            _unsubscribeAction?.Dispose();
+            _unsubscribeAction = null;
+            IsActive = false;
+        }
+
+        /// <summary>事件到达时的业务处理入口，在此产出 Effect 修改单位状态</summary>
+        public abstract void OnEvent(T eventData);
+
+        /// <summary>
+        /// 事件前置过滤，返回 false 则本次事件不进入 <see cref="OnEvent"/>，默认全放行。
+        /// 典型用法：判断事件目标是不是自己的 Owner，避免响应别人的事件。
+        /// </summary>
+        public virtual bool OnFilter(T eventData) => true;
     }
 }

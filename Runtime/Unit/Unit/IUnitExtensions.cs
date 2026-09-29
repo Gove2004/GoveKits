@@ -33,8 +33,5 @@ namespace GoveKits.Runtime.Unit
         /// <summary>对当前 Unit 应用一个即时效果</summary>
         public static void ApplyEffect(this IUnit unit, UnitEffect effect)
             => effect.Apply(unit);
-
-        public static void HandleIntent(this IUnit unit, UnitIntent intent)
-            => unit.Reactions.Handle(intent);
     }
 }

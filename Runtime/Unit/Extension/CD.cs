@@ -36,7 +36,8 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public override void Commit(AbilityContext context)
         {
-            var cdMark = UnitCore.CreateMark<CDMark>().SetStack(1).SetDuration(Duration);
+            // 必须用 CDTag 命名，否则 Check() 按 CDTag 查不到该标记，冷却会失效
+            var cdMark = UnitCore.CreateMark<CDMark>().SetName(CDTag).SetStack(1).SetDuration(Duration);
             if (cdMark != null)
             {
                 MarkAddEffect.Create()

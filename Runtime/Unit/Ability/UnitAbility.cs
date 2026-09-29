@@ -8,8 +8,24 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// Unit 核心技能基类。
-    /// 标准生命周期：创建实例 -> Container 注入 Owner -> CanExecute -> TryExecuteAsync -> GenerateIntents -> Reaction 处理 -> Effect 落地。
-    /// Ability 只负责产生 Intent，不直接修改 Unit 状态。
+    /// 标准生命周期：创建实例 → Container 注入 Owner（触发 OnInit）→ CanExecute 规则检查 → TryExecuteAsync → ExecuteAsync → Dispose。
+    ///
+    /// 用法：
+    /// <code>
+    /// public class FireBallAbility : UnitAbility
+    /// {
+    ///     public override UnitTag Name => "Skill_FireBall";
+    ///     protected override void OnInit() => AddRule(new CDRule("CD.FireBall", 3f));   // 3 秒冷却
+    ///     public override async UniTask ExecuteAsync(AbilityContext context, CancellationToken ct)
+    ///     {
+    ///         float damage = Owner.Attributes.GetValue("atk") * 2f;
+    ///         AttributeChangeEffect.Create().Set("hp", -damage).Apply(context.Target);  // 直接结算
+    ///         EventCore.Pick&lt;DamageEvent&gt;()... 并 Publish，交给被动反应（格挡/反伤等）处理
+    ///     }
+    /// }
+    /// await unit.Abilities.TryExecuteAsync("Skill_FireBall", new AbilityContext(caster, target));
+    /// </code>
+    /// 技能内置防重入锁，执行期间再次调用会直接返回 false。
     /// </summary>
     public abstract class UnitAbility : System.IDisposable
     {
@@ -98,19 +114,8 @@ namespace GoveKits.Runtime.Unit
                     _rules[i]?.Commit(context);
                 }
 
-                // 2. 生成 Intent 列表，逐个投递给目标 Unit
-                IReadOnlyList<UnitIntent> intents = await GenerateIntentsAsync(context, cancellationToken);
-                if (intents != null)
-                {
-                    foreach (var intent in intents)
-                    {
-                        if (intent == null) continue;
-                        intent.Source = context.Source;
-                        intent.Target = context.Target;
-                        context.Target?.HandleIntent(intent);
-                    }
-                }
-
+                // 2. 将控制权移交给具体的业务子类逻辑
+                await ExecuteAsync(context, cancellationToken);
                 return true;
             }
             finally
@@ -128,9 +133,10 @@ namespace GoveKits.Runtime.Unit
         }
 
         /// <summary>
-        /// 由子类实现，返回要产出的 Intent 列表。返回 null 或空列表表示不产生任何 Intent。
+        /// 由子类实现：技能的核心业务逻辑。
+        /// 典型实现是播放表现 + 直接产出效果（Effect），或发布事件（EventCore.Publish）交给被动反应处理。
         /// </summary>
-        protected abstract UniTask<IReadOnlyList<UnitIntent>> GenerateIntentsAsync(AbilityContext context, CancellationToken cancellationToken = default);
+        public abstract UniTask ExecuteAsync(AbilityContext context, CancellationToken cancellationToken = default);
 
         #endregion
 

@@ -5,7 +5,7 @@ namespace GoveKits.Runtime.Unit
 {
     /// <summary>
     /// 标记基类，用于表示单位附着的各种状态效果（如 Buff / Debuff / 护盾 / 标记层数）。
-    /// Mark 是纯数据，不主动处理逻辑。定时触发由生命周期 Intent 驱动。
+    /// Mark 自身只存数据，不处理业务逻辑；周期的业务行为在 TickMark.OnTick 中产出 Effect 或发布事件。
     /// </summary>
     public abstract class UnitMark
     {
@@ -110,7 +110,7 @@ namespace GoveKits.Runtime.Unit
 
     /// <summary>
     /// 周期性触发的特殊标记（如：中毒掉血、缓慢回蓝、燃烧）。
-    /// TickMark 的周期性触发是纯数据层面的，业务逻辑仍需通过 Intent 驱动。
+    /// 计时与触发节奏由基类统一管理，业务逻辑写在 <see cref="OnTick"/> 中。
     /// </summary>
     public abstract class TickMark : UnitMark
     {
@@ -158,7 +158,7 @@ namespace GoveKits.Runtime.Unit
             }
         }
 
-        /// <summary>周期性触发的业务逻辑入口。子类可在此创建 Intent 并投递</summary>
+        /// <summary>周期性触发的业务逻辑入口，子类在此产出 Effect（如 AttributeChangeEffect）或发布事件</summary>
         protected abstract void OnTick();
     }
 }
