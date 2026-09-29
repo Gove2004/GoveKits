@@ -350,7 +350,7 @@ namespace GoveKits.Editor
                         break;
                     }
                 }
-                if (!view.ExistsInEditor) { view.ExistsInEditor = true; view.EditorAssetPath = AssetDatabase.GUIDToAssetPath(guids[0]); }
+                // 目录不匹配时不做兜底匹配，保持缺失状态，避免误报"正常"
             }
         }
 

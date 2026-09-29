@@ -13,45 +13,71 @@ namespace GoveKits.Runtime.UI
     /// - 界面外访问数据：UICore.GetVM&lt;LoginVM&gt;()（与界面内 ViewPanel&lt;TVM&gt;.VM 是同一实例）
     ///
     /// 界面需先注册（场景挂 UIAutoRegister 自动注册，或手动 Register）。
+    /// ViewPanel 销毁时会自动注销自身，无需手动 Unregister。
     /// </summary>
     public static class UICore
     {
         private static readonly Dictionary<Type, ViewPanel> _views = new();
         private static readonly Dictionary<Type, ViewModel> _viewModels = new();
 
-        /// <summary>注册界面实例。同一类型重复注册会覆盖。通常由 UIAutoRegister 自动调用。</summary>
+        static UICore()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时清理静态注册表，避免跨 Play 会话残留
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            _views.Clear();
+            _viewModels.Clear();
+        }
+
+        /// <summary>注册界面实例。同一类型重复注册会覆盖旧实例并输出警告。通常由 UIAutoRegister 自动调用。</summary>
         public static void Register<T>(ViewPanel view) where T : ViewPanel => Register(typeof(T), view);
         public static void Register(Type type, ViewPanel view)
         {
-            if (!_views.ContainsKey(type))
+            if (_views.TryGetValue(type, out var old) && old != null && old != view)
             {
-                _views[type] = view;
+                LogCore.Warning(nameof(UICore), $"{type.Name} 重复注册，旧实例 ({old.name}) 将被覆盖为新实例 ({view.name})。");
             }
+            _views[type] = view;
         }
 
-        /// <summary>注销指定类型的界面。通常由 UIAutoRegister 自动调用。</summary>
+        /// <summary>注销指定类型的界面。传入 view 时仅当注册实例与之相同才注销（防止误销毁仍存活的注册）。</summary>
         public static void Unregister<T>() where T : ViewPanel => Unregister(typeof(T));
-        public static void Unregister(Type type)
+        public static void Unregister(Type type, ViewPanel view = null)
         {
-            if (_views.ContainsKey(type))
-            {
-                _views.Remove(type);
-            }
+            if (!_views.TryGetValue(type, out var registered)) return;
+            if (view != null && registered != view) return;
+
+            _views.Remove(type);
         }
 
         /// <summary>
         /// 显示界面。流程：OnReceiveShowParam(param) → 激活（自动绑定 VM + 全量刷新）→ OnShow()。
+        /// 面板已处于激活状态时仅刷新参数（OnReceiveShowParam），不重复触发 OnShow。
         /// </summary>
         /// <param name="param">传给界面的参数，可在 OnReceiveShowParam 中接收</param>
         public static void Show<T>(object param = null) where T : ViewPanel => Show(typeof(T), param);
         public static void Show(Type type, object param = null)
         {
-            if (_views.TryGetValue(type, out var view))
+            if (!_views.TryGetValue(type, out var view) || view == null)
             {
-                view.OnReceiveShowParam(param);
-                view.gameObject.SetActive(true);
-                view.OnShow();
+                LogCore.Warning(nameof(UICore), $"Show 失败：{type.Name} 未注册或已销毁。请检查场景是否挂了 UIAutoRegister 或手动 Register。");
+                return;
             }
+
+            view.OnReceiveShowParam(param);
+
+            if (view.gameObject.activeSelf)
+            {
+                // 已激活面板仅刷新参数，不重复走激活流程
+                return;
+            }
+
+            view.gameObject.SetActive(true);
+            view.OnShow();
         }
 
         /// <summary>
@@ -60,11 +86,14 @@ namespace GoveKits.Runtime.UI
         public static void Hide<T>() where T : ViewPanel => Hide(typeof(T));
         public static void Hide(Type type)
         {
-            if (_views.TryGetValue(type, out var view))
+            if (!_views.TryGetValue(type, out var view) || view == null)
             {
-                view.OnHide();
-                view.gameObject.SetActive(false);
+                LogCore.Warning(nameof(UICore), $"Hide 失败：{type.Name} 未注册或已销毁。");
+                return;
             }
+
+            view.OnHide();
+            view.gameObject.SetActive(false);
         }
 
         /// <summary>
@@ -74,17 +103,31 @@ namespace GoveKits.Runtime.UI
         public static TVM GetVM<TVM>() where TVM : ViewModel, new()
         {
             var type = typeof(TVM);
-            if (!_viewModels.ContainsKey(type))
+            if (!_viewModels.TryGetValue(type, out var vm))
             {
-                _viewModels[type] = new TVM();
-                _viewModels[type].OnInit();
+                vm = new TVM();
+                vm.OnInit();
+                _viewModels[type] = vm;
             }
-            return _viewModels[type] as TVM;
+            return (TVM)vm;
         }
 
-        /// <summary>关闭所有界面注册与 ViewModel，释放资源。通常由 GoveCore.Close 调用。</summary>
+        /// <summary>
+        /// 关闭所有界面注册与 ViewModel，释放资源。通常由 GoveCore.Close 调用。
+        /// 每个 VM 会先收到 OnDispose 回调（可清理事件订阅等资源），界面缓存的 VM 引用同步失效。
+        /// </summary>
         public static void Close()
         {
+            foreach (var vm in _viewModels.Values)
+            {
+                vm?.OnDispose();
+            }
+
+            foreach (var view in _views.Values)
+            {
+                if (view != null) view.ResetVMCache();
+            }
+
             _views.Clear();
             _viewModels.Clear();
         }

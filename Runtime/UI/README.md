@@ -99,6 +99,8 @@ Show: OnReceiveShowParam(param) → 激活(自动绑 VM + 全量刷新) → OnSh
 Hide: OnHide() → 失活(自动解绑 VM)
 ```
 
+> 面板已激活时重复 Show 仅刷新参数（OnReceiveShowParam），不重复触发 OnShow。
+
 | 重写方法 | 时机 | 用途 |
 |---|---|---|
 | `OnNotify(key)` | VM 数据变化 | 按 key 刷新控件；key=null 全量刷新 |
@@ -272,8 +274,8 @@ public class MainMenuPanel : ViewPanel<MainMenuVM>
 // 返回上一界面
 public void OnBackClick() { UICore.Hide<MainMenuPanel>(); UICore.Show<LoginPanel>(); }
 
-// 界面独立存在时直接切换（同类型重复 Show 会被去重，先 Hide 再 Show）
-public void OnOpenSettings() { UICore.Hide<SettingsPanel>(); UICore.Show<SettingsPanel>(); }
+// 已激活面板重复 Show 只刷新参数，不会重复触发 OnShow，无需手动先 Hide
+public void OnOpenSettings() { UICore.Show<SettingsPanel>(); }
 ```
 
 ## 完整示例（登录 → 主菜单）

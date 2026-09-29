@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Util;
@@ -36,10 +37,17 @@ namespace GoveKits.Runtime.Storage
         public static void Save<T>(string relativePath, T data)
         {
             string fullPath = GetFullPath(relativePath);
+            if (fullPath == null) return;
+
             byte[] bytes = _serializer.Serialize(data, typeof(T));
 
             string tempPath = fullPath + ".tmp";
-            File.WriteAllBytes(tempPath, bytes);
+            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                // flushToDisk：确保数据落盘后再替换，防止断电导致存档损坏
+                stream.Flush(true);
+            }
             ReplaceAtomic(tempPath, fullPath);
         }
 
@@ -85,6 +93,8 @@ namespace GoveKits.Runtime.Storage
         {
             ISerializer serializer = _serializer;
             string fullPath = GetFullPath(relativePath);
+            if (fullPath == null) return;
+
             byte[] bytes = serializer.Serialize(data, typeof(T));
 
             string tempPath = fullPath + ".tmp";
@@ -142,6 +152,7 @@ namespace GoveKits.Runtime.Storage
         public static void Delete(string relativePath)
         {
             string fullPath = GetFullPath(relativePath);
+            if (fullPath == null) return;
             if (File.Exists(fullPath))
                 File.Delete(fullPath);
         }
@@ -154,11 +165,22 @@ namespace GoveKits.Runtime.Storage
         public static string[] GetAllFiles(string searchPattern = "*")
         {
             if (string.IsNullOrEmpty(_rootPath)) return Array.Empty<string>();
-            return Directory.GetFiles(_rootPath, searchPattern, SearchOption.AllDirectories);
+
+            // 过滤原子写入残留的临时/备份文件
+            return Directory.GetFiles(_rootPath, searchPattern, SearchOption.AllDirectories)
+                .Where(f => !f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
+                            && !f.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
         }
 
         private static string GetFullPath(string relativePath)
         {
+            if (string.IsNullOrEmpty(_rootPath))
+            {
+                LogCore.Error(nameof(SaveCore), "请先调用 SaveCore.Setup 完成初始化，再执行存档操作");
+                return null;
+            }
+
             if (!Path.HasExtension(relativePath))
                 relativePath = Path.ChangeExtension(relativePath, _serializer.FileExtension);
 
@@ -202,6 +224,8 @@ namespace GoveKits.Runtime.Storage
         {
             await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
             await stream.WriteAsync(bytes, 0, bytes.Length, ct);
+            // flushToDisk：确保数据落盘后再替换，防止断电导致存档损坏
+            stream.Flush(true);
         }
 
         private static async UniTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct)
@@ -212,9 +236,17 @@ namespace GoveKits.Runtime.Storage
                 throw new IOException($"文件过大: {stream.Length} 字节");
 
             byte[] buffer = new byte[stream.Length];
-            int read = await stream.ReadAsync(buffer, 0, (int)stream.Length, ct);
-            if (read < buffer.Length)
-                Array.Resize(ref buffer, read);
+            int offset = 0;
+            // 循环读取直到填满 buffer 或流结束，单次 ReadAsync 不保证读满
+            while (offset < buffer.Length)
+            {
+                int read = await stream.ReadAsync(buffer, offset, buffer.Length - offset, ct);
+                if (read <= 0) break;
+                offset += read;
+            }
+
+            if (offset < buffer.Length)
+                Array.Resize(ref buffer, offset);
 
             return buffer;
         }

@@ -10,6 +10,8 @@ namespace GoveKits.Runtime.Util
     public class CSharpPool<T> : IPool, IPool<T> where T : class, IPoolable, new()
     {
         private readonly Stack<T> stack;
+        // 借出中的对象集合，用于检测重复归还
+        private readonly HashSet<T> leased = new();
 
         /// <summary>池中当前缓存的对象数量。</summary>
         public int Count => stack.Count;
@@ -33,7 +35,7 @@ namespace GoveKits.Runtime.Util
         public void Warmup(int count)
         {
             for (int i = 0; i < count && stack.Count < Capacity; i++)
-                Return(Get());
+                stack.Push(new T());
         }
 
         /// <summary>
@@ -42,17 +44,26 @@ namespace GoveKits.Runtime.Util
         /// <returns>可用的对象实例</returns>
         public T Get()
         {
-            return stack.Count > 0 ? stack.Pop() : new T();
+            var item = stack.Count > 0 ? stack.Pop() : new T();
+            leased.Add(item);
+            return item;
         }
 
         /// <summary>
         /// 将一个对象归还到池中。
         /// 归还时自动调用 OnRecycle 重置对象状态；超出容量时静默丢弃。
+        /// 重复归还同一对象会被忽略并输出警告。
         /// </summary>
         /// <param name="item">要归还的对象，为 null 时静默忽略</param>
         public void Return(T item)
         {
             if (item == null) return;
+
+            if (!leased.Remove(item))
+            {
+                LogCore.Warning("CSharpPool", $"{typeof(T).Name} 重复归还，已忽略（对象未从池中获取或已归还过）。");
+                return;
+            }
 
             if (stack.Count < Capacity)
             {
@@ -62,6 +73,10 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>清空池中所有缓存对象。</summary>
-        public void Clear() => stack.Clear();
+        public void Clear()
+        {
+            stack.Clear();
+            leased.Clear();
+        }
     }
 }

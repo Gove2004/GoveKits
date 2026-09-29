@@ -29,6 +29,15 @@ namespace GoveKits.Runtime.UI
             if (Elements == null) Elements = GetComponent<UIElements>();
         }
 
+        /// <summary>销毁时自动注销注册（按实例身份校验，不会误注销同类型的新实例）。重写时请调用 base.OnDestroy()。</summary>
+        protected virtual void OnDestroy()
+        {
+            UICore.Unregister(GetType(), this);
+        }
+
+        /// <summary>重置 VM 缓存（由 UICore.Close 调用），确保 Close 后不会访问到孤儿 VM。</summary>
+        internal virtual void ResetVMCache() { }
+
         /// <summary>
         /// 数据刷新回调。ViewModel 数据变化（Notify）时被调用。
         /// 重写后根据 key 分支刷新对应控件；key 为 null 表示全量刷新（界面绑定 VM 时自动触发一次）。
@@ -60,6 +69,9 @@ namespace GoveKits.Runtime.UI
 
         /// <summary>本界面绑定的 ViewModel 实例（由 UICore 按类型持有，外部可通过 UICore.GetVM 访问同一实例）。</summary>
         public TVM VM => _vm ??= UICore.GetVM<TVM>();
+
+        /// <summary>重置 VM 缓存（由 UICore.Close 调用），Close 后 VM 属性会重新向 UICore 获取。</summary>
+        internal override void ResetVMCache() => _vm = null;
 
         /// <summary>激活时绑定 VM（触发一次全量刷新），由 UICore.Show 自动驱动。</summary>
         protected virtual void OnEnable()

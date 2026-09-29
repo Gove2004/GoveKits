@@ -38,6 +38,11 @@ namespace GoveKits.Editor
 
         protected override void OnGoveDrawContent()
         {
+            if (Application.isPlaying)
+            {
+                EditorGUILayout.HelpBox("Play 模式下快速修复仅修改内存数据，退出 Play 或重新 Setup 后会丢失。", MessageType.Info);
+            }
+
             if (_cachedRawRows == null || _cachedLangCache == null)
             {
                 EditorGUILayout.HelpBox("LocalizationCore 尚未初始化或没有加载任何多语言数据。请先调用 LocalizationCore.Setup()。", MessageType.Warning);
@@ -137,6 +142,8 @@ namespace GoveKits.Editor
                         if (GUILayout.Button($"使用英文: {fallback.Substring(0, Mathf.Min(30, fallback.Length))}...", EditorStyles.miniButton))
                         {
                             SetLanguageField(rowData as ILocalizationConfigData, LocalizationCore.CurrentLanguage.ToString(), fallback);
+                            // 同步刷新 LocalizationCore 内存缓存，使统计与显示立即生效
+                            _cachedLangCache[key] = fallback;
                             Repaint();
                         }
                     }

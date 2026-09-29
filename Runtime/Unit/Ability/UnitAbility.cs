@@ -40,6 +40,10 @@ namespace GoveKits.Runtime.Unit
 
         private readonly List<AbilityRule> _rules = new();
         private bool _pendingDestroy;
+        private bool _disposed;
+
+        /// <summary>技能是否已释放（释放后不可再执行，CanExecute 会拦截）</summary>
+        public bool IsDisposed => _disposed;
 
         /// <summary>标记技能待销毁（正在执行中时无法安全 Dispose）</summary>
         internal void MarkForPendingDestroy() => _pendingDestroy = true;
@@ -87,7 +91,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public virtual bool CanExecute(AbilityContext context)
         {
-            if (IsExecuting) return false;
+            if (_disposed || IsExecuting) return false;
 
             int count = _rules.Count;
             for (int i = 0; i < count; i++)
@@ -102,7 +106,8 @@ namespace GoveKits.Runtime.Unit
         /// <summary>核心流程入口：尝试异步执行技能</summary>
         public async UniTask<bool> TryExecuteAsync(AbilityContext context, CancellationToken cancellationToken = default)
         {
-            if (!CanExecute(context)) return false;
+            // 已释放的技能直接拒绝（不依赖 CanExecute，防止子类重写绕过）
+            if (_disposed || !CanExecute(context)) return false;
 
             IsExecuting = true;
             try
@@ -140,9 +145,11 @@ namespace GoveKits.Runtime.Unit
 
         #endregion
 
-        /// <summary>释放技能资源</summary>
+        /// <summary>释放技能资源（幂等，重复调用无副作用）</summary>
         public virtual void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
             Owner = null;
             IsExecuting = false;
             _pendingDestroy = false;

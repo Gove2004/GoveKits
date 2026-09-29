@@ -40,10 +40,25 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 挂载一个反应：注入宿主并立即激活（开始监听事件）。
         /// 若已存在同名反应，旧实例会先被卸载，避免重复监听。
+        /// 已归属其他 Unit 的实例会被拒绝（避免一个实例被两个容器共享）。
         /// </summary>
         public void AddReaction(UnitReaction reaction)
         {
             if (reaction == null) return;
+
+            // 字典键不能为 null
+            if (reaction.Name == null)
+            {
+                LogCore.Error(nameof(ReactionContainer), "反应 Name 未设置，拒绝挂载");
+                return;
+            }
+
+            // 实例已归属其他 Unit 时拒绝，防止 Init 覆盖 Owner 形成一实例双容器
+            if (reaction.Owner != null)
+            {
+                LogCore.Error(nameof(ReactionContainer), $"反应 {reaction.Name} 已归属其他 Unit，拒绝重复挂载");
+                return;
+            }
 
             if (_reactions.ContainsKey(reaction.Name))
             {

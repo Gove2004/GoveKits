@@ -11,15 +11,51 @@ namespace GoveKits.Runtime.Util
     {
         /// <summary>所属的对象池实例，用于归还时定位正确的池。</summary>
         public GameObjectPool SourcePool { get; set; }
+        /// <summary>当前是否处于池缓存中（用于检测重复归还）。</summary>
+        public bool InPool { get; set; }
     }
 
+    /// <summary>
+    /// 池化 GameObject 的统一容器（内部使用），确保缓存实例在场景切换时不被销毁。
+    /// </summary>
+    internal static class GameObjectPoolRoot
+    {
+        private const string RootName = "GoveKitsPoolRoot";
+        private static GameObject _root;
+
+        public static Transform GetOrCreate()
+        {
+            if (_root != null)
+                return _root.transform;
+
+            _root = GameObject.Find(RootName);
+            if (_root == null)
+            {
+                _root = new GameObject(RootName);
+                Object.DontDestroyOnLoad(_root);
+            }
+
+            return _root.transform;
+        }
+
+        public static void Destroy()
+        {
+            if (_root != null)
+                GameObject.Destroy(_root);
+            _root = null;
+        }
+    }
 
     /// <summary>
     /// Unity GameObject 对象池，支持预热、容量上限控制，回收时自动递归调用子物体上所有 IPoolable.OnRecycle。
+    /// 缓存实例统一挂到 DontDestroyOnLoad 容器下，场景切换不会丢失。
     /// 通过 PoolCore 创建与使用（按预制体单例），通常无需直接实例化。
     /// </summary>
     public class GameObjectPool : IPool, IPool<GameObject>
     {
+        // 回收时收集 IPoolable 的共享缓冲，避免每次 Return 产生数组分配
+        private static readonly List<IPoolable> s_poolableBuffer = new();
+
         private readonly GameObject prefab;
         private readonly Stack<GameObject> stack = new();
 
@@ -42,7 +78,7 @@ namespace GoveKits.Runtime.Util
         public void Warmup(int count)
         {
             for (int i = 0; i < count && stack.Count < Capacity; i++)
-                Return(Get());
+                CacheInstance(CreateInstance());
         }
 
         /// <summary>
@@ -53,8 +89,8 @@ namespace GoveKits.Runtime.Util
             while (stack.Count > 0)
             {
                 var obj = stack.Pop();
-                obj.SetActive(false);
-                GameObject.Destroy(obj);
+                if (obj != null)
+                    GameObject.Destroy(obj);
             }
         }
 
@@ -70,35 +106,38 @@ namespace GoveKits.Runtime.Util
                 var obj = stack.Pop();
                 if (obj != null)
                 {
+                    obj.GetComponent<PoolRecord>().InPool = false;
+                    obj.transform.SetParent(null);
                     obj.SetActive(true);
                     return obj;
                 }
+                // 缓存实例已被外部销毁（fake-null），跳过继续取下一个
             }
 
-            var newObj = GameObject.Instantiate(prefab);
-
-            var record = newObj.GetComponent<PoolRecord>();
-            if (record == null) record = newObj.AddComponent<PoolRecord>();
-            record.SourcePool = this;
-
-            return newObj;
+            return CreateInstance();
         }
 
         /// <summary>
         /// 归还一个 GameObject 到池中。
         /// 归还时自动递归调用子物体上所有 IPoolable.OnRecycle。
-        /// 超出容量时将对象销毁。
+        /// 重复归还同一对象会被忽略并输出警告；超出容量时将对象销毁。
         /// </summary>
         /// <param name="item">要归还的 GameObject</param>
         public void Return(GameObject item)
         {
             if (item == null) return;
 
+            var record = item.GetComponent<PoolRecord>();
+            if (record != null && record.InPool)
+            {
+                LogCore.Warning("GameObjectPool", $"{prefab.name} 的实例重复归还，已忽略。");
+                return;
+            }
+
             if (stack.Count < Capacity)
             {
                 RecycleGameObject(item);
-                item.SetActive(false);
-                stack.Push(item);
+                CacheInstance(item);
             }
             else
             {
@@ -107,10 +146,33 @@ namespace GoveKits.Runtime.Util
             }
         }
 
+        private GameObject CreateInstance()
+        {
+            var newObj = GameObject.Instantiate(prefab);
+
+            var record = newObj.GetComponent<PoolRecord>();
+            if (record == null) record = newObj.AddComponent<PoolRecord>();
+            record.SourcePool = this;
+            record.InPool = false;
+
+            return newObj;
+        }
+
+        private void CacheInstance(GameObject item)
+        {
+            var record = item.GetComponent<PoolRecord>();
+            if (record != null) record.InPool = true;
+
+            item.SetActive(false);
+            item.transform.SetParent(GameObjectPoolRoot.GetOrCreate(), false);
+            stack.Push(item);
+        }
+
         private void RecycleGameObject(GameObject obj)
         {
-            var children = obj.GetComponentsInChildren<IPoolable>();
-            foreach (var p in children) p.OnRecycle();
+            s_poolableBuffer.Clear();
+            obj.GetComponentsInChildren(true, s_poolableBuffer);
+            foreach (var p in s_poolableBuffer) p.OnRecycle();
         }
     }
 }

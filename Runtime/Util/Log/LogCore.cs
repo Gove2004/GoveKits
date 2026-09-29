@@ -22,13 +22,27 @@ namespace GoveKits.Runtime.Util
         private static LogLevel logLevel = LogLevel.Debug;
         private static List<ILogger> loggers = new();
 
+        static LogCore()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时清理静态状态，避免跨 Play 会话残留导致 AddLogger 抛异常
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            logLevel = LogLevel.Debug;
+            loggers.Clear();
+            OnLog = null;
+        }
+
         /// <summary>
         /// 日志分发事件。在日志发送给各后端之前触发，
         /// 参数依次为：日志等级、标签、消息内容、颜色代码。
         /// </summary>
         public static event Action<LogLevel, string, string, string> OnLog;
 
-        /// <summary>关闭所有已注册的日志后端（由 GoveCore.Close 调用）。</summary>
+        /// <summary>关闭所有已注册的日志后端（由 GoveCore.Close 调用），同时清空 OnLog 订阅。</summary>
         public static void Close()
         {
             foreach (var logger in loggers)
@@ -43,6 +57,7 @@ namespace GoveKits.Runtime.Util
                 }
             }
             loggers.Clear();
+            OnLog = null;
         }
 
         /// <summary>

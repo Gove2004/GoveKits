@@ -26,11 +26,25 @@ namespace GoveKits.Runtime.UI
         }
 
         /// <summary>
+        /// 释放回调。UICore.Close 时对每个 VM 调用一次。
+        /// 重写以清理资源，如注销全局事件订阅。
+        /// </summary>
+        public virtual void OnDispose()
+        {
+            // 子类可在此清理资源
+        }
+
+        /// <summary>
         /// 绑定界面。界面激活时由 ViewPanel 自动调用，绑定后立即推送一次全量刷新。
+        /// 一个 VM 同时只绑定一个界面：已有绑定未解绑时换绑会输出警告。
         /// 通常无需手动调用。
         /// </summary>
         public void AttachView(ViewPanel view)
         {
+            if (_view != null && _view != view)
+            {
+                UnityEngine.Debug.LogWarning($"[ViewModel] {GetType().Name} 已绑定界面 {_view.name}，将被覆盖绑定为 {view.name}。原界面将收不到 Notify。");
+            }
             _view = view;
             view.OnNotify(null);
         }

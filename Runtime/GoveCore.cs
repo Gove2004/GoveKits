@@ -13,18 +13,34 @@ namespace GoveKits.Runtime
     /// </summary>
     public static class GoveCore
     {
+        private static bool _setupDone;
+
+        static GoveCore()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时允许 Setup 重新执行，避免跨 Play 会话残留半初始化状态
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            _setupDone = false;
+        }
+
         /// <summary>
         /// 按依赖顺序初始化所有 Core。
-        /// 必须在首次使用任何 Core 之前调用。
+        /// 必须在首次使用任何 Core 之前调用；重复调用是安全的（幂等）。
         /// </summary>
         public static void Setup()
         {
+            if (_setupDone) return;
+            _setupDone = true;
+
             // 1. 基础 Core
             LogCore.AddLogger(new UnityLogger());
             // PoolCore — 懒创建，无需初始化
 
-            // 2. 事件总线
-            // EventCore;
+            // 2. 事件总线 — 静态字段自带初始总线，Close 后自动重建，无需初始化
 
             // 3. 时间轮
             TimeCore.Setup();
@@ -64,6 +80,8 @@ namespace GoveKits.Runtime
             EventCore.Close();
             PoolCore.Close();
             LogCore.Close();
+
+            _setupDone = false;
         }
     }
 }

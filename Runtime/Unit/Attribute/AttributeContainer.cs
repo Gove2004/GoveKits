@@ -92,12 +92,23 @@ namespace GoveKits.Runtime.Unit
             UpdateCurrentValue(tag, data, triggerEvents: true);
         }
 
-        /// <summary>根据来源标记，移除所有相关修改器（如 Buff 结束或卸下装备）</summary>
+        /// <summary>
+        /// 根据来源移除修改器（如 Buff 结束或卸下装备）。
+        /// 优先按 Source 引用精确匹配；若引用未命中，则回退按 Source 的运行时类型移除该类型的所有修改器，
+        /// 因此允许传入一个新 new 出来的同类型 Source（如 RemoveModifier("atk", new EquipSource())）。
+        /// </summary>
         public void RemoveModifier(UnitTag tag, ModifierSource source)
         {
             if (!_attributes.TryGetValue(tag, out var data)) return;
 
-            if (data.Modifiers.RemoveAll(m => m.Source == source) > 0)
+            // 1. 引用精确匹配（精准移除单个修改器）
+            int removed = data.Modifiers.RemoveAll(m => m.Source == source);
+
+            // 2. 引用未命中且传入非空 Source 时，回退按类型匹配该来源的全部修改器
+            if (removed == 0 && source != null)
+                removed = data.Modifiers.RemoveAll(m => m.Source != null && m.Source.GetType() == source.GetType());
+
+            if (removed > 0)
             {
                 UpdateCurrentValue(tag, data, triggerEvents: true);
             }

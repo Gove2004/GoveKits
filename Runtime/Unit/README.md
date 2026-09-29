@@ -139,11 +139,12 @@ public class EquipSource : ModifierSource { }       // 自定义来源（区分�
 
 var mod = new AttributeModifier(ModifierType.Additive, 5f, new EquipSource());
 attrs.AddModifier("atk", mod);
-attrs.RemoveModifier("atk", new EquipSource());     // 按来源移除（同一来源类型）
+attrs.RemoveModifier("atk", source);                // 按来源移除：优先 Source 引用精确匹配
+attrs.RemoveModifier("atk", new EquipSource());     // 引用未命中时回退按 Source 类型移除该类型的全部修改器
 
 // 变更回调
-attrs.BeforeValueChange += (tag, oldV, newV) => { };
-attrs.AfterValueChange  += (tag, oldV, newV) => { };
+attrs.BeforeValueChange += (tag, newValue) => Mathf.Clamp(newValue, 0f, 999f);  // 预变更拦截：Func<UnitTag, float, float>，必须返回修正后的合法值
+attrs.AfterValueChange  += (tag, oldV, newV) => { };                            // 后变更通知：Action<UnitTag, float, float>
 ```
 
 ### Ability —— 技能
@@ -247,3 +248,17 @@ HealEffect.Create().Set(50f).Apply(unit);
 Universe.Instance.InitAttributes();               // 初始化容器（同 IUnit 四件套）
 Universe.Instance.Update(Time.deltaTime);          // 手动驱动标记刷新
 ```
+
+### Serializer —— 存档/读档（UnitSerializer）
+
+```csharp
+var data = UnitSerializer.Extract(unit);      // 提取全部状态为纯数据（可 JSON 序列化）
+UnitSerializer.Restore(unit, data);           // 从数据重建（内部先 unit.Clear() 清空）
+```
+
+- **属性**：入档 `BaseValue` 与修改器列表（类型 + 数值），读档恢复基值后重挂修改器、重算当前值。
+  限制：`ModifierSource` 是运行时对象引用，无法序列化——读档后修改器的 Source 为 `null`，
+  只能通过 `RemoveModifier(tag, new XxxSource())` 按 Source **类型**移除，无法按原引用精确移除。
+- **标记**：入档层数 / 持续时间 / 计时进度；读档时在 `AddMark` 之后恢复 `Timer`，Buff 进度不丢失。
+- **技能 / 反应**：只入档标签，读档时经 `UnitCore` 工厂重建（需提前 Register）。
+- 存档中出现未注册的标签时会跳过该项并输出错误日志，不会中断整体读档流程。

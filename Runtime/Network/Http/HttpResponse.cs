@@ -4,7 +4,7 @@ namespace GoveKits.Runtime.Network
 {
     /// <summary>
     /// HTTP 响应的不可变结构体，封装状态码、响应文本、成功标志和错误信息。
-    /// 通过静态工厂方法 Success/Error/Cached/FailException 创建实例。
+    /// 通过静态工厂方法 Success/Error/FailException 创建实例。
     /// </summary>
     public readonly struct HttpResponse
     {
@@ -46,9 +46,6 @@ namespace GoveKits.Runtime.Network
 
         internal static HttpResponse Error(long statusCode, string error, string text = null)
             => new HttpResponse(false, statusCode, error, text);
-
-        internal static HttpResponse Cached(string text)
-            => new HttpResponse(true, 200, null, text);
 
         internal static HttpResponse FailException(Exception ex)
             => new HttpResponse(false, 0, ex.Message, null);

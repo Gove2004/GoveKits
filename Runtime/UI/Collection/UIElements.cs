@@ -112,9 +112,20 @@ namespace GoveKits.Runtime.UI
 
         #endregion
 
-        /// <summary>按名称获取 Item，未注册返回 null。</summary>
+        /// <summary>按名称获取 Item，未注册或已销毁返回 null（已销毁的残留条目会被自动清除）。</summary>
         public UIItem GetItem(string name)
-            => Items.TryGetValue(name, out var item) ? item : null;
+        {
+            if (!Items.TryGetValue(name, out var item)) return null;
+
+            // Unity 伪造 null：动态销毁的 Item 残留在字典中，取用前校验并清除
+            if (item == null)
+            {
+                Items.Remove(name);
+                return null;
+            }
+
+            return item;
+        }
 
         /// <summary>按名称获取指定类型的 Item，未注册或类型不符返回 null。</summary>
         public T GetItem<T>(string name) where T : UIItem
@@ -123,6 +134,7 @@ namespace GoveKits.Runtime.UI
         /// <summary>
         /// 重新收集所有启用的 UI 元素。
         /// 运行时动态新增/删除 UI 组件或 Item 后调用，会先清除旧绑定再重新收集。
+        /// 注意：组件交互监听会被重建，但 ButtonClicked 等公共事件的外部订阅会保留，无需重新订阅。
         /// </summary>
         public void Rebind()
         {
@@ -146,13 +158,7 @@ namespace GoveKits.Runtime.UI
             _rawImages?.Clear(); _rawImages = null;
             _items?.Clear(); _items = null;
 
-            ButtonClicked = null;
-            ToggleChanged = null;
-            SliderChanged = null;
-            DropdownChanged = null;
-            TMPDropdownChanged = null;
-            InputChanged = null;
-            TMPInputChanged = null;
+            // 公共交互事件（ButtonClicked 等）不清空：Rebind 只重建组件绑定，外部订阅保留
         }
 
         protected virtual void Awake()
@@ -172,7 +178,8 @@ namespace GoveKits.Runtime.UI
             foreach (var behaviour in uiBehaviours)
             {
                 // 跳过位于 UIItem 内部的组件（Item 内部组件由 Item 自身的 UIElements 收集）
-                var itemParent = behaviour.GetComponentInParent<UIItem>();
+                // 显式包含未激活父级，避免未激活 Item 内组件被漏跳过导致事件双触发
+                var itemParent = behaviour.GetComponentInParent<UIItem>(true);
                 if (itemParent != null && itemParent.transform != transform) continue;
 
                 string compName = behaviour.name;

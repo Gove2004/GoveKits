@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Util;
 using UnityEngine;
@@ -16,9 +17,12 @@ namespace GoveKits.Runtime.Storage
         private readonly Dictionary<string, string> _paths = new();
         private readonly Dictionary<string, System.Func<object>> _getData = new();
         private float _timer;
+        private bool _isSaving;
 
         private void Update()
         {
+            if (_isSaving) return; // 上一次保存未完成时跳过本轮，避免重入
+
             _timer += Time.deltaTime;
             if (_timer < intervalSeconds) return;
 
@@ -58,18 +62,29 @@ namespace GoveKits.Runtime.Storage
 
         private async UniTask SaveAllAsync()
         {
-            foreach (var kvp in _getData)
+            if (_isSaving) return;
+            _isSaving = true;
+            try
             {
-                try
+                // await 期间 Register/Unregister 可能修改字典，迭代前做快照
+                var snapshot = _getData.ToArray();
+                foreach (var kvp in snapshot)
                 {
-                    var data = kvp.Value.Invoke();
-                    var path = _paths[kvp.Key];
-                    await SaveCore.SaveAsync(path, data);
+                    try
+                    {
+                        var data = kvp.Value.Invoke();
+                        _paths.TryGetValue(kvp.Key, out string path);
+                        await SaveCore.SaveAsync(path, data);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        LogCore.Error(nameof(AutoSaveBehaviour), $"AutoSave failed [{kvp.Key}]: {ex}");
+                    }
                 }
-                catch (System.Exception ex)
-                {
-                    LogCore.Error(nameof(AutoSaveBehaviour), $"AutoSave failed [{kvp.Key}]: {ex}");
-                }
+            }
+            finally
+            {
+                _isSaving = false;
             }
         }
     }

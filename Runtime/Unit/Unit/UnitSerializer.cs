@@ -10,8 +10,8 @@ namespace GoveKits.Runtime.Unit
     [System.Serializable]
     public class UnitArchiveData
     {
-        /// <summary>属性数据（标签 -> 当前值）</summary>
-        public Dictionary<string, float> Attributes = new();
+        /// <summary>属性数据（标签 -> 属性存档：基值 + 修改器列表）</summary>
+        public Dictionary<string, AttributeArchiveData> Attributes = new();
 
         /// <summary>标记数据（带运行态进度）</summary>
         public List<MarkArchiveData> Marks = new();
@@ -21,6 +21,31 @@ namespace GoveKits.Runtime.Unit
 
         /// <summary>反应标签列表（无状态定义）</summary>
         public List<string> Reactions = new();
+    }
+
+    /// <summary>
+    /// 属性存档数据。只保存基值与修改器数值，读档恢复基值后重挂修改器，加成不会被固化为基值。
+    /// 限制：ModifierSource 为运行时对象引用，无法序列化，读档后修改器的 Source 为 null。
+    /// </summary>
+    [System.Serializable]
+    public class AttributeArchiveData
+    {
+        /// <summary>属性基值（Modifier 加成不入基值）</summary>
+        public float BaseValue;
+
+        /// <summary>修改器列表（类型 + 数值）</summary>
+        public List<ModifierArchiveData> Modifiers = new();
+    }
+
+    /// <summary>单个修改器的存档数据</summary>
+    [System.Serializable]
+    public class ModifierArchiveData
+    {
+        /// <summary>修改器类型（ModifierType 枚举的 int 值）</summary>
+        public int Type;
+
+        /// <summary>修改器数值</summary>
+        public float Value;
     }
 
     /// <summary>标记存档数据，包含层数、持续时间和计时进度</summary>
@@ -49,7 +74,13 @@ namespace GoveKits.Runtime.Unit
             var data = new UnitArchiveData();
 
             foreach (var kvp in unit.Attributes)
-                data.Attributes[kvp.Key] = kvp.Value.CurrentValue;
+            {
+                var attr = kvp.Value;
+                var attrData = new AttributeArchiveData { BaseValue = attr.BaseValue };
+                foreach (var mod in attr.Modifiers)
+                    attrData.Modifiers.Add(new ModifierArchiveData { Type = (int)mod.Type, Value = mod.Value });
+                data.Attributes[kvp.Key] = attrData;
+            }
 
             foreach (var kvp in unit.Marks)
             {
@@ -74,9 +105,18 @@ namespace GoveKits.Runtime.Unit
         {
             unit.Clear();
 
-            // 1. 恢复属性
+            // 1. 恢复属性：恢复基值后重挂修改器，重新走重算管线得出当前值
             foreach (var kvp in data.Attributes)
-                unit.Attributes.Add(kvp.Key, kvp.Value);
+            {
+                var attrData = kvp.Value;
+                unit.Attributes.Add(kvp.Key, attrData.BaseValue);
+
+                // 修改器按类型 + 数值还原；Source 引用无法序列化，用 null 占位
+                // （限制：读档后只能通过 new 同类 Source 走按类型移除，无法按原引用精确移除）
+                foreach (var modData in attrData.Modifiers)
+                    unit.Attributes.AddModifier(kvp.Key,
+                        new AttributeModifier((ModifierType)modData.Type, modData.Value, null));
+            }
 
             // 2. 恢复技能和反应
             foreach (var abilityTagStr in data.Abilities)
@@ -99,12 +139,16 @@ namespace GoveKits.Runtime.Unit
             foreach (var markData in data.Marks)
             {
                 var markTag = (UnitTag)markData.Tag;
-                var mark = UnitCore.CreateMark(markTag).SetStack(markData.Stack).SetDuration(markData.Duration);
-                if (mark != null)
-                {
-                    mark.RestoreTimer(markData.Timer);
-                    unit.Marks.AddMark(mark);
-                }
+                var mark = UnitCore.CreateMark(markTag);
+
+                // 未注册的标记工厂返回 null，跳过（CreateMark 内部已 LogCore.Error），避免 NRE 中断读档
+                if (mark == null) continue;
+
+                mark.SetStack(markData.Stack).SetDuration(markData.Duration);
+                unit.Marks.AddMark(mark);
+
+                // 必须在 AddMark 之后恢复进度：AddMark 触发的 OnApply 会清零 Timer
+                mark.RestoreTimer(markData.Timer);
             }
         }
     }

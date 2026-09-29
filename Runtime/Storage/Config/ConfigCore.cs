@@ -15,6 +15,8 @@ namespace GoveKits.Runtime.Storage
     {
         private static readonly List<IConfigParser> _parsers = new();
         private static readonly Dictionary<Type, List<IConfigData>> _configTables = new();
+        private static readonly Dictionary<Type, MethodInfo> _parseMethodCache = new();
+        private static readonly Dictionary<Type, IEnumerable<IConfigData>> _resolvedTables = new();
 
         /// <summary>
         /// 添加一个配置解析器。解析器按注册的顺序参与格式匹配。
@@ -33,6 +35,7 @@ namespace GoveKits.Runtime.Storage
         public static void Setup()
         {
             var bindings = ConfigBindingScanner.Scan();
+            _resolvedTables.Clear();
 
             foreach (var binding in bindings)
             {
@@ -44,7 +47,8 @@ namespace GoveKits.Runtime.Storage
                 }
                 catch (Exception e)
                 {
-                    LogCore.Error(nameof(ConfigCore), $"加载 {binding.ConfigType.Name} 失败: {e.Message}");
+                    // 加载失败时不写入占位空表，避免查询端误判为"表存在但无数据"
+                    LogCore.Error(nameof(ConfigCore), $"加载配置表 {binding.ConfigType.Name} 失败（路径: {binding.Attribute.FilePath}）: {e.Message}{(e.InnerException != null ? $" | 原因: {e.GetBaseException().Message}" : string.Empty)}");
                 }
             }
 
@@ -64,11 +68,8 @@ namespace GoveKits.Runtime.Storage
                 if (parser == null)
                     throw new NotSupportedException($"不支持的配置文件格式: {binding.Attribute.Extension}，路径: {binding.Attribute.FilePath}");
 
-                var method = typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse), BindingFlags.Public | BindingFlags.Instance);
-                if (method == null)
-                    throw new InvalidOperationException("IConfigParser.Parse 方法不存在");
-                var genericMethod = method.MakeGenericMethod(binding.ConfigType);
-                var result = genericMethod.Invoke(parser, new object[] { textAsset.bytes, textAsset.text });
+                var parseMethod = GetParseMethod(binding.ConfigType);
+                var result = parseMethod.Invoke(parser, new object[] { textAsset.bytes, textAsset.text });
 
                 return (List<IConfigData>)result;
             }
@@ -76,6 +77,20 @@ namespace GoveKits.Runtime.Storage
             {
                 handle?.Release();
             }
+        }
+
+        /// <summary>获取 IConfigParser.Parse 的指定泛型实例并缓存，避免每次加载都做反射查找。</summary>
+        private static MethodInfo GetParseMethod(Type configType)
+        {
+            if (!_parseMethodCache.TryGetValue(configType, out var method))
+            {
+                method = typeof(IConfigParser).GetMethod(nameof(IConfigParser.Parse), BindingFlags.Public | BindingFlags.Instance);
+                if (method == null)
+                    throw new InvalidOperationException("IConfigParser.Parse 方法不存在");
+                method = method.MakeGenericMethod(configType);
+                _parseMethodCache[configType] = method;
+            }
+            return method;
         }
 
         /// <summary>
@@ -132,19 +147,42 @@ namespace GoveKits.Runtime.Storage
 
         private static List<T> LoadInternal<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
+            // 精确 key 未命中时，回退遍历所有已加载表按类型过滤（接口类型注册时以具体子类作 key）
             if (!_configTables.TryGetValue(typeof(T), out var table))
             {
-                LogCore.Warning(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
-                return new List<T>();
+                table = ResolveTable<T>()?.ToList();
+                if (table == null)
+                {
+                    LogCore.Warning(nameof(ConfigCore), $"配置表未加载: {typeof(T).Name}");
+                    return new List<T>();
+                }
             }
 
             var result = table.OfType<T>().Where(predicate ?? (_ => true)).ToList();
             return result;
         }
 
+        /// <summary>从所有已加载表中查找元素类型兼容 T 的表并缓存结果。</summary>
+        private static IEnumerable<IConfigData> ResolveTable<T>() where T : class, IConfigData
+        {
+            if (_resolvedTables.TryGetValue(typeof(T), out var cached))
+                return cached;
+
+            foreach (var kvp in _configTables)
+            {
+                if (kvp.Value.Count > 0 && kvp.Value[0] is T)
+                {
+                    _resolvedTables[typeof(T)] = kvp.Value;
+                    return kvp.Value;
+                }
+            }
+            return null;
+        }
+
         public static void Close()
         {
             _configTables.Clear();
+            _resolvedTables.Clear();
         }
     }
 }

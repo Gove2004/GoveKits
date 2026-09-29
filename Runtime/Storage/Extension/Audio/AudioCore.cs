@@ -19,8 +19,10 @@ namespace GoveKits.Runtime.Storage
 
         private static readonly List<AudioNode> _audioPool = new();
         private static readonly Dictionary<AudioChannel, float> _volumes = new();
+        private static bool _isFadingBGM;
 
-        private struct AudioNode
+        /// <summary>池化节点。必须是 class：池内以引用共享，保证 IsActive 等状态修改能反映到 _audioPool。</summary>
+        private class AudioNode
         {
             public AudioSource Source;
             public AudioChannel Channel;
@@ -79,15 +81,18 @@ namespace GoveKits.Runtime.Storage
             => _volumes.TryGetValue(channel, out float vol) ? vol : 1f;
 
         /// <summary>
-        /// 设置指定通道的音量。音量会自动钳制到 0~1 范围并持久化到 PlayerPrefs。
+        /// 设置指定通道的音量。音量会自动钳制到 0~1 范围，实际变化时才持久化到 PlayerPrefs。
         /// </summary>
         /// <param name="channel">音频通道。</param>
         /// <param name="vol">音量值（0~1）。</param>
         public static void SetVolume(AudioChannel channel, float vol)
         {
             vol = Mathf.Clamp01(vol);
+
+            // 音量未实际变化时直接返回，避免重复写盘
+            if (_volumes.TryGetValue(channel, out float old) && Mathf.Approximately(old, vol)) return;
+
             _volumes[channel] = vol;
-            vol = Mathf.Clamp01(vol);
             PrefsCore.SetFloat(AudioPrefPrefix + channel.ToString(), vol);
             PrefsCore.Save();
 
@@ -96,7 +101,9 @@ namespace GoveKits.Runtime.Storage
 
         private static void ApplyAllVolumes()
         {
-            _bgmSource.volume = GetVolume(AudioChannel.BGM) * GetVolume(AudioChannel.Master);
+            // BGM 淡入淡出期间由协程按基础音量增量控制，避免互相覆盖
+            if (!_isFadingBGM)
+                _bgmSource.volume = GetVolume(AudioChannel.BGM) * GetVolume(AudioChannel.Master);
 
             foreach (var node in _audioPool)
             {
@@ -129,23 +136,27 @@ namespace GoveKits.Runtime.Storage
                 case AudioChannel.Ambient:
                     PlayDynamic(audioSO.Channel, audioSO.Clip, audioSO.Volume, audioSO.Pitch, audioSO.Loop);
                     break;
+                default:
+                    LogCore.Warning(nameof(AudioCore), $"未知的音频通道类型: {audioSO.Channel}，已忽略播放请求");
+                    break;
             }
         }
 
         /// <summary>
-        /// 播放背景音乐，支持淡入淡出效果。
+        /// 播放背景音乐，支持淡入淡出效果。引擎未初始化时会自动调用 Setup。
         /// </summary>
         /// <param name="clip">要播放的音频剪辑。</param>
         /// <param name="fadeTime">淡入淡出持续时间（秒）。</param>
         /// <param name="pitch">播放速率。</param>
         public static void PlayBGM(AudioClip clip, float fadeTime = 1f, float pitch = 1f)
         {
+            EnsureSetup();
             if (_fadeCoroutine != null) _driver.StopCoroutine(_fadeCoroutine);
             _fadeCoroutine = _driver.StartCoroutine(FadeBGM(clip, fadeTime, pitch));
         }
 
         /// <summary>
-        /// 动态播放音频（SFX/UI/Voice/Ambient 通道）。
+        /// 动态播放音频（SFX/UI/Voice/Ambient 通道）。引擎未初始化时会自动调用 Setup。
         /// </summary>
         /// <param name="channel">音频通道。</param>
         /// <param name="clip">音频剪辑。</param>
@@ -155,6 +166,7 @@ namespace GoveKits.Runtime.Storage
         /// <param name="position">空间位置（为 null 时为 2D 音频）。</param>
         public static void PlayDynamic(AudioChannel channel, AudioClip clip, float volScale = 1f, float pitch = 1f, bool loop = false, Vector3? position = null)
         {
+            EnsureSetup();
             var node = GetAvailableNode();
             node.IsActive = true;
             node.Channel = channel;
@@ -238,6 +250,7 @@ namespace GoveKits.Runtime.Storage
             {
                 _driver.StopCoroutine(_fadeCoroutine);
                 _fadeCoroutine = null;
+                _isFadingBGM = false;
             }
 
             _bgmSource.Stop();
@@ -247,6 +260,16 @@ namespace GoveKits.Runtime.Storage
         #endregion
 
         #region 内部方法
+
+        /// <summary>确保引擎已初始化。Setup 仅创建内部 GameObject，不依赖外部资源，可安全自动调用。</summary>
+        private static void EnsureSetup()
+        {
+            if (_root == null)
+            {
+                LogCore.Warning(nameof(AudioCore), "音频引擎尚未初始化，已自动调用 Setup()");
+                Setup();
+            }
+        }
 
         private static AudioNode GetAvailableNode()
         {
@@ -275,24 +298,30 @@ namespace GoveKits.Runtime.Storage
 
         private static IEnumerator FadeBGM(AudioClip newClip, float duration, float pitch)
         {
-            float startVol = _bgmSource.volume;
-            for (float t = 0; t < duration / 2; t += Time.deltaTime)
+            _isFadingBGM = true;
+            float half = Mathf.Max(duration / 2f, 0.01f);
+
+            // 淡出：按当前基础音量的比例递减，SetVolume 期间调整仍会平滑生效
+            for (float t = 0; t < half; t += Time.deltaTime)
             {
-                _bgmSource.volume = Mathf.Lerp(startVol, 0, t / (duration / 2));
+                _bgmSource.volume = GetBaseVolume(AudioChannel.BGM) * (1f - t / half);
                 yield return null;
             }
+            _bgmSource.volume = 0f;
 
             _bgmSource.clip = newClip;
             _bgmSource.pitch = pitch;
             _bgmSource.Play();
 
-            float targetVol = GetBaseVolume(AudioChannel.BGM);
-            for (float t = 0; t < duration / 2; t += Time.deltaTime)
+            // 淡入：目标为当前基础音量而非固定值，避免与 SetVolume 相互跳变
+            for (float t = 0; t < half; t += Time.deltaTime)
             {
-                _bgmSource.volume = Mathf.Lerp(0, targetVol, t / (duration / 2));
+                _bgmSource.volume = GetBaseVolume(AudioChannel.BGM) * (t / half);
                 yield return null;
             }
-            _bgmSource.volume = targetVol;
+
+            _isFadingBGM = false;
+            _bgmSource.volume = GetBaseVolume(AudioChannel.BGM);
         }
 
         #endregion

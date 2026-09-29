@@ -24,11 +24,14 @@ namespace GoveKits.Runtime.UI
 
         private void OnDestroy()
         {
+            if (_views == null) return;
+
             foreach (var view in _views)
             {
+                // 传入实例做身份校验，防止场景中存在两个注册器时误注销仍存活的实例
                 if (view != null)
                 {
-                    UICore.Unregister(view.GetType());
+                    UICore.Unregister(view.GetType(), view);
                 }
             }
             _views = null;

@@ -91,6 +91,8 @@ namespace GoveKits.Runtime.Unit
             {
                 foreach (var mark in _expiredMarkCache)
                 {
+                    // 移除前二次校验：OnUpdate/OnTick 期间标记可能被 OnStack 叠层复活
+                    if (!mark.IsExpired) continue;
                     RemoveMark(mark.Name);
                 }
                 _expiredMarkCache.Clear();

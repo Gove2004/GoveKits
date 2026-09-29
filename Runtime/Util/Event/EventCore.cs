@@ -30,6 +30,8 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 发布事件对象，分发到所有匹配的监听器后自动归还到池中。
         /// 无论发布过程是否抛出异常，事件对象都会被正确归还。
+        /// 注意：事件对象在 Publish 返回后即被回收复用，
+        /// 监听器内如需异步（await 后）使用事件数据，必须先自行拷贝所需字段。
         /// </summary>
         public static void Publish<TEvent>(TEvent evt) where TEvent : EventData, new()
         {
@@ -41,6 +43,8 @@ namespace GoveKits.Runtime.Util
             }
             finally
             {
+                // 归还前强制复位中断标志，避免池化复用时残留上次发布的状态
+                evt.IsBreak = false;
                 PoolCore.Return(evt);
             }
         }
@@ -55,12 +59,13 @@ namespace GoveKits.Runtime.Util
 
         /// <summary>
         /// 关闭事件总线，清空所有监听器和待处理事件。
+        /// 关闭后会立即重建一个空白总线，Subscribe/Publish 仍可正常使用（Close→Setup 可重入）。
         /// 通常在场景切换或应用退出时调用。
         /// </summary>
         public static void Close()
         {
             bus?.Dispose();
-            bus = null;
+            bus = new EventBus();
         }
     }
 }

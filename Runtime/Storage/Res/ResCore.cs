@@ -27,6 +27,12 @@ namespace GoveKits.Runtime.Storage
         private static readonly Dictionary<string, ResourcePackage> _packages = new();
         private static string _defaultPackageName = "DefaultPackage";
 
+        /// <summary>版本请求/清单更新等异步操作的超时时间（毫秒）。</summary>
+        private const int OperationTimeoutMs = 30000;
+
+        /// <summary>资源下载失败后的最大重试次数。</summary>
+        private const int DownloadMaxRetry = 3;
+
         #region 包裹初始化
 
         private static async UniTask<bool> InitPackageInternal(PackageConfig config, bool setAsDefault = false)
@@ -152,14 +158,20 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         /// <param name="packageName">要销毁的包裹名称。</param>
         public static void DestroyPackage(string packageName)
+            => DestroyPackageAsync(packageName).Forget();
+
+        /// <summary>
+        /// 异步销毁指定资源包裹：先等 DestroyAsync 完成，再从 YooAssets 中移除（移除要求包裹已完成销毁）。
+        /// </summary>
+        /// <param name="packageName">要销毁的包裹名称。</param>
+        public static async UniTask DestroyPackageAsync(string packageName)
         {
             if (!_packages.Remove(packageName)) return;
             var package = YooAssets.GetPackage(packageName);
-            if (package != null)
-            {
-                package.DestroyAsync();
-                YooAssets.RemovePackage(packageName);
-            }
+            if (package == null) return;
+
+            await package.DestroyAsync().Task;
+            YooAssets.RemovePackage(package);
         }
 
         #endregion
@@ -237,7 +249,7 @@ namespace GoveKits.Runtime.Storage
         /// <param name="mode">场景加载模式。</param>
         /// <param name="suspendLoad">是否暂停加载直到显式继续。</param>
         /// <returns>场景加载句柄。</returns>
-        public static SceneHandle LoadSceneAsync(string location, LoadSceneMode mode = LoadSceneMode.Single, bool suspendLoad = false)
+        public static YooAsset.SceneHandle LoadSceneAsync(string location, LoadSceneMode mode = LoadSceneMode.Single, bool suspendLoad = false)
         {
             var (pkg, assetPath) = ParseLocation(location);
             return pkg?.LoadSceneAsync(assetPath, mode, suspendLoad: suspendLoad);
@@ -325,6 +337,18 @@ namespace GoveKits.Runtime.Storage
 
         #region 热更新内部方法
 
+        /// <summary>等待条件满足或超时。返回 true 表示条件满足，false 表示超时。</summary>
+        private static async UniTask<bool> WaitUntilOrTimeout(Func<bool> condition, int timeoutMs = OperationTimeoutMs)
+        {
+            float deadline = Time.realtimeSinceStartup + timeoutMs / 1000f;
+            while (!condition())
+            {
+                if (Time.realtimeSinceStartup >= deadline) return false;
+                await UniTask.Yield();
+            }
+            return true;
+        }
+
         private static async UniTask<bool> UpdatePackageInternal(string packageName, UpdateCallbacks callbacks)
         {
             if (!_packages.TryGetValue(packageName, out var pkg))
@@ -337,12 +361,13 @@ namespace GoveKits.Runtime.Storage
             callbacks?.OnCheckVersionBegin?.Invoke();
 
             var versionOp = pkg.RequestPackageVersionAsync();
-            await UniTask.WaitUntil(() => versionOp.IsDone);
+            bool versionDone = await WaitUntilOrTimeout(() => versionOp.IsDone);
 
-            if (versionOp.Status != EOperationStatus.Succeed)
+            if (!versionDone || versionOp.Status != EOperationStatus.Succeed)
             {
-                callbacks?.OnCheckVersionFailed?.Invoke(versionOp.Error);
-                LogCore.Error(nameof(ResCore), $"获取版本失败：{versionOp.Error}");
+                string error = versionDone ? versionOp.Error : $"请求版本超时（{OperationTimeoutMs / 1000f}s）";
+                callbacks?.OnCheckVersionFailed?.Invoke(error);
+                LogCore.Error(nameof(ResCore), $"获取版本失败：{error}");
                 return false;
             }
 
@@ -352,12 +377,13 @@ namespace GoveKits.Runtime.Storage
 
             callbacks?.OnUpdateManifestBegin?.Invoke();
             var manifestOp = pkg.UpdatePackageManifestAsync(latestVersion);
-            await UniTask.WaitUntil(() => manifestOp.IsDone);
+            bool manifestDone = await WaitUntilOrTimeout(() => manifestOp.IsDone);
 
-            if (manifestOp.Status != EOperationStatus.Succeed)
+            if (!manifestDone || manifestOp.Status != EOperationStatus.Succeed)
             {
-                callbacks?.OnUpdateManifestFailed?.Invoke(manifestOp.Error);
-                LogCore.Error(nameof(ResCore), $"更新清单失败：{manifestOp.Error}");
+                string error = manifestDone ? manifestOp.Error : $"更新清单超时（{OperationTimeoutMs / 1000f}s）";
+                callbacks?.OnUpdateManifestFailed?.Invoke(error);
+                LogCore.Error(nameof(ResCore), $"更新清单失败：{error}");
                 return false;
             }
             callbacks?.OnUpdateManifestSuccess?.Invoke();
@@ -370,22 +396,33 @@ namespace GoveKits.Runtime.Storage
                 return true;
             }
 
-            callbacks?.OnDownloadBegin?.Invoke(downloader.TotalDownloadCount, downloader.TotalDownloadBytes);
-            downloader.DownloadFileBeginCallback = (data) => callbacks?.OnDownloadFileBegin?.Invoke(data);
-            downloader.DownloadErrorCallback = (data) => callbacks?.OnDownloadError?.Invoke(data);
-            downloader.DownloadUpdateCallback = (data) => callbacks?.OnDownloadUpdate?.Invoke(data);
-            downloader.DownloadFinishCallback = (data) => callbacks?.OnDownloadFinish?.Invoke(data);
-
-            downloader.BeginDownload();
-            await UniTask.WaitUntil(() => downloader.IsDone);
-
-            if (downloader.Status != EOperationStatus.Succeed)
+            int attempt = 0;
+            while (true)
             {
-                LogCore.Error(nameof(ResCore), $"下载资源流程异常终止: {downloader.Error}");
-                return false;
+                callbacks?.OnDownloadBegin?.Invoke(downloader.TotalDownloadCount, downloader.TotalDownloadBytes);
+                downloader.DownloadFileBeginCallback = (data) => callbacks?.OnDownloadFileBegin?.Invoke(data);
+                downloader.DownloadErrorCallback = (data) => callbacks?.OnDownloadError?.Invoke(data);
+                downloader.DownloadUpdateCallback = (data) => callbacks?.OnDownloadUpdate?.Invoke(data);
+                downloader.DownloadFinishCallback = (data) => callbacks?.OnDownloadFinish?.Invoke(data);
+
+                downloader.BeginDownload();
+                await UniTask.WaitUntil(() => downloader.IsDone);
+
+                if (downloader.Status == EOperationStatus.Succeed)
+                    return true;
+
+                attempt++;
+                LogCore.Error(nameof(ResCore), $"下载资源失败（第 {attempt}/{DownloadMaxRetry} 次）: {downloader.Error}");
+                // 下载器失败后不可复用，重建下载器重试；完成后 YooAsset 会自动触发 OnDownloadFinish(Succeed=false)
+                if (attempt >= DownloadMaxRetry) break;
+
+                downloader = pkg.CreateResourceDownloader(10, 3);
+                if (downloader.TotalDownloadCount == 0)
+                    return true;
             }
 
-            return true;
+            LogCore.Error(nameof(ResCore), $"下载资源流程异常终止: {downloader.Error}");
+            return false;
         }
 
         #endregion
@@ -394,11 +431,19 @@ namespace GoveKits.Runtime.Storage
         /// 清空所有已初始化的资源包裹，重置默认包裹名。
         /// </summary>
         public static void Close()
+            => CloseAsync().Forget();
+
+        /// <summary>
+        /// 异步关闭：等待每个包裹 DestroyAsync 完成后从 YooAssets 移除（移除要求包裹已完成销毁），
+        /// 保证 Close 后可重新 Setup 初始化同名包裹。
+        /// </summary>
+        public static async UniTask CloseAsync()
         {
             foreach (var kvp in _packages)
             {
                 var pkg = kvp.Value;
-                pkg.DestroyAsync();
+                await pkg.DestroyAsync().Task;
+                YooAssets.RemovePackage(pkg);
             }
             _packages.Clear();
             _defaultPackageName = "DefaultPackage";

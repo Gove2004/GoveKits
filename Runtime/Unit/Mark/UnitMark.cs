@@ -70,20 +70,22 @@ namespace GoveKits.Runtime.Unit
 
         #region 生命周期回调 (由容器驱动)
 
-        /// <summary>标记被首次挂载到身上时触发</summary>
+        /// <summary>标记被首次挂载到身上时触发。重置计时并清除过期状态，保证复用实例状态干净</summary>
         public virtual void OnApply()
         {
             Timer = 0f;
+            IsExpired = false;
         }
 
         /// <summary>
         /// 宿主身上已存在同名标记时触发（处理堆叠冲突逻辑）。
-        /// 默认行为：层数合并（不超过上限），并刷新剩余持续时间。
+        /// 默认行为：层数合并（不超过上限），并刷新剩余持续时间；同时清除过期状态（叠层可复活过期标记）。
         /// </summary>
         public virtual void OnStack(UnitMark newMark)
         {
             Stack = Math.Min(Stack + newMark.Stack, MaxStack);
             Timer = 0f;
+            IsExpired = false;
         }
 
         /// <summary>每帧更新逻辑，处理时间流逝</summary>

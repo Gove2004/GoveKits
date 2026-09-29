@@ -33,10 +33,25 @@ namespace GoveKits.Runtime.Unit
         /// <summary>
         /// 添加技能并自动为其注入宿主。若已存在同名技能，旧技能将被自动销毁替换。
         /// 正在执行中的旧技能会标记为待销毁而非立即释放。
+        /// 已归属其他 Unit 的实例会被拒绝（避免一个实例被两个容器共享）。
         /// </summary>
         public void AddAbility(UnitAbility ability)
         {
             if (ability == null) return;
+
+            // 字典键不能为 null
+            if (ability.Name == null)
+            {
+                LogCore.Error(nameof(AbilityContainer), "技能 Name 未设置，拒绝添加");
+                return;
+            }
+
+            // 实例已归属其他 Unit 时拒绝，防止 Init 覆盖 Owner 形成一实例双容器
+            if (ability.Owner != null)
+            {
+                LogCore.Error(nameof(AbilityContainer), $"技能 {ability.Name} 已归属其他 Unit，拒绝重复添加");
+                return;
+            }
 
             if (_abilities.TryGetValue(ability.Name, out var oldAbility))
             {
@@ -55,12 +70,24 @@ namespace GoveKits.Runtime.Unit
             _abilities[ability.Name] = ability;
         }
 
-        /// <summary>移除指定标签的技能实例</summary>
+        /// <summary>
+        /// 移除指定标签的技能实例。
+        /// 正在执行中的技能不会立即 Dispose（避免执行中销毁自身），而是标记待销毁并移出容器，
+        /// 待其执行完毕后在 UnitAbility.TryExecuteAsync 的 finally 中真正释放。
+        /// </summary>
         public bool RemoveAbility(UnitTag tag)
         {
             if (_abilities.TryGetValue(tag, out var ability))
             {
-                ability.Dispose();
+                if (ability.IsExecuting)
+                {
+                    LogCore.Warning(nameof(AbilityContainer), $"技能 {tag} 正在执行中，标记为待销毁，执行结束后释放");
+                    ability.MarkForPendingDestroy();
+                }
+                else
+                {
+                    ability.Dispose();
+                }
                 _abilities.Remove(tag);
                 return true;
             }
@@ -88,12 +115,22 @@ namespace GoveKits.Runtime.Unit
             return ability.TryExecuteAsync(context, cancellationToken);
         }
 
-        /// <summary>销毁并清空所有技能实例</summary>
+        /// <summary>
+        /// 销毁并清空所有技能实例。
+        /// 正在执行中的技能走待销毁路径（标记后移出容器，执行结束后在 finally 中释放）。
+        /// </summary>
         public void Clear()
         {
             foreach (var ability in _abilities.Values)
             {
-                ability.Dispose();
+                if (ability.IsExecuting)
+                {
+                    ability.MarkForPendingDestroy();
+                }
+                else
+                {
+                    ability.Dispose();
+                }
             }
             _abilities.Clear();
         }

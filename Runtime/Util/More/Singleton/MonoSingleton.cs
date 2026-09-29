@@ -7,6 +7,18 @@ namespace GoveKits.Runtime.Util
         private const string ContainerName = "GoveKitsSingletons";
         private static GameObject _container;
 
+        static MonoSingletonContainer()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时清理容器引用，避免跨 Play 会话残留
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            _container = null;
+        }
+
         public static Transform GetOrCreate()
         {
             if (_container != null)
@@ -58,9 +70,19 @@ namespace GoveKits.Runtime.Util
             if (_initialized)
                 return;
 
-            Init();
-            _initialized = true;
-            transform.SetParent(MonoSingletonContainer.GetOrCreate(), true);
+            try
+            {
+                Init();
+                _initialized = true;
+                transform.SetParent(MonoSingletonContainer.GetOrCreate(), true);
+            }
+            catch (System.Exception e)
+            {
+                // Init 失败时回滚单例引用，下次访问 Instance 可重试
+                if (_instance == this) _instance = null;
+                Debug.LogError($"[MonoSingleton] {typeof(T).Name} Init 异常: {e}");
+                throw;
+            }
         }
 
         protected virtual void OnDestroy()
@@ -79,7 +101,8 @@ namespace GoveKits.Runtime.Util
 
         private static void CreateInstance()
         {
-            _instance = FindFirstObjectByType<T>();
+            // 包含未激活对象，避免场景中存在隐藏单例时重复创建
+            _instance = FindFirstObjectByType<T>(FindObjectsInactive.Include);
             if (_instance != null)
                 return;
 

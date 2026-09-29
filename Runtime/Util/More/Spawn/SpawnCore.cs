@@ -14,6 +14,23 @@ namespace GoveKits.Runtime.Util
         private static Dictionary<uint, ISpawnable> spawnedEntities = new();
         private static uint idCounter = 100;
 
+        static SpawnCore()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时清理静态状态，避免跨 Play 会话残留
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            spawnFactories.Clear();
+            despawnActions.Clear();
+            spawnedEntities.Clear();
+            idCounter = 100;
+            OnEntitySpawned = null;
+            OnEntityDespawned = null;
+        }
+
         /// <summary>实体生成后触发，携带刚生成的实体引用。</summary>
         public static event Action<ISpawnable> OnEntitySpawned;
         /// <summary>实体销毁后触发，携带刚销毁的实体引用。</summary>
@@ -67,7 +84,7 @@ namespace GoveKits.Runtime.Util
             if (spawnedEntities.ContainsKey(objectId))
             {
                 LogCore.Warning(nameof(SpawnCore), $"ObjectId: [{objectId}] 已存在，放弃生成！");
-                return spawnedEntities[objectId];
+                return null;
             }
 
             try
@@ -155,7 +172,7 @@ namespace GoveKits.Runtime.Util
         private static uint NextObjectId() => ++idCounter;
 
         /// <summary>
-        /// 关闭并清理所有已生成的实体，触发各自的销毁回调。
+        /// 关闭并清理所有已生成的实体，触发各自的销毁回调，同时清空静态事件订阅。
         /// </summary>
         public static void Close()
         {
@@ -163,6 +180,10 @@ namespace GoveKits.Runtime.Util
             foreach (var id in idsToDespawn)
                 Despawn(id);
             spawnedEntities.Clear();
+
+            // 静态事件不清理会永久持有订阅者（闭包/MonoBehaviour），跨场景泄漏
+            OnEntitySpawned = null;
+            OnEntityDespawned = null;
         }
     }
 }

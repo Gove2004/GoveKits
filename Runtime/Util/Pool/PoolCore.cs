@@ -53,13 +53,22 @@ namespace GoveKits.Runtime.Util
         /// <summary>
         /// 将一个对象归还到其类型的对象池中。
         /// 归还时会自动调用对象的 OnRecycle 方法重置状态。
+        /// 若该类型从未创建过池（对象并非从池中获取），将丢弃对象并输出警告。
         /// </summary>
         /// <typeparam name="T">对象类型</typeparam>
         /// <param name="item">要归还的对象，为 null 时静默忽略</param>
         public static void Return<T>(T item) where T : class, IPoolable, new()
         {
             if (item == null) return;
-            Create<T>().Return(item);
+
+            if (csharpPools.TryGetValue(typeof(T), out var pool))
+            {
+                ((CSharpPool<T>)pool).Return(item);
+            }
+            else
+            {
+                LogCore.Warning(nameof(PoolCore), $"{typeof(T).Name} 未创建过对象池，归还对象已丢弃（请确认对象来自 PoolCore.Get<{typeof(T).Name}>()）。");
+            }
         }
 
         /// <summary>
@@ -160,6 +169,16 @@ namespace GoveKits.Runtime.Util
             foreach (var pool in gameObjectPools.Values) pool.Clear();
             csharpPools.Clear();
             gameObjectPools.Clear();
+            GameObjectPoolRoot.Destroy();
+        }
+
+        // 关闭 Domain Reload 时清理静态注册表，避免跨 Play 会话残留
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            csharpPools.Clear();
+            gameObjectPools.Clear();
+            GameObjectPoolRoot.Destroy();
         }
     }
 }

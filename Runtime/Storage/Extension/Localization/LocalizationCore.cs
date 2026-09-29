@@ -20,17 +20,23 @@ namespace GoveKits.Runtime.Storage
         private static LocalizationConfig _fontConfig;
 #endif
         private static LanguageCode _currentLanguage = LanguageCode.ChineseCN;
+        private static LanguageCode _fallbackLanguage = LanguageCode.EnglishUS;
 
         public static event Action OnLanguageChanged;
         public static LanguageCode CurrentLanguage => _currentLanguage;
+        /// <summary>缺失翻译时的回退语言（可通过 Setup 配置）。</summary>
+        public static LanguageCode FallbackLanguage => _fallbackLanguage;
 
         /// <summary>
         /// 初始化多语言系统。加载配置数据、读取上次选择的语言设置并刷新缓存。
+        /// 完成后会补发一次 OnLanguageChanged 事件，让先于 Setup 启用的组件刷新。
         /// </summary>
-        public static void Setup()
+        /// <param name="fallbackLanguage">缺失翻译时的回退语言，默认 EnglishUS。</param>
+        public static void Setup(LanguageCode fallbackLanguage = LanguageCode.EnglishUS)
         {
             try
             {
+                _fallbackLanguage = fallbackLanguage;
                 LoadRowsFromConfig();
                 LoadLanguageSettings();
 
@@ -45,6 +51,9 @@ namespace GoveKits.Runtime.Storage
             {
                 LogCore.Error(nameof(LocalizationCore), $"初始化失败: {e.Message}");
             }
+
+            // 补发一次事件，让先于 Setup 订阅/启用的组件完成刷新
+            OnLanguageChanged?.Invoke();
         }
 
         /// <summary>
@@ -116,7 +125,7 @@ namespace GoveKits.Runtime.Storage
         {
             _currentLangCache.Clear();
             string langName = _currentLanguage.ToString();
-            string fallbackName = LanguageCode.EnglishUS.ToString();
+            string fallbackName = _fallbackLanguage.ToString();
 
             foreach (var kvp in _rawRows)
             {
@@ -154,6 +163,7 @@ namespace GoveKits.Runtime.Storage
         {
             _currentLangCache.Clear();
             _rawRows.Clear();
+            _fieldCache.Clear();
             OnLanguageChanged = null;
 #if TMP_PRESENT
             _fontConfig = null;

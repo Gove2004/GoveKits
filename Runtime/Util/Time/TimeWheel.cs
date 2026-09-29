@@ -69,7 +69,6 @@ namespace GoveKits.Runtime.Util
             timer.BelongsToWheel = this;
             timer.IsDone = false;
             timer.IsCancelled = false;
-            timer.IsPaused = false;
 
             int slotIndex = (int)(targetTick % _wheelSize);
             timer.LinkNode = _slots[slotIndex].AddLast(timer);
@@ -93,7 +92,8 @@ namespace GoveKits.Runtime.Util
         /// <returns>剩余等待时间（秒）</returns>
         public float RemoveAndCalcRemaining(Timer timer)
         {
-            long ticksRemaining = timer.TargetTick - _currentTick;
+            // 剩余时长需包含未走完的整圈数，否则跨圈定时器 Pause/Resume 会丢失时长
+            long ticksRemaining = (long)timer.Rounds * _wheelSize + (timer.TargetTick - _currentTick);
             if (ticksRemaining < 0) ticksRemaining = 0;
 
             RemoveFromSlot(timer);
@@ -200,11 +200,9 @@ namespace GoveKits.Runtime.Util
             list.Remove(node);
             timer.LinkNode = null;
 
-            if (timer.IsPaused)
-            {
-                Schedule(timer, timer.Interval);
-                return;
-            }
+            // 暂停中的定时器不重排也不回收，交由 Resume 重新入轮，
+            // 否则会造成同一 Timer 双重入轮（回调重复）或永不触发
+            if (timer.IsPaused) return;
 
             ExecuteCallback(timer);
             HandlePostExecute(timer);
@@ -224,6 +222,9 @@ namespace GoveKits.Runtime.Util
 
         private void HandlePostExecute(Timer timer)
         {
+            // 回调内自暂停：不重排不回收，保留暂停态，Resume 后继续后续循环
+            if (timer.IsPaused) return;
+
             bool shouldLoop = timer.LoopCount != 0 && !timer.IsCancelled;
 
             if (!shouldLoop)
@@ -284,7 +285,14 @@ namespace GoveKits.Runtime.Util
             ProcessRecycleQueue();
             _currentTick = 0;
             _accumulatedTime = 0;
+
+            // 暂存区中尚未插入的定时器同样需要回收
+            foreach (var (pending, _) in _pendingTimers)
+            {
+                EnqueueRecycle(pending);
+            }
             _pendingTimers.Clear();
+            ProcessRecycleQueue();
         }
     }
 }

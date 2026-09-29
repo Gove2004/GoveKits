@@ -12,9 +12,22 @@ namespace GoveKits.Runtime.Util
         private static TimeWheel wheel;
         private static long idCounter;
 
+        static TimeCore()
+        {
+            ResetForDomainReload();
+        }
+
+        // 关闭 Domain Reload 时清理静态状态，避免跨 Play 会话残留
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            wheel = null;
+            idCounter = 0;
+        }
+
         /// <summary>
         /// 初始化时间轮系统。
-        /// 必须在首次使用定时器之前调用。
+        /// 可在首次使用定时器之前调用以自定义精度；未调用时首次创建定时器会按默认参数自动初始化。
         /// </summary>
         /// <param name="tickDuration">每次 tick 的时间跨度（秒），默认 50ms</param>
         /// <param name="wheelSize">时间轮的槽位数，默认 512</param>
@@ -69,6 +82,13 @@ namespace GoveKits.Runtime.Util
 
         private static Timer CreateTimer(float delay, float interval, int loopCount, Action callback)
         {
+            // 未显式 Setup 时按默认参数自动初始化，并提示 Tick 需要驱动
+            if (wheel == null)
+            {
+                LogCore.Warning(nameof(TimeCore), "尚未调用 TimeCore.Setup，已按默认参数自动初始化。请确保每帧调用 TimeCore.Tick(Time.deltaTime) 驱动时间轮。");
+                Setup();
+            }
+
             var timer = PoolCore.Get<Timer>();
             timer.SetID(++idCounter);
             timer.Callback = callback;
