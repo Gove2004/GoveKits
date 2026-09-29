@@ -45,6 +45,7 @@ ResCore.Release(handle2);
 // 3. 卸载未引用资源 / 销毁包裹
 ResCore.UnloadUnusedAssets();
 ResCore.DestroyPackage("Main");
+ResCore.CloseAsync();                                // 完整关闭（先销毁包裹再释放，Close 后可重新 InitPackageAsync）
 ```
 
 > 注意：`LoadAssetAsync` / `LoadAssetSync` 返回句柄，**用完必须 `ResCore.Release(handle)`**；`InstantiateAsync` 已内部自动释放。
@@ -97,6 +98,23 @@ SaveCore.Delete("player.dat");
 string[] files = SaveCore.GetAllFiles("*.dat");
 ```
 
+### AutoSave —— 自动存档（挂场景中的 AutoSaveBehaviour）
+
+```csharp
+// 注册：每 interval 秒自动把 getData 返回的数据保存到 path（key 用于注销）
+autoSave.Register("player", "player.dat", () => new PlayerSave { Gold = 999 });
+autoSave.SaveAll();                                  // 手动触发一次全量保存（如退到后台时）
+autoSave.Unregister("player");                       // 注销
+```
+
+### Prefs —— 轻量键值（PlayerPrefs 封装）
+
+```csharp
+PrefsCore.SetInt("level", 5);
+int level = PrefsCore.GetInt("level", 1);
+PrefsCore.Save();                                    // 显式落盘
+```
+
 ## Hotfix —— 热更新
 
 HybridCLR 热更流程：加载 AOT 元数据 → 加载热更程序集 → 启动入口。
@@ -147,8 +165,8 @@ AudioCore.StopAllChannel(AudioChannel.SFX);
 配置表驱动，支持语言切换、文本查询、TMP 字体映射。
 
 ```csharp
-// 1. 初始化（加载配置表 + 上次语言设置）
-LocalizationCore.Setup();
+// 1. 初始化（可选：传回退语言，翻译缺失时降级显示，默认 EnglishUS）
+LocalizationCore.Setup(LanguageCode.ChineseCN);
 
 // 2. 获取文本 / 切换语言
 string tip = LocalizationCore.GetText("ui.login.tip");     // 当前语言文本，缺 key 返回 "#key#"

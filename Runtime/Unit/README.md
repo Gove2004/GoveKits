@@ -81,7 +81,7 @@ public class SlashAbility : UnitAbility
         var evt = EventCore.Pick<DamageEvent>();        // 从池中取事件
         evt.Source = Owner;
         evt.Target = context.Target;
-        evt.Damage = Owner.Attributes.GetValue("atk");
+        evt.Damage = Owner.GetValue("atk");             // 取属性用 IUnit 扩展（容器上只有带 Func 的 GetValue）
         EventCore.Publish(evt);                         // 发布 → 所有订阅者被触发，随后自动回收
         return UniTask.CompletedTask;
     }
@@ -109,6 +109,7 @@ public class BleedMark : TickMark
 
     public override void OnApply()
     {
+        base.OnApply();                 // 必须：TickMark.OnApply 会重置周期计时器（标记走池化复用）
         Duration = 3f;                  // 持续 3 秒（protected set，子类可设）
         SetInterval(1f);                // 每 1 秒 tick 一次
     }
@@ -131,7 +132,8 @@ await hero.Abilities.TryExecuteAsync("slash", ctx);   // 执行技能 → 发事
 var attrs = unit.Attributes;
 
 attrs.Add("hp", 100);                               // 定义属性（基值）
-float hp = attrs.GetValue("hp");                    // 取当前值
+float hp = unit.GetValue("hp");                     // 取当前值（IUnit 扩展，Func 可省略）
+attrs.GetBaseValue("hp");                           // 取基值（容器方法）
 attrs.ChangeBase("hp", -10);                        // 直接改基值
 
 // 修正器（Modifier）：临时加成，可移除
@@ -162,7 +164,7 @@ skill.AddRule(new CDRule("slash_cd", 3f));          // 冷却规则（3 秒，�
 public class ManaCostRule : AbilityRule
 {
     public override bool Check(AbilityContext context)
-        => context.Source.Attributes.GetValue("mp") >= 10;
+        => context.Source.GetValue("mp") >= 10;
     public override void Commit(AbilityContext context)
         => AttributeChangeEffect.Create().Set("mp", -10f).Apply(context.Source);
 }

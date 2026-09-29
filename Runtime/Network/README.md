@@ -48,6 +48,10 @@ var resp5 = await HttpCore.DeleteAsync("https://api.example.com/items/1");
 // 6. 自定义头 / 超时
 var headers = new Dictionary<string, string> { { "Authorization", "Bearer xxx" } };
 var resp6 = await HttpCore.GetAsync("https://api.example.com/me", headers, timeout: 10f);
+
+// 7. 取消请求（所有方法最后一个参数都是 CancellationToken，取消时返回失败响应）
+var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+var resp7 = await HttpCore.GetAsync("https://api.example.com/slow", cancellationToken: cts.Token);
 ```
 
 ### HttpResponse
