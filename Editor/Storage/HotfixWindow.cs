@@ -246,14 +246,43 @@ namespace GoveKits.Editor
 
             string assetsPath = Path.Combine(Application.dataPath, "..");
             string absoluteOutput = Path.GetFullPath(_outputDir);
-            if (absoluteOutput.StartsWith(assetsPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                || absoluteOutput == assetsPath)
+
+            // 黑名单：删除目标为盘符根/用户目录/项目根本身时直接拒绝（原逻辑只对项目内路径确认，
+            // 项目外路径反而无确认直接递归删除，保护方向反了）
+            string projectRoot = Path.GetFullPath(assetsPath);
+            string userProfile = Path.GetFullPath(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile));
+
+            bool IsProtectedRoot(string dir)
             {
-                if (!EditorUtility.DisplayDialog("警告",
-                    $"目标路径位于项目根目录内：{_outputDir}\n删除后不可恢复，确定继续？", "确定", "取消"))
+                if (string.IsNullOrEmpty(dir)) return false;
+                string full = Path.GetFullPath(dir)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return absoluteOutput.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    .Equals(full, StringComparison.OrdinalIgnoreCase);
+            }
+
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (IsProtectedRoot(drive.RootDirectory.FullName))
                 {
+                    EditorUtility.DisplayDialog("已拒绝",
+                        $"目标路径是盘符根目录：{_outputDir}\n为防止误删，操作已取消。", "确定");
                     return;
                 }
+            }
+
+            if (IsProtectedRoot(userProfile) || IsProtectedRoot(projectRoot))
+            {
+                EditorUtility.DisplayDialog("已拒绝",
+                    $"目标路径指向受保护目录（用户目录/项目根）：{_outputDir}\n为防止误删，操作已取消。", "确定");
+                return;
+            }
+
+            // 无条件确认：清空目标目录不可恢复（项目内外同等对待）
+            if (!EditorUtility.DisplayDialog("警告",
+                $"将清空并重建目标目录：{_outputDir}\n删除后不可恢复，确定继续？", "确定", "取消"))
+            {
+                return;
             }
 
             try

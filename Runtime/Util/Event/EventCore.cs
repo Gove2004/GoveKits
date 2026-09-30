@@ -17,6 +17,9 @@ namespace GoveKits.Runtime.Util
     {
         private static EventBus bus = new EventBus();
 
+        /// <summary>总线重建计数：Close 重建后自增。订阅方（如 UnitReaction）据此感知旧订阅凭证已失效并重新订阅。</summary>
+        internal static int BusVersion { get; private set; }
+
         /// <summary>
         /// 从池中取一个指定类型的事件对象。
         /// 事件类型必须实现 IPoolable 并提供默认构造函数。
@@ -66,6 +69,7 @@ namespace GoveKits.Runtime.Util
         {
             bus?.Dispose();
             bus = new EventBus();
+            BusVersion++;
         }
     }
 }

@@ -26,7 +26,10 @@ namespace GoveKits.Runtime.Unit
         /// <summary>标签字符串内容</summary>
         public string Name => _name;
 
-        /// <summary>创建一个 UnitTag（自动池化，相同字符串返回同一实例）</summary>
+        /// <summary>
+        /// 创建一个 UnitTag（自动池化，相同字符串返回同一实例）。
+        /// 注意：直接 new 传空/null 不会得到 None 单例（引用不等）；请使用隐式转换或 None。
+        /// </summary>
         public UnitTag(string name)
         {
             if (string.IsNullOrEmpty(name))
@@ -48,8 +51,9 @@ namespace GoveKits.Runtime.Unit
             }
         }
 
-        /// <summary>隐式从 string 转换为 UnitTag</summary>
-        public static implicit operator UnitTag(string name) => new UnitTag(name);
+        /// <summary>隐式从 string 转换为 UnitTag；空/null 统一路由到 None 单例，保证引用相等与字典键语义一致</summary>
+        public static implicit operator UnitTag(string name)
+            => string.IsNullOrEmpty(name) ? None : new UnitTag(name);
 
         /// <summary>隐式从 UnitTag 转换为 string</summary>
         public static implicit operator string(UnitTag tag) => tag?._name ?? string.Empty;

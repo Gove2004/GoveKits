@@ -44,7 +44,11 @@ namespace GoveKits.Runtime.UI
         /// </summary>
         public virtual void OnNotify(string key) { }
 
-        /// <summary>显示时接收外部传入参数（UICore.Show 的 param）。重写以接收参数，如 Show&lt;LoginPanel&gt;(userData)。</summary>
+        /// <summary>
+        /// 显示时接收外部传入参数（UICore.Show 的 param）。重写以接收参数，如 Show&lt;LoginPanel&gt;(userData)。
+        /// 时序契约：首次显示时本回调先于 SetActive(true)（即先于 Awake/OnEnable 与组件收集），
+        /// 此处只应保存参数；访问 Elements 等组件请放到 OnShow。
+        /// </summary>
         public virtual void OnReceiveShowParam(object param) { }
 
         /// <summary>界面已激活、VM 已绑定后回调。重写以播放入场动画、初始化展示等。</summary>

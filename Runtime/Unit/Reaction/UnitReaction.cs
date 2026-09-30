@@ -72,16 +72,22 @@ namespace GoveKits.Runtime.Unit
     {
         // 订阅凭证，Deactivate 时用它注销，避免单位销毁后仍被事件总线持有
         private IDisposable _unsubscribeAction;
+        // 订阅时的总线版本号：EventCore.Close 会重建总线使旧凭证失效（IsActive 仍为 true），
+        // 版本不一致时 Activate 必须重新订阅，否则反应在 Close 后永久失聪且无任何警告
+        private int _subscribedBusVersion;
 
         /// <summary>无参构造，满足反序列化工厂要求</summary>
         public UnitReaction() { }
 
-        /// <summary>订阅全局事件总线，重复调用只订阅一次</summary>
+        /// <summary>订阅全局事件总线；EventCore.Close 重建总线后再次调用会自动重新订阅</summary>
         public override void Activate()
         {
-            if (IsActive) return;
+            if (IsActive && _subscribedBusVersion == EventCore.BusVersion) return;
 
+            // 首次激活，或总线已被 Close 重建（旧凭证失效）：清理旧凭证后重新订阅
+            _unsubscribeAction?.Dispose();
             _unsubscribeAction = EventCore.Subscribe<T>(this);
+            _subscribedBusVersion = EventCore.BusVersion;
             IsActive = true;
         }
 

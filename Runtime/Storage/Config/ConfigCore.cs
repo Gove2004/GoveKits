@@ -162,21 +162,32 @@ namespace GoveKits.Runtime.Storage
             return result;
         }
 
-        /// <summary>从所有已加载表中查找元素类型兼容 T 的表并缓存结果。</summary>
+        /// <summary>从所有已加载表中查找元素类型兼容 T 的表，合并全部命中表的数据并缓存。</summary>
         private static IEnumerable<IConfigData> ResolveTable<T>() where T : class, IConfigData
         {
             if (_resolvedTables.TryGetValue(typeof(T), out var cached))
                 return cached;
 
+            List<IConfigData> merged = null;
+            int hitCount = 0;
             foreach (var kvp in _configTables)
             {
                 if (kvp.Value.Count > 0 && kvp.Value[0] is T)
                 {
-                    _resolvedTables[typeof(T)] = kvp.Value;
-                    return kvp.Value;
+                    hitCount++;
+                    merged ??= new List<IConfigData>();
+                    merged.AddRange(kvp.Value);
                 }
             }
-            return null;
+
+            if (merged == null) return null;
+
+            // 接口类型（如本地化接口）常见"每子类一张表"：单表命中会静默丢失其余表数据
+            if (hitCount > 1)
+                LogCore.Warning(nameof(ConfigCore), $"接口 {typeof(T).Name} 回退命中 {hitCount} 张配置表，已合并全部 {merged.Count} 条数据。");
+
+            _resolvedTables[typeof(T)] = merged;
+            return merged;
         }
 
         public static void Close()

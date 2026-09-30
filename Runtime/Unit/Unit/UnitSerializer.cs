@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using GoveKits.Runtime.Util;
 
@@ -46,6 +47,9 @@ namespace GoveKits.Runtime.Unit
 
         /// <summary>修改器数值</summary>
         public float Value;
+
+        /// <summary>Source 的运行时类型全名（读档还原空壳实例用，原引用无法序列化）</summary>
+        public string SourceTypeName;
     }
 
     /// <summary>标记存档数据，包含层数、持续时间和计时进度</summary>
@@ -78,7 +82,14 @@ namespace GoveKits.Runtime.Unit
                 var attr = kvp.Value;
                 var attrData = new AttributeArchiveData { BaseValue = attr.BaseValue };
                 foreach (var mod in attr.Modifiers)
-                    attrData.Modifiers.Add(new ModifierArchiveData { Type = (int)mod.Type, Value = mod.Value });
+                {
+                    attrData.Modifiers.Add(new ModifierArchiveData
+                    {
+                        Type = (int)mod.Type,
+                        Value = mod.Value,
+                        SourceTypeName = mod.Source?.GetType().AssemblyQualifiedName
+                    });
+                }
                 data.Attributes[kvp.Key] = attrData;
             }
 
@@ -111,11 +122,31 @@ namespace GoveKits.Runtime.Unit
                 var attrData = kvp.Value;
                 unit.Attributes.Add(kvp.Key, attrData.BaseValue);
 
-                // 修改器按类型 + 数值还原；Source 引用无法序列化，用 null 占位
-                // （限制：读档后只能通过 new 同类 Source 走按类型移除，无法按原引用精确移除）
+                // 修改器按类型 + 数值还原；Source 引用无法序列化，按存档类型名还原空壳实例，
+                // 使 RemoveModifier 的"按类型回退"能命中读档恢复的修改器（否则变成无法移除的永久 buff）
                 foreach (var modData in attrData.Modifiers)
+                {
+                    ModifierSource source = null;
+                    if (!string.IsNullOrEmpty(modData.SourceTypeName))
+                    {
+                        var sourceType = Type.GetType(modData.SourceTypeName);
+                        if (sourceType != null)
+                        {
+                            try { source = Activator.CreateInstance(sourceType) as ModifierSource; }
+                            catch (Exception e)
+                            {
+                                LogCore.Warning(nameof(UnitSerializer),
+                                    $"修改器 Source 还原失败({modData.SourceTypeName}): {e.Message}");
+                            }
+                        }
+                        if (source == null)
+                            LogCore.Warning(nameof(UnitSerializer),
+                                $"修改器 Source 无法还原({modData.SourceTypeName})，读档后该修改器将无法按来源移除");
+                    }
+
                     unit.Attributes.AddModifier(kvp.Key,
-                        new AttributeModifier((ModifierType)modData.Type, modData.Value, null));
+                        new AttributeModifier((ModifierType)modData.Type, modData.Value, source));
+                }
             }
 
             // 2. 恢复技能和反应

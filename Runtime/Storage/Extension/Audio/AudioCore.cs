@@ -87,6 +87,7 @@ namespace GoveKits.Runtime.Storage
         /// <param name="vol">音量值（0~1）。</param>
         public static void SetVolume(AudioChannel channel, float vol)
         {
+            EnsureSetup();
             vol = Mathf.Clamp01(vol);
 
             // 音量未实际变化时直接返回，避免重复写盘

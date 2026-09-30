@@ -63,47 +63,47 @@ namespace GoveKits.Runtime.UI
         #region 组件字典（按名称索引访问）
 
         /// <summary>按钮字典 - 按键名访问：Elements.Buttons["LoginBtn"]</summary>
-        protected Dictionary<string, Button> Buttons => _buttons ??= new Dictionary<string, Button>();
+        public Dictionary<string, Button> Buttons => _buttons ??= new Dictionary<string, Button>();
         private Dictionary<string, Button> _buttons;
 
         /// <summary>开关字典 - 按键名访问：Elements.Toggles["SoundToggle"]</summary>
-        protected Dictionary<string, Toggle> Toggles => _toggles ??= new Dictionary<string, Toggle>();
+        public Dictionary<string, Toggle> Toggles => _toggles ??= new Dictionary<string, Toggle>();
         private Dictionary<string, Toggle> _toggles;
 
         /// <summary>滑块字典 - 按键名访问：Elements.Sliders["VolumeSlider"]</summary>
-        protected Dictionary<string, Slider> Sliders => _sliders ??= new Dictionary<string, Slider>();
+        public Dictionary<string, Slider> Sliders => _sliders ??= new Dictionary<string, Slider>();
         private Dictionary<string, Slider> _sliders;
 
         /// <summary>原生下拉框字典 - 按键名访问</summary>
-        protected Dictionary<string, Dropdown> Dropdowns => _dropdowns ??= new Dictionary<string, Dropdown>();
+        public Dictionary<string, Dropdown> Dropdowns => _dropdowns ??= new Dictionary<string, Dropdown>();
         private Dictionary<string, Dropdown> _dropdowns;
 
         /// <summary>图片字典 - 按键名访问</summary>
-        protected Dictionary<string, Image> Images => _images ??= new Dictionary<string, Image>();
+        public Dictionary<string, Image> Images => _images ??= new Dictionary<string, Image>();
         private Dictionary<string, Image> _images;
 
         /// <summary>原始图片字典 - 按键名访问</summary>
-        protected Dictionary<string, RawImage> RawImages => _rawImages ??= new Dictionary<string, RawImage>();
+        public Dictionary<string, RawImage> RawImages => _rawImages ??= new Dictionary<string, RawImage>();
         private Dictionary<string, RawImage> _rawImages;
 
         /// <summary>原生文本字典 - 按键名访问</summary>
-        protected Dictionary<string, Text> Texts => _texts ??= new Dictionary<string, Text>();
+        public Dictionary<string, Text> Texts => _texts ??= new Dictionary<string, Text>();
         private Dictionary<string, Text> _texts;
 
         /// <summary>原生输入框字典 - 按键名访问</summary>
-        protected Dictionary<string, InputField> InputFields => _inputFields ??= new Dictionary<string, InputField>();
+        public Dictionary<string, InputField> InputFields => _inputFields ??= new Dictionary<string, InputField>();
         private Dictionary<string, InputField> _inputFields;
 
         /// <summary>TMP 文本字典 - 按键名访问</summary>
-        protected Dictionary<string, TextMeshProUGUI> TMPTexts => _tmpTexts ??= new Dictionary<string, TextMeshProUGUI>();
+        public Dictionary<string, TextMeshProUGUI> TMPTexts => _tmpTexts ??= new Dictionary<string, TextMeshProUGUI>();
         private Dictionary<string, TextMeshProUGUI> _tmpTexts;
 
         /// <summary>TMP 输入框字典 - 按键名访问</summary>
-        protected Dictionary<string, TMP_InputField> TMPInputFields => _tmpInputFields ??= new Dictionary<string, TMP_InputField>();
+        public Dictionary<string, TMP_InputField> TMPInputFields => _tmpInputFields ??= new Dictionary<string, TMP_InputField>();
         private Dictionary<string, TMP_InputField> _tmpInputFields;
 
         /// <summary>TMP 下拉框字典 - 按键名访问</summary>
-        protected Dictionary<string, TMP_Dropdown> TMPDropdowns => _tmpDropdowns ??= new Dictionary<string, TMP_Dropdown>();
+        public Dictionary<string, TMP_Dropdown> TMPDropdowns => _tmpDropdowns ??= new Dictionary<string, TMP_Dropdown>();
         private Dictionary<string, TMP_Dropdown> _tmpDropdowns;
 
         /// <summary>子级 Item（小组件）字典 - 按键名访问：Elements.Items["UserNameInput"]</summary>

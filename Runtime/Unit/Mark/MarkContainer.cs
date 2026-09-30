@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GoveKits.Runtime.Util;
 
 namespace GoveKits.Runtime.Unit
 {
@@ -38,6 +39,19 @@ namespace GoveKits.Runtime.Unit
         public void AddMark(UnitMark newMark)
         {
             if (newMark == null) return;
+
+            // 对齐 AbilityContainer 的两道校验：Name 判空（字典键不能为 null）+ 归属校验（防一实例双容器）
+            if (newMark.Name == null)
+            {
+                LogCore.Error(nameof(MarkContainer), "标记 Name 未设置，拒绝添加");
+                return;
+            }
+
+            if (newMark.Owner != null)
+            {
+                LogCore.Error(nameof(MarkContainer), $"标记 {newMark.Name} 已归属其他 Unit，拒绝重复添加");
+                return;
+            }
 
             if (_marks.TryGetValue(newMark.Name, out var existingMark))
             {

@@ -118,12 +118,25 @@ namespace GoveKits.Runtime.UI
         /// </summary>
         public static void Close()
         {
-            foreach (var vm in _viewModels.Values)
+            var views = new List<ViewPanel>(_views.Values);
+
+            // 先失活仍显示的面板：走 OnDisable 正常解绑旧 VM。Close 后 OnEnable 不会重跑，
+            // 若只重置缓存，之后访问 VM 会新建永远不绑定视图的实例，Notify 静默丢失
+            foreach (var view in views)
+            {
+                if (view != null && view.gameObject.activeSelf)
+                    view.gameObject.SetActive(false);
+            }
+
+            // 快照枚举：OnDispose 内可能调用 GetVM 重建 VM（写回字典）或 Register/Unregister，
+            // 直接枚举 Values 会在回调中触发 InvalidOperationException
+            var vms = new List<ViewModel>(_viewModels.Values);
+            foreach (var vm in vms)
             {
                 vm?.OnDispose();
             }
 
-            foreach (var view in _views.Values)
+            foreach (var view in views)
             {
                 if (view != null) view.ResetVMCache();
             }

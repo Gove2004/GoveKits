@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "com.unity.textmeshpro": "3.0.6",
-    "com.unity.scriptablebuildpipeline": "1.21.25"
+    "com.unity.scriptablebuildpipeline": "1.21.25",
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
+    "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#2.3.18",
+    "com.code-philosophy.hybridclr": "https://github.com/focus-creative-games/hybridclr_unity.git"
   }
 }

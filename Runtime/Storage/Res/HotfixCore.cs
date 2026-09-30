@@ -54,7 +54,12 @@ namespace GoveKits.Runtime.Storage
                 return false;
             }
 
-            TextAsset textAsset = handle.AssetObject as TextAsset;
+            if (handle.AssetObject is not TextAsset textAsset)
+            {
+                LogCore.Error(nameof(HotfixCore), $"AOT 元数据资源缺失或类型不符: {location}");
+                ResCore.Release(handle);
+                return false;
+            }
             byte[] dllBytes = textAsset.bytes;
             ResCore.Release(handle);
 
@@ -96,7 +101,12 @@ namespace GoveKits.Runtime.Storage
                 return null;
             }
 
-            TextAsset textAsset = handle.AssetObject as TextAsset;
+            if (handle.AssetObject is not TextAsset textAsset)
+            {
+                LogCore.Error(nameof(HotfixCore), $"热更程序集资源缺失或类型不符: {location}");
+                ResCore.Release(handle);
+                return null;
+            }
             byte[] dllBytes = textAsset.bytes;
             ResCore.Release(handle);
 
