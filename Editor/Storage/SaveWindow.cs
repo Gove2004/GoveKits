@@ -25,6 +25,9 @@ namespace GoveKits.Editor
         private byte[] _selectedBytes;
         private bool _selectedBytesTruncated;
         private PreviewMode _previewMode = PreviewMode.Auto;
+        // 左右面板各自的滚动位置（不能共用基类 _scrollPos，否则一侧滚动会带着另一侧跳变）
+        private Vector2 _treeScrollPos;
+        private Vector2 _previewScrollPos;
 
         [MenuItem("GoveKits/Save", false, 201)]
         public static void ShowWindow()
@@ -104,7 +107,7 @@ namespace GoveKits.Editor
             EditorGUILayout.LabelField("目录树", EditorStyles.boldLabel);
             DrawLine(new Color(0.5f, 0.5f, 0.5f, 0.2f));
 
-            _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
+            _treeScrollPos = EditorGUILayout.BeginScrollView(_treeScrollPos);
             DrawDirectoryNode(rootPath, 0, true);
             EditorGUILayout.EndScrollView();
 
@@ -208,7 +211,7 @@ namespace GoveKits.Editor
 
             GUILayout.Space(10);
 
-            _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos, "box");
+            _previewScrollPos = EditorGUILayout.BeginScrollView(_previewScrollPos, "box");
             string content = BuildPreviewContent();
             EditorGUILayout.TextArea(content, EditorStyles.wordWrappedLabel, GUILayout.ExpandHeight(true));
             EditorGUILayout.EndScrollView();

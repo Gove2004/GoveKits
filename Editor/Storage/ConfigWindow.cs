@@ -339,11 +339,17 @@ namespace GoveKits.Editor
             {
                 string expectedDir = Path.GetDirectoryName(view.FilePath.Replace('\\', '/'));
                 if (colonIndex >= 0) expectedDir = expectedDir.Substring(colonIndex + 1);
+                // 目录边界：以 "/dir/" 形式做段匹配，避免 "Configs" 误命中 "MyConfigs" 这类同前缀目录
+                string dirSegment = string.IsNullOrEmpty(expectedDir) ? null : "/" + expectedDir + "/";
 
                 foreach (var guid in guids)
                 {
-                    string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                    if (string.IsNullOrEmpty(expectedDir) || assetPath.Replace('\\', '/').Contains(expectedDir))
+                    string assetPath = AssetDatabase.GUIDToAssetPath(guid).Replace('\\', '/');
+                    // 文件名精确匹配（不含扩展名，容忍 .csv/.json 等配置格式差异），防止模糊搜索的子串误命中
+                    if (!string.Equals(Path.GetFileNameWithoutExtension(assetPath), nameWithoutExt, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (dirSegment == null || assetPath.Contains(dirSegment))
                     {
                         view.ExistsInEditor = true;
                         view.EditorAssetPath = assetPath;

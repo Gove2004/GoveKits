@@ -1,3 +1,4 @@
+using GoveKits.Runtime.Network;
 using GoveKits.Runtime.Util;
 using Mirror;
 using UnityEditor;
@@ -84,12 +85,22 @@ namespace GoveKits.Editor
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("RTT:", GUILayout.Width(80));
-            double rttMs = NetworkTime.rtt * 1000.0;
-            string rttStr = $"{rttMs:F0} ms";
-            var color = rttMs < 50 ? Color.green : (rttMs < 150 ? Color.yellow : Color.red);
-            GUI.contentColor = color;
-            EditorGUILayout.LabelField(rttStr);
-            GUI.contentColor = defaultColor;
+            if (NetworkCore.IsClientConnected)
+            {
+                double rttMs = NetworkCore.Rtt * 1000.0;
+                string rttStr = $"{rttMs:F0} ms";
+                var color = rttMs < 50 ? Color.green : (rttMs < 150 ? Color.yellow : Color.red);
+                GUI.contentColor = color;
+                EditorGUILayout.LabelField(rttStr);
+                GUI.contentColor = defaultColor;
+            }
+            else
+            {
+                // 未连接时 NetworkTime.rtt 恒为 0，直接显示会以"0 ms 绿色"伪装出网络良好的假象
+                GUI.contentColor = Color.gray;
+                EditorGUILayout.LabelField("—（未连接）");
+                GUI.contentColor = defaultColor;
+            }
             EditorGUILayout.EndHorizontal();
 
             GUILayout.Space(10);
