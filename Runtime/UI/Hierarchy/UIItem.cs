@@ -11,7 +11,9 @@ namespace GoveKits.Runtime.UI
     /// 2. 挂到界面内的子物体上（RequireComponent 自动添加 UIElements，勾选收集开关即可访问内部组件）
     /// 3. 父级界面的 UIElements 会自动收集本组件，外部通过 Elements.GetItem&lt;T&gt;("名字") 访问
     ///
-    /// 注意：Item 内部组件由 Item 自身的 UIElements 收集，父级界面的收集器会自动跳过 Item 内部，互不干扰。
+    /// 注意：Item 内部组件由 Item 自身的 UIElements 收集，父级界面的收集器会自动跳过 Item 子树，互不干扰。
+    /// 支持嵌套：外层收集器会扁平收集其子树内全部下层 Item（外层可通过 Items["名字"] 直接访问内层 Item）；
+    /// 同名 Item 只收录先到的一个，后到的输出警告并忽略。
     /// </summary>
     [RequireComponent(typeof(UIElements))]
     public abstract class UIItem : MonoBehaviour

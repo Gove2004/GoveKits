@@ -20,6 +20,11 @@ namespace GoveKits.Runtime.UI
     /// - 组件：Elements.Buttons["名字"] / Elements.TMPTexts["名字"] ...
     /// - 小组件：Elements.GetItem&lt;T&gt;("名字")
     /// - 交互：Elements.ButtonClicked += 处理函数
+    ///
+    /// 收集规则：
+    /// - 同名同类的组件/Item 只收录先到的一个，后到的输出警告并忽略（见 TryCache）
+    /// - Item 嵌套时扁平收集子树内全部 Item：外层收集器也能拿到内层 Item，逐层访问互不冲突
+    /// - Item 子树内的组件由 Item 自身的收集器管理，父级收集器自动跳过，事件不会双触发
     /// </summary>
     public class UIElements : MonoBehaviour
     {
@@ -134,7 +139,9 @@ namespace GoveKits.Runtime.UI
         /// <summary>
         /// 重新收集所有启用的 UI 元素。
         /// 运行时动态新增/删除 UI 组件或 Item 后调用，会先清除旧绑定再重新收集。
-        /// 注意：组件交互监听会被重建，但 ButtonClicked 等公共事件的外部订阅会保留，无需重新订阅。
+        /// 注意：清除绑定会对收集到的组件调用 RemoveAllListeners——外部通过
+        /// onClick.AddListener 等直接注册在组件上的监听会被一并清除；
+        /// 交互请统一走 ButtonClicked 等公共事件，其外部订阅在 Rebind 后保留，无需重新订阅。
         /// </summary>
         public void Rebind()
         {
@@ -173,14 +180,21 @@ namespace GoveKits.Runtime.UI
 
         private void AutoBindUIElements()
         {
+            // 先标记所有 Item 子树内的 transform（这些组件由 Item 自身的收集器管理，本收集器跳过）。
+            // 一次前序遍历完成标记 O(N)，替代逐组件 GetComponentInParent 的 O(N×depth) 父链回溯。
+            var itemSubtrees = new HashSet<Transform>();
+            foreach (var item in GetComponentsInChildren<UIItem>(true))
+            {
+                if (item.transform == transform) continue;
+                MarkSubtree(item.transform, itemSubtrees);
+            }
+
             var uiBehaviours = GetComponentsInChildren<UnityEngine.EventSystems.UIBehaviour>(true);
 
             foreach (var behaviour in uiBehaviours)
             {
-                // 跳过位于 UIItem 内部的组件（Item 内部组件由 Item 自身的 UIElements 收集）
-                // 显式包含未激活父级，避免未激活 Item 内组件被漏跳过导致事件双触发
-                var itemParent = behaviour.GetComponentInParent<UIItem>(true);
-                if (itemParent != null && itemParent.transform != transform) continue;
+                // 位于 Item 子树内的组件跳过（含未激活 Item 内组件，避免漏跳导致事件双触发）
+                if (itemSubtrees.Contains(behaviour.transform)) continue;
 
                 string compName = behaviour.name;
 
@@ -249,6 +263,15 @@ namespace GoveKits.Runtime.UI
                 if (item.transform == transform) continue;
                 TryCache(ref _items, item.name, item);
             }
+        }
+
+        /// <summary>前序遍历标记子树内全部 transform（含根）。</summary>
+        private static void MarkSubtree(Transform root, HashSet<Transform> set)
+        {
+            set.Add(root);
+            int count = root.childCount;
+            for (int i = 0; i < count; i++)
+                MarkSubtree(root.GetChild(i), set);
         }
 
         /// <summary>按键名缓存组件；同名重复时输出警告并忽略，避免静默覆盖。</summary>
