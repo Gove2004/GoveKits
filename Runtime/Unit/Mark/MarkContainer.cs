@@ -108,6 +108,10 @@ namespace GoveKits.Runtime.Unit
                 {
                     // 移除前二次校验：OnUpdate/OnTick 期间标记可能被 OnStack 叠层复活
                     if (!mark.IsExpired) continue;
+
+                    // 同名复活防护：期间同名标记可能已被移除并换了新实例，按 Name 移除会误删新实例
+                    if (_marks.TryGetValue(mark.Name, out var current) && !ReferenceEquals(current, mark)) continue;
+
                     RemoveMark(mark.Name);
                 }
                 _expiredMarkCache.Clear();

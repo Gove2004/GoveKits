@@ -9,8 +9,6 @@ namespace GoveKits.Runtime.Storage
     /// </summary>
     public static class PrefsCore
     {
-        private const string AudioPrefPrefix = "Audio.Vol.";
-
         /// <summary>
         /// 设置整数类型的偏好设置。
         /// </summary>

@@ -97,12 +97,20 @@ namespace GoveKits.Runtime.Network
         /// </summary>
         private static async UniTask<HttpResponse> SendAsync(UnityWebRequest request, Dictionary<string, string> headers, float timeout, CancellationToken cancellationToken)
         {
+            // URL 校验：非法 URL 让 UnityWebRequest 构造/发送抛异常会绕过 HttpResponse 契约，在此统一拦截
+            if (request == null || string.IsNullOrWhiteSpace(request.url))
+            {
+                request?.Dispose();
+                return HttpResponse.Error(-1, "URL 为空或无效");
+            }
+
             if (headers != null)
             {
                 foreach (var kvp in headers)
                     request.SetRequestHeader(kvp.Key, kvp.Value);
             }
-            request.timeout = Math.Max(1, (int)timeout);
+            // UWR 约定：timeout = 0 表示不限时。此处不再钳成最小 1 秒（向上取整保留小数超时精度）
+            request.timeout = timeout > 0 ? (int)Math.Ceiling(timeout) : 0;
 
             // 排队阶段被取消：请求未发送（无需释放并发槽），但 request 的 native 资源必须释放
             try

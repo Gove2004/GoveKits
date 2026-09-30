@@ -76,10 +76,19 @@ namespace GoveKits.Runtime.Storage
         public static T LoadOrDefault<T>(string relativePath, T defaultValue = default)
         {
             string fullPath = GetFullPath(relativePath);
-            if (!File.Exists(fullPath)) return defaultValue;
+            if (fullPath == null || !File.Exists(fullPath)) return defaultValue;
 
-            byte[] bytes = File.ReadAllBytes(fullPath);
-            return (T)_serializer.Deserialize(bytes, typeof(T));
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(fullPath);
+                return (T)_serializer.Deserialize(bytes, typeof(T));
+            }
+            catch (Exception e)
+            {
+                // 文件损坏/格式不符不应让读档链路崩溃，返回默认值并保留现场日志
+                LogCore.Error(nameof(SaveCore), $"存档加载失败（已返回默认值）: {fullPath}\n{e}");
+                return defaultValue;
+            }
         }
 
         /// <summary>
@@ -131,10 +140,18 @@ namespace GoveKits.Runtime.Storage
         {
             ISerializer serializer = _serializer;
             string fullPath = GetFullPath(relativePath);
-            if (!File.Exists(fullPath)) return defaultValue;
+            if (fullPath == null || !File.Exists(fullPath)) return defaultValue;
 
-            byte[] bytes = await ReadAllBytesAsync(fullPath, ct);
-            return (T)serializer.Deserialize(bytes, typeof(T));
+            try
+            {
+                byte[] bytes = await ReadAllBytesAsync(fullPath, ct);
+                return (T)serializer.Deserialize(bytes, typeof(T));
+            }
+            catch (Exception e)
+            {
+                LogCore.Error(nameof(SaveCore), $"存档加载失败（已返回默认值）: {fullPath}\n{e}");
+                return defaultValue;
+            }
         }
 
         /// <summary>
@@ -185,12 +202,25 @@ namespace GoveKits.Runtime.Storage
                 relativePath = Path.ChangeExtension(relativePath, _serializer.FileExtension);
 
             string fullPath = Path.Combine(_rootPath, relativePath);
-            string directory = Path.GetDirectoryName(fullPath);
 
+            // 路径穿越防护：归一化后必须仍位于存档根目录内，
+            // 拦截 "../" 上跳与绝对路径注入，避免存档 API 被用于读写任意文件。
+            // 补分隔符比对，防止 "Saves" 与 "Saves2" 这类同前缀目录误判通过。
+            string normalized = Path.GetFullPath(fullPath);
+            string rootWithSeparator = Path.GetFullPath(_rootPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!normalized.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+            {
+                LogCore.Error(nameof(SaveCore), $"存档路径越界（不允许离开存档根目录），已拒绝操作: {relativePath}");
+                return null;
+            }
+
+            string directory = Path.GetDirectoryName(normalized);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
 
-            return fullPath;
+            return normalized;
         }
 
         private static void ReplaceAtomic(string tempPath, string targetPath)

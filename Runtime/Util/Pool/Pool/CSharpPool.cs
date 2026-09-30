@@ -10,7 +10,12 @@ namespace GoveKits.Runtime.Util
     public class CSharpPool<T> : IPool, IPool<T> where T : class, IPoolable, new()
     {
         private readonly Stack<T> stack;
-        // 借出中的对象集合，用于检测重复归还
+        // 借出中的对象集合，用于检测重复归还。
+        // 契约声明：
+        // 1. Get() 借出的对象若从不 Return，将作为强引用滞留于本集合、无法被 GC，
+        //    池不会强制收回——借出方必须自行保证归还；
+        // 2. Clear() 会连同借出记录一并清空，此后再归还旧对象会因记录缺失
+        //    被当作重复归还忽略（含警告日志），Clear 前应确保无未归还的借出对象。
         private readonly HashSet<T> leased = new();
 
         /// <summary>池中当前缓存的对象数量。</summary>

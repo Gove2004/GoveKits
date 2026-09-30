@@ -63,7 +63,10 @@ namespace GoveKits.Runtime.UI
         /// <param name="key">数据变化标识（如 "gold"），界面 OnNotify 据此分支刷新；传 null 表示全量刷新</param>
         protected void Notify(string key)
         {
-            _view?.OnNotify(key);
+            // _view 是 Unity 对象：销毁后为 fake-null（托管引用非 null），
+            // ?. 的 null 检查拦不住，必须用 UnityEngine.Object 的 == 语义判断
+            if (_view != null)
+                _view.OnNotify(key);
         }
     }
 }

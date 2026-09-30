@@ -37,6 +37,13 @@ namespace GoveKits.Runtime.UI
         public static void Register<T>(ViewPanel view) where T : ViewPanel => Register(typeof(T), view);
         public static void Register(Type type, ViewPanel view)
         {
+            // 键类型校验：键与实例类型不符时 Show<T>/Hide<T> 无法命中，注销路径也会残留
+            if (view != null && !type.IsInstanceOfType(view))
+            {
+                LogCore.Error(nameof(UICore), $"注册失败：{view.GetType().Name} 与注册键 {type.Name} 类型不符。");
+                return;
+            }
+
             if (_views.TryGetValue(type, out var old) && old != null && old != view)
             {
                 LogCore.Warning(nameof(UICore), $"{type.Name} 重复注册，旧实例 ({old.name}) 将被覆盖为新实例 ({view.name})。");
