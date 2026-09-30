@@ -24,6 +24,28 @@ namespace GoveKits.Runtime.Util
         public FileLogger(string filePath)
         {
             this.filePath = filePath;
+
+            // 退出兜底钩子：未走 GoveCore.Close（崩溃/直接退出）时避免丢失缓冲日志
+            UnityEngine.Application.quitting += FlushOnQuit;
+            AppDomain.CurrentDomain.ProcessExit += FlushOnProcessExit;
+        }
+
+        private void FlushOnQuit() => FlushBuffer();
+
+        private void FlushOnProcessExit(object sender, EventArgs e) => FlushBuffer();
+
+        private void FlushBuffer()
+        {
+            try
+            {
+                if (writer == null) return;
+                writer.Flush();
+                bufferedCount = 0;
+            }
+            catch
+            {
+                // 退出阶段刷盘失败：静默处理，避免异常处理产生新日志导致递归
+            }
         }
 
         /// <summary>
@@ -57,11 +79,13 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
-        /// 刷盘并释放文件句柄（由 GoveCore.Close 调用）。
+        /// 刷盘、移除退出钩子并释放文件句柄（由 GoveCore.Close 调用）。
         /// </summary>
         public void Close()
         {
-            writer?.Flush();
+            FlushBuffer();
+            UnityEngine.Application.quitting -= FlushOnQuit;
+            AppDomain.CurrentDomain.ProcessExit -= FlushOnProcessExit;
             writer?.Dispose();
             writer = null;
             bufferedCount = 0;

@@ -152,7 +152,7 @@ namespace GoveKits.Runtime.Util
             int id = prefab.GetInstanceID();
             if (gameObjectPools.TryGetValue(id, out var pool))
             {
-                pool.Clear();
+                pool.Dispose();
                 gameObjectPools.Remove(id);
             }
         }
@@ -166,7 +166,7 @@ namespace GoveKits.Runtime.Util
         public static void Close()
         {
             foreach (var pool in csharpPools.Values) pool.Clear();
-            foreach (var pool in gameObjectPools.Values) pool.Clear();
+            foreach (var pool in gameObjectPools.Values) pool.Dispose();
             csharpPools.Clear();
             gameObjectPools.Clear();
             GameObjectPoolRoot.Destroy();
@@ -178,7 +178,7 @@ namespace GoveKits.Runtime.Util
         {
             csharpPools.Clear();
             gameObjectPools.Clear();
-            GameObjectPoolRoot.Destroy();
+            GameObjectPoolRoot.ResetForDomainReload();
         }
     }
 }

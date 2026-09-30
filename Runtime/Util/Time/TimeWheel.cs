@@ -234,7 +234,22 @@ namespace GoveKits.Runtime.Util
         private void HandlePostExecute(Timer timer)
         {
             // 回调内自暂停：不重排不回收，保留暂停态，Resume 后继续后续循环
-            if (timer.IsPaused) return;
+            if (timer.IsPaused)
+            {
+                // 回调已触发过一次且定时器此刻已从轮上摘除，RemainingTimeOnPause 还是触发前的旧值（通常为 0）；
+                // 对仍有后续循环的定时器需补记一个完整间隔，否则 Resume 后会立即再触发
+                if (timer.LoopCount != 0 && !timer.IsCancelled)
+                {
+                    timer.RemainingTimeOnPause = timer.Interval;
+                }
+                else
+                {
+                    // 非循环定时器回调内自暂停：生命周期已结束，直接完成回收避免泄漏
+                    timer.IsDone = true;
+                    EnqueueRecycle(timer);
+                }
+                return;
+            }
 
             bool shouldLoop = timer.LoopCount != 0 && !timer.IsCancelled;
 

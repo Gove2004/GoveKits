@@ -43,6 +43,7 @@ namespace GoveKits.Runtime.Util
     {
         private static T _instance;
         private bool _initialized;
+        private bool _initFailed;
 
         /// <summary>单例实例，首次访问时自动创建（场景中已有则复用）。</summary>
         public static T Instance
@@ -78,8 +79,11 @@ namespace GoveKits.Runtime.Util
             }
             catch (System.Exception e)
             {
-                // Init 失败时回滚单例引用，下次访问 Instance 可重试
+                // Init 失败时销毁残骸并回滚单例引用，下次访问 Instance 可重试；
+                // 不销毁的话 FindFirstObjectByType 会持续捞到这个 Init 未完成的实例且永不重试
+                _initFailed = true;
                 if (_instance == this) _instance = null;
+                Destroy(gameObject);
                 Debug.LogError($"[MonoSingleton] {typeof(T).Name} Init 异常: {e}");
                 throw;
             }
@@ -103,8 +107,14 @@ namespace GoveKits.Runtime.Util
         {
             // 包含未激活对象，避免场景中存在隐藏单例时重复创建
             _instance = FindFirstObjectByType<T>(FindObjectsInactive.Include);
-            if (_instance != null)
+
+            // Init 失败的残骸（已标记待销毁）不可复用，弃用并重建；
+            // Destroy 延迟到帧末，同帧内可能仍被 Find 捞到，故在此显式跳过
+            if (_instance != null && !_instance._initFailed)
                 return;
+
+            if (_instance != null)
+                Destroy(_instance.gameObject);
 
             var go = new GameObject(typeof(T).Name);
             _instance = go.AddComponent<T>();

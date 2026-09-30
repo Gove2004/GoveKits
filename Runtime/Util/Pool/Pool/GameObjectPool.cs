@@ -23,13 +23,21 @@ namespace GoveKits.Runtime.Util
         private const string RootName = "GoveKitsPoolRoot";
         private static GameObject _root;
 
+        // 同帧内 Destroy 后的容器仍可被 GameObject.Find 捞到（垂死状态），
+        // 记录其 InstanceID，避免把新缓存挂到即将销毁的容器下形成幽灵引用
+        private static readonly HashSet<int> s_dyingRootIds = new();
+
         public static Transform GetOrCreate()
         {
             if (_root != null)
                 return _root.transform;
 
-            _root = GameObject.Find(RootName);
-            if (_root == null)
+            var found = GameObject.Find(RootName);
+            if (found != null && !s_dyingRootIds.Contains(found.GetInstanceID()))
+            {
+                _root = found;
+            }
+            else
             {
                 _root = new GameObject(RootName);
                 Object.DontDestroyOnLoad(_root);
@@ -41,8 +49,18 @@ namespace GoveKits.Runtime.Util
         public static void Destroy()
         {
             if (_root != null)
+            {
+                s_dyingRootIds.Add(_root.GetInstanceID());
                 GameObject.Destroy(_root);
+            }
             _root = null;
+        }
+
+        // 关闭 Domain Reload 时清理静态引用，避免跨 Play 会话残留
+        internal static void ResetForDomainReload()
+        {
+            _root = null;
+            s_dyingRootIds.Clear();
         }
     }
 
@@ -53,8 +71,9 @@ namespace GoveKits.Runtime.Util
     /// </summary>
     public class GameObjectPool : IPool, IPool<GameObject>
     {
-        // 回收时收集 IPoolable 的共享缓冲，避免每次 Return 产生数组分配
-        private static readonly List<IPoolable> s_poolableBuffer = new();
+        // 回收时收集 IPoolable 的多级缓冲：OnRecycle 内若递归归还其他池对象会重入
+        // RecycleGameObject 并清空共享缓冲，导致外层遍历错乱，故按嵌套深度隔离
+        private static readonly Stack<List<IPoolable>> s_bufferStack = new();
 
         private readonly GameObject prefab;
         private readonly Stack<GameObject> stack = new();
@@ -63,6 +82,9 @@ namespace GoveKits.Runtime.Util
         public int Count => stack.Count;
         /// <summary>对象池的最大容量，超出容量的对象在归还时将被销毁。</summary>
         public int Capacity { get; private set; }
+
+        /// <summary>池是否已被注销（PoolCore.Clear/Close 后为 true，此后归还的对象直接销毁而非入池）。</summary>
+        public bool IsDisposed { get; private set; }
 
         /// <summary>创建指定预制体与容量的 GameObject 对象池（通常由 PoolCore 调用）。</summary>
         public GameObjectPool(GameObject prefab, int maxSize)
@@ -83,6 +105,7 @@ namespace GoveKits.Runtime.Util
 
         /// <summary>
         /// 清空池中所有缓存对象并立即销毁它们。
+        /// 仅清空缓存，池仍可继续使用；连同注销请使用 Dispose（由 PoolCore 调用）。
         /// </summary>
         public void Clear()
         {
@@ -95,12 +118,28 @@ namespace GoveKits.Runtime.Util
         }
 
         /// <summary>
+        /// 清空缓存并将池标记为已注销（由 PoolCore.Clear/Close 调用）。
+        /// 注销后归还的实例不再入池，直接走回收回调并销毁，避免写入无人引用的缓存形成幽灵缓存。
+        /// </summary>
+        internal void Dispose()
+        {
+            IsDisposed = true;
+            Clear();
+        }
+
+        /// <summary>
         /// 从池中获取一个可用的 GameObject 实例。
         /// 池中有缓存对象时取出并激活；池空时根据 prefab 创建新实例。
         /// </summary>
         /// <returns>可用的 GameObject 实例</returns>
         public GameObject Get()
         {
+            if (IsDisposed)
+            {
+                LogCore.Warning("GameObjectPool", $"{prefab.name} 的对象池已注销，本次 Get 返回的实例不再受池管理（归还时将被销毁）。");
+                return CreateInstance();
+            }
+
             while (stack.Count > 0)
             {
                 var obj = stack.Pop();
@@ -131,6 +170,14 @@ namespace GoveKits.Runtime.Util
             if (record != null && record.InPool)
             {
                 LogCore.Warning("GameObjectPool", $"{prefab.name} 的实例重复归还，已忽略。");
+                return;
+            }
+
+            if (IsDisposed)
+            {
+                // 池已注销：缓存已清空，归还对象走回收回调后直接销毁，避免形成幽灵缓存
+                RecycleGameObject(item);
+                GameObject.Destroy(item);
                 return;
             }
 
@@ -170,9 +217,20 @@ namespace GoveKits.Runtime.Util
 
         private void RecycleGameObject(GameObject obj)
         {
-            s_poolableBuffer.Clear();
-            obj.GetComponentsInChildren(true, s_poolableBuffer);
-            foreach (var p in s_poolableBuffer) p.OnRecycle();
+            if (!s_bufferStack.TryPop(out var buffer))
+                buffer = new List<IPoolable>();
+
+            try
+            {
+                buffer.Clear();
+                obj.GetComponentsInChildren(true, buffer);
+                for (int i = 0; i < buffer.Count; i++)
+                    buffer[i].OnRecycle();
+            }
+            finally
+            {
+                s_bufferStack.Push(buffer);
+            }
         }
     }
 }

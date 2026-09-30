@@ -32,6 +32,12 @@ namespace GoveKits.Runtime.Util
         private static void ResetForDomainReload()
         {
             logLevel = LogLevel.Debug;
+            // 关闭 Domain Reload 时旧后端实例不走 Close（如 FileLogger 的退出钩子/句柄），需在此显式释放
+            foreach (var logger in loggers)
+            {
+                try { logger.Close(); }
+                catch { /* Reset 阶段无法可靠记录日志，静默 */ }
+            }
             loggers.Clear();
             OnLog = null;
         }
