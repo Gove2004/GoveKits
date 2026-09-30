@@ -79,10 +79,10 @@ namespace GoveKits.Runtime.UI
             VM.AttachView(this);
         }
 
-        /// <summary>失活时解绑 VM，由 UICore.Hide 自动驱动。</summary>
+        /// <summary>失活时解绑 VM，由 UICore.Hide 自动驱动。仅解绑已持有的 VM，禁止经惰性 getter 新建孤儿 VM。</summary>
         protected virtual void OnDisable()
         {
-            VM?.DetachView(this);
+            if (_vm != null) _vm.DetachView(this);
         }
     }
 }

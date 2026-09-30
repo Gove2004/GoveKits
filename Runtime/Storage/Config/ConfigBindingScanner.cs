@@ -51,7 +51,11 @@ namespace GoveKits.Runtime.Storage
 
                 Type[] types;
                 try { types = assembly.GetTypes(); }
-                catch (ReflectionTypeLoadException ex) { types = ex.Types; continue; }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    // 程序集部分加载失败：用可加载的类型继续（不可加载的为 null，由内层过滤）
+                    types = ex.Types;
+                }
 
                 if (types == null) continue;
 

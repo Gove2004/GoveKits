@@ -90,7 +90,7 @@ namespace GoveKits.Editor
             EditorGUILayout.LabelField($"当前Tick: {currentTick} | 槽位数: {wheelSize} | Tick间隔: {tickDuration:F3}s");
             GUILayout.Space(5);
 
-            var slots = _slotsField?.GetValue(wheel) as ArrayList;
+            var slots = _slotsField?.GetValue(wheel) as ICollection;
             if (slots != null)
             {
                 int totalTimers = 0;
@@ -98,9 +98,10 @@ namespace GoveKits.Editor
                 int pausedTimers = 0;
                 int cancelledTimers = 0;
 
-                for (int i = 0; i < slots.Count; i++)
+                // _slots 实际类型为 LinkedList<Timer>[]，按元素枚举而非索引
+                foreach (var slotObj in slots)
                 {
-                    var list = slots[i] as LinkedList<Timer>;
+                    var list = slotObj as LinkedList<Timer>;
                     if (list == null) continue;
 
                     foreach (var timer in list)

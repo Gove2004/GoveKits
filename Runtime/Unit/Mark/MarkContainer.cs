@@ -56,8 +56,9 @@ namespace GoveKits.Runtime.Unit
         {
             if (_marks.TryGetValue(tag, out var mark))
             {
-                mark.OnRemove();
                 _marks.Remove(tag);
+                mark.MarkRemoved(); // 先置过期：UpdateMarks 快照中的同帧成员以此跳过，防止移除后幽灵 tick
+                mark.OnRemove();
             }
         }
 

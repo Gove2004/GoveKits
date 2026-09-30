@@ -50,6 +50,11 @@ namespace GoveKits.Runtime.Util
         {
             if (delay < 0) delay = 0;
 
+            // 状态初始化统一在入口完成（池化复用的 timer 可能带脏状态；
+            // 且暂存期间 Cancel 只置 IsCancelled，插入时不得覆盖）
+            timer.IsDone = false;
+            timer.IsCancelled = false;
+
             if (IsProcessing)
             {
                 _pendingTimers.Add((timer, delay));
@@ -67,8 +72,6 @@ namespace GoveKits.Runtime.Util
             timer.Rounds = (int)(ticks / _wheelSize);
             timer.TargetTick = targetTick;
             timer.BelongsToWheel = this;
-            timer.IsDone = false;
-            timer.IsCancelled = false;
 
             int slotIndex = (int)(targetTick % _wheelSize);
             timer.LinkNode = _slots[slotIndex].AddLast(timer);
@@ -151,6 +154,14 @@ namespace GoveKits.Runtime.Util
             for (int i = 0; i < _pendingTimers.Count; i++)
             {
                 var (timer, delay) = _pendingTimers[i];
+                // 暂存期间被 Cancel 的定时器（BelongsToWheel 尚为 null，Cancel 只置了标记）：
+                // 跳过入轮，直接走回收，避免"取消后被复活"
+                if (timer.IsCancelled)
+                {
+                    timer.IsDone = true;
+                    _recycleQueue.Enqueue(timer);
+                    continue;
+                }
                 InsertTimer(timer, delay);
             }
             _pendingTimers.Clear();

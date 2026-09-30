@@ -107,6 +107,9 @@ namespace GoveKits.Runtime.Unit
             Owner = null;
         }
 
+        /// <summary>驱散路径的过期标记（UpdateMarks 快照以此跳过已移除实例，防止幽灵 tick）。</summary>
+        internal void MarkRemoved() => IsExpired = true;
+
         #endregion
     }
 

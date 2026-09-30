@@ -103,7 +103,18 @@ namespace GoveKits.Runtime.Network
                     request.SetRequestHeader(kvp.Key, kvp.Value);
             }
             request.timeout = Math.Max(1, (int)timeout);
-            await _throttle.WaitAsync(cancellationToken);
+
+            // 排队阶段被取消：请求未发送（无需释放并发槽），但 request 的 native 资源必须释放
+            try
+            {
+                await _throttle.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                request.Dispose();
+                return HttpResponse.Error(0, "请求已取消");
+            }
+
             try
             {
                 await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);

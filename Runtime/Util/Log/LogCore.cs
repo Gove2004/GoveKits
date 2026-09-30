@@ -95,7 +95,19 @@ namespace GoveKits.Runtime.Util
                 return;
             }
 
-            OnLog?.Invoke(level, tag, message, colorHex);
+            // OnLog 订阅者异常必须隔离——EventBus/TimeWheel 的异常兜底里正是 LogCore.Error，
+            // 若此处放行异常会击穿全框架的异常隔离
+            if (OnLog != null)
+            {
+                try
+                {
+                    OnLog(level, tag, message, colorHex);
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError($"[LogCore] OnLog 订阅者处理日志异常: {e.Message}");
+                }
+            }
 
             for (int i = 0; i < loggers.Count; i++)
             {

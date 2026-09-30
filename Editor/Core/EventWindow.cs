@@ -36,7 +36,7 @@ namespace GoveKits.Editor
 
         protected override void OnGoveWindowEnable()
         {
-            _listenerMapsField = typeof(EventBus).GetField("_listenerMaps", BindingFlags.NonPublic | BindingFlags.Static);
+            _listenerMapsField = typeof(EventBus).GetField("_listenerMaps", BindingFlags.NonPublic | BindingFlags.Instance);
             _eventCoreBusField = typeof(EventCore).GetField("bus", BindingFlags.NonPublic | BindingFlags.Static);
             EnableAutoRefresh();
         }
@@ -240,7 +240,7 @@ namespace GoveKits.Editor
 
             listenerMaps.Clear();
 
-            var dirtyTypesField = typeof(EventBus).GetField("_dirtyTypes", BindingFlags.NonPublic | BindingFlags.Static);
+            var dirtyTypesField = typeof(EventBus).GetField("_dirtyTypes", BindingFlags.NonPublic | BindingFlags.Instance);
             var dirtyTypes = dirtyTypesField?.GetValue(currentBus) as HashSet<Type>;
             dirtyTypes?.Clear();
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Cysharp.Threading.Tasks;
 using GoveKits.Runtime.Util;
 using UnityEngine;
@@ -418,7 +419,11 @@ namespace GoveKits.Runtime.Storage
 
                 downloader = pkg.CreateResourceDownloader(10, 3);
                 if (downloader.TotalDownloadCount == 0)
+                {
+                    // 重试后无待下载内容 = 已全部就绪，需与首次路径一致补发成功回调
+                    callbacks?.OnDownloadFinish?.Invoke(new DownloaderFinishData { PackageName = packageName, Succeed = true });
                     return true;
+                }
             }
 
             LogCore.Error(nameof(ResCore), $"下载资源流程异常终止: {downloader.Error}");
@@ -439,14 +444,17 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         public static async UniTask CloseAsync()
         {
-            foreach (var kvp in _packages)
+            // 先摘除注册表再逐个销毁：await 期间若外部重新 Init/Destroy 不会破坏遍历，
+            // 且保证无论销毁是否中断，注册表与默认包名都已归位
+            var packages = _packages.Values.ToArray();
+            _packages.Clear();
+            _defaultPackageName = "DefaultPackage";
+
+            foreach (var pkg in packages)
             {
-                var pkg = kvp.Value;
                 await pkg.DestroyAsync().Task;
                 YooAssets.RemovePackage(pkg);
             }
-            _packages.Clear();
-            _defaultPackageName = "DefaultPackage";
         }
 
         #region 内部辅助类

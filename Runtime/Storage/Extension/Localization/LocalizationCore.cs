@@ -158,13 +158,14 @@ namespace GoveKits.Runtime.Storage
 
         /// <summary>
         /// 关闭多语言系统，清空所有缓存数据。
+        /// 注意：不清空 OnLanguageChanged 订阅——已激活组件（LocalizationComponent）不会重新 OnEnable，
+        /// 置空事件会让它们永久失联；重新 Setup 后补发事件即可让既有订阅者刷新。
         /// </summary>
         public static void Close()
         {
             _currentLangCache.Clear();
             _rawRows.Clear();
             _fieldCache.Clear();
-            OnLanguageChanged = null;
 #if TMP_PRESENT
             _fontConfig = null;
 #endif
