@@ -61,4 +61,4 @@ public class GameEntry : MonoBehaviour
 | TickMark 子类忘调 base | `OnApply` 必须调 `base.OnApply()`（重置池化计时器） |
 | SaveCore 未 Setup 就读写 | 先 `SaveCore.Setup(null)`（默认 JSON 序列化器） |
 | 属性回滚失效 | `RemoveModifier(tag, new XxxSource())` 按类型移除；按引用需持有原 Source |
-| 旧存档读档失败 | `UnitArchiveData` 已改为存 BaseValue+Modifiers，旧格式不兼容 |
+| 存档格式不匹配 | `UnitArchiveData` 不提供旧格式兼容层（无存量用户，破坏性调整不设迁移路径），读档失败请重新生成存档 |

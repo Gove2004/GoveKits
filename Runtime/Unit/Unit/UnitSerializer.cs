@@ -26,7 +26,7 @@ namespace GoveKits.Runtime.Unit
 
     /// <summary>
     /// 属性存档数据。只保存基值与修改器数值，读档恢复基值后重挂修改器，加成不会被固化为基值。
-    /// 限制：ModifierSource 为运行时对象引用，无法序列化，读档后修改器的 Source 为 null。
+    /// ModifierSource 为运行时对象引用无法直接序列化，按 SourceTypeName 还原空壳实例。
     /// </summary>
     [System.Serializable]
     public class AttributeArchiveData
@@ -42,11 +42,7 @@ namespace GoveKits.Runtime.Unit
     [System.Serializable]
     public class ModifierArchiveData
     {
-        /// <summary>[旧档兼容] 修改器类型的 int 值。枚举成员重排会导致数值错位（静默数据损坏），
-        /// 新档已改存 TypeName，本字段仅用于读取旧档回退</summary>
-        public int Type;
-
-        /// <summary>修改器类型枚举名（如 "Add"）。读取时优先于旧 int 字段，写档恒写入</summary>
+        /// <summary>修改器类型枚举名（如 "Add"）</summary>
         public string TypeName;
 
         /// <summary>修改器数值</summary>
@@ -144,20 +140,12 @@ namespace GoveKits.Runtime.Unit
                 // 使 RemoveModifier 的"按类型回退"能命中读档恢复的修改器（否则变成无法移除的永久 buff）
                 foreach (var modData in attrData.Modifiers)
                 {
-                    // 类型优先按枚举名解析（新档）；旧档仅有 int 值时回退数值强转
-                    ModifierType modType;
-                    if (!string.IsNullOrEmpty(modData.TypeName))
+                    // 类型按枚举名解析，无法识别（拼错/枚举成员已删）时跳过并警告，不做静默强转
+                    if (!Enum.TryParse(modData.TypeName, true, out ModifierType modType))
                     {
-                        if (!Enum.TryParse(modData.TypeName, true, out modType))
-                        {
-                            LogCore.Warning(nameof(UnitSerializer),
-                                $"修改器类型无法识别({modData.TypeName})，该修改器已跳过: {kvp.Key}");
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        modType = (ModifierType)modData.Type;
+                        LogCore.Warning(nameof(UnitSerializer),
+                            $"修改器类型无法识别({modData.TypeName})，该修改器已跳过: {kvp.Key}");
+                        continue;
                     }
 
                     ModifierSource source = null;
