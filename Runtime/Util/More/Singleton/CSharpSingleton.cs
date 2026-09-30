@@ -36,9 +36,15 @@ namespace GoveKits.Runtime.Util
 
         static CSharpSingleton()
         {
-            // 注册静态状态重置（由非泛型注册表代为挂 RuntimeInitializeOnLoadMethod）
+            // 注册静态状态重置（由非泛型注册表代为挂 RuntimeInitializeOnLoadMethod）。
+            // 已初始化的实例需先走 Uninit 释放资源（协程句柄/文件句柄等），再丢弃引用
             CSharpSingletonResetRegistry.Register(() =>
             {
+                if (_instance != null && _initialized)
+                {
+                    try { _instance.Uninit(); }
+                    catch (Exception e) { UnityEngine.Debug.LogError($"[CSharpSingleton] {typeof(T).Name} Reset Uninit 异常: {e}"); }
+                }
                 _instance = null;
                 _initialized = false;
             });

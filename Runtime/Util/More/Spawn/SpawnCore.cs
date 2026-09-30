@@ -45,6 +45,13 @@ namespace GoveKits.Runtime.Util
         /// <param name="despawnAction">销毁回调，用于清理实体资源</param>
         public static void Register(string spawnKey, Func<uint, ISpawnData, ISpawnable> factoryFunc, Action<ISpawnable> despawnAction)
         {
+            // 工厂必须提供：否则 Spawn 时仅能抛出含混的 NRE；销毁回调允许为空（无清理需求的实体）
+            if (factoryFunc == null)
+            {
+                LogCore.Error(nameof(SpawnCore), $"SpawnKey: [{spawnKey}] 的工厂函数为 null，拒绝注册！");
+                return;
+            }
+
             if (spawnFactories.ContainsKey(spawnKey))
             {
                 LogCore.Warning(nameof(SpawnCore), $"SpawnKey: [{spawnKey}] 已被注册，将被覆盖！");
@@ -122,14 +129,20 @@ namespace GoveKits.Runtime.Util
 
             if (despawnActions.TryGetValue(entity.SpawnKey, out var despawnAction))
             {
-                try
+                // 销毁回调与事件相互隔离：回调异常不应吞掉 OnEntityDespawned，反之亦然
+                if (despawnAction != null)
                 {
-                    despawnAction(entity);
-                    OnEntityDespawned?.Invoke(entity);
+                    try { despawnAction(entity); }
+                    catch (Exception ex)
+                    {
+                        LogCore.Error(nameof(SpawnCore), $"销毁 [{entity.SpawnKey}] 时发生异常: {ex}");
+                    }
                 }
+
+                try { OnEntityDespawned?.Invoke(entity); }
                 catch (Exception ex)
                 {
-                    LogCore.Error(nameof(SpawnCore), $"销毁 [{entity.SpawnKey}] 时发生异常: {ex}");
+                    LogCore.Error(nameof(SpawnCore), $"OnEntityDespawned 订阅者处理 [{entity.SpawnKey}] 时异常: {ex}");
                 }
             }
             else
@@ -179,7 +192,9 @@ namespace GoveKits.Runtime.Util
             var idsToDespawn = new List<uint>(spawnedEntities.Keys);
             foreach (var id in idsToDespawn)
                 Despawn(id);
-            spawnedEntities.Clear();
+
+            // 不做整体 Clear：Despawn 回调内 Spawn 的新实体已进注册表，
+            // 整体清空会把它们从追踪中抹掉（实体仍存活却无人管理）。Despawn 内部已逐个 Remove。
 
             // 静态事件不清理会永久持有订阅者（闭包/MonoBehaviour），跨场景泄漏
             OnEntitySpawned = null;

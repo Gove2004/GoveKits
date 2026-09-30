@@ -34,6 +34,7 @@ namespace GoveKits.Runtime.Storage
         /// <param name="fallbackLanguage">缺失翻译时的回退语言，默认 EnglishUS。</param>
         public static void Setup(LanguageCode fallbackLanguage = LanguageCode.EnglishUS)
         {
+            bool success = false;
             try
             {
                 _fallbackLanguage = fallbackLanguage;
@@ -46,14 +47,17 @@ namespace GoveKits.Runtime.Storage
                 RefreshCache();
 
                 LogCore.Success(nameof(LocalizationCore), $"初始化成功: Language={_currentLanguage}, Keys={_currentLangCache.Count}");
+                success = true;
             }
             catch (Exception e)
             {
                 LogCore.Error(nameof(LocalizationCore), $"初始化失败: {e.Message}");
             }
 
-            // 补发一次事件，让先于 Setup 订阅/启用的组件完成刷新
-            OnLanguageChanged?.Invoke();
+            // 仅成功时补发事件：失败时缓存为空，补发会让所有组件刷出满屏 #key#；
+            // 保留旧显示（可能为上一会话缓存）等待下次 Setup 修复
+            if (success)
+                OnLanguageChanged?.Invoke();
         }
 
         /// <summary>

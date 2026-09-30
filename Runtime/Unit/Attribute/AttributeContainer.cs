@@ -83,10 +83,15 @@ namespace GoveKits.Runtime.Unit
             UpdateCurrentValue(tag, data, triggerEvents: true);
         }
 
-        /// <summary>添加动态修改器（如 Buff 增益加成）</summary>
+        /// <summary>添加动态修改器（如 Buff 增益加成）。属性未注册时输出警告并忽略。</summary>
         public void AddModifier(UnitTag tag, AttributeModifier modifier)
         {
-            if (!_attributes.TryGetValue(tag, out var data)) return;
+            if (!_attributes.TryGetValue(tag, out var data))
+            {
+                LogCore.Warning(nameof(AttributeContainer),
+                    $"属性 {tag} 未注册，修改器({modifier?.Type})已忽略——请先 Add 注册该属性");
+                return;
+            }
 
             data.Modifiers.Add(modifier);
             UpdateCurrentValue(tag, data, triggerEvents: true);

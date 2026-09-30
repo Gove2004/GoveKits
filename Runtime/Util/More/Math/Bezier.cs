@@ -14,6 +14,8 @@ namespace GoveKits.Runtime.Util
         /// <param name="controlPoints">控制点数组，长度决定了贝塞尔曲线的阶数。</param>
         public static Vector3 Calculate(float t, params Vector3[] controlPoints)
         {
+            // 越界 t 会经 Pow 产生 NaN/无穷，钳制到有效区间
+            t = Mathf.Clamp01(t);
             int n = controlPoints.Length - 1;
             Vector3 point = Vector3.zero;
 
@@ -34,6 +36,7 @@ namespace GoveKits.Runtime.Util
         /// <param name="controlPoints">控制点数组，长度决定了贝塞尔曲线的阶数。</param>
         public static Vector2 Calculate(float t, params Vector2[] controlPoints)
         {
+            t = Mathf.Clamp01(t);
             int n = controlPoints.Length - 1;
             Vector2 point = Vector2.zero;
 

@@ -23,11 +23,21 @@ namespace GoveKits.Runtime.Storage
         {
             if (_isSaving) return; // 上一次保存未完成时跳过本轮，避免重入
 
+            // 下限保护：Inspector 误设 0/负值会导致每帧全量保存
+            float interval = Mathf.Max(intervalSeconds, 1f);
+
             _timer += Time.deltaTime;
-            if (_timer < intervalSeconds) return;
+            if (_timer < interval) return;
 
             SaveAll();
             _timer = 0f;
+        }
+
+        private void OnDestroy()
+        {
+            // 最终保存：尽力而为（异步写盘在退出流程中可能未及完成，Critical 数据请显式同步保存）
+            if (_getData.Count > 0)
+                SaveAll();
         }
 
         /// <summary>

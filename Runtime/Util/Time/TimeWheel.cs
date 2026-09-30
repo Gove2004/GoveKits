@@ -33,6 +33,12 @@ namespace GoveKits.Runtime.Util
         /// <param name="wheelSize">时间轮槽位数量，默认 512</param>
         public TimeWheel(float tickDuration = 0.05f, int wheelSize = 512)
         {
+            // 参数校验：tickDuration<=0 会导致 Tick 的 while 死循环，wheelSize<=0 会导致取模除零
+            if (tickDuration <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(tickDuration), "tickDuration 必须大于 0");
+            if (wheelSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(wheelSize), "wheelSize 必须大于 0");
+
             _tickDuration = tickDuration;
             _wheelSize = wheelSize;
             _slots = new LinkedList<Timer>[wheelSize];

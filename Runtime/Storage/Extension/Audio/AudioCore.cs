@@ -21,6 +21,10 @@ namespace GoveKits.Runtime.Storage
         private static readonly Dictionary<AudioChannel, float> _volumes = new();
         private static bool _isFadingBGM;
 
+        // 音量存盘节流：SetVolume（滑条拖动）每帧调用时不立即写盘，由 OnUpdate 延迟统一保存
+        private static bool _volumeSaveDirty;
+        private static float _volumeSaveDueTime;
+
         /// <summary>池化节点。必须是 class：池内以引用共享，保证 IsActive 等状态修改能反映到 _audioPool。</summary>
         private class AudioNode
         {
@@ -95,7 +99,10 @@ namespace GoveKits.Runtime.Storage
 
             _volumes[channel] = vol;
             PrefsCore.SetFloat(AudioPrefPrefix + channel.ToString(), vol);
-            PrefsCore.Save();
+
+            // 延迟统一写盘：滑条拖动每帧触发 SetVolume，逐次 Save 会造成高频 IO
+            _volumeSaveDirty = true;
+            _volumeSaveDueTime = Time.unscaledTime + 1f;
 
             ApplyAllVolumes();
         }
@@ -196,6 +203,13 @@ namespace GoveKits.Runtime.Storage
 
         private static void OnUpdate()
         {
+            // 音量存盘节流：脏标记超过 1 秒未再变动时统一落盘
+            if (_volumeSaveDirty && Time.unscaledTime >= _volumeSaveDueTime)
+            {
+                _volumeSaveDirty = false;
+                PrefsCore.Save();
+            }
+
             for (int i = 0; i < _audioPool.Count; i++)
             {
                 var node = _audioPool[i];
@@ -332,8 +346,18 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         public static void Close()
         {
+            // 幂等守卫：未初始化或已关闭时直接返回，防止二次调用 NRE
+            if (_driver == null) return;
+
             StopBGM();
             _driver.OnUpdate -= OnUpdate;
+
+            // 关闭前若有待写盘的音量变更，立即落盘
+            if (_volumeSaveDirty)
+            {
+                _volumeSaveDirty = false;
+                PrefsCore.Save();
+            }
 
             foreach (var node in _audioPool)
             {

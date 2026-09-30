@@ -77,9 +77,16 @@ namespace GoveKits.Runtime.Util
                 snapshot = listeners.ToArray();
                 _snapshots[type] = snapshot;
             }
+            else if (_snapshots.TryGetValue(type, out var cachedObj))
+            {
+                snapshot = (IEventListener<TEvent>[])cachedObj;
+            }
             else
             {
-                snapshot = (IEventListener<TEvent>[])_snapshots[type];
+                // 快照缺失兜底（防御性，正常流程不可达）：退回重建，保证发布路径不崩
+                listeners.Sort((a, b) => b.Priority.CompareTo(a.Priority));
+                snapshot = listeners.ToArray();
+                _snapshots[type] = snapshot;
             }
 
             foreach (var listener in snapshot)

@@ -130,6 +130,15 @@ namespace GoveKits.Runtime.Unit
 
         #region 关闭
 
+        // 关闭 Domain Reload 时清理注册表，避免跨 Play 会话残留旧类型映射
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForDomainReload()
+        {
+            _abilityMap.Clear();
+            _markMap.Clear();
+            _reactionMap.Clear();
+        }
+
         /// <summary>关闭所有注册表，释放内存</summary>
         public static void Close()
         {

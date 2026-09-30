@@ -94,6 +94,16 @@ namespace GoveKits.Runtime.Util
             loggers.Add(logger);
         }
 
+        /// <summary>是否已存在指定类型的日志后端（供 GoveCore.Setup 做默认注册前的查重，避免日志双写）。</summary>
+        internal static bool HasLoggerOfType<TLogger>() where TLogger : ILogger
+        {
+            for (int i = 0; i < loggers.Count; i++)
+            {
+                if (loggers[i] is TLogger) return true;
+            }
+            return false;
+        }
+
         private static void DispatchLog(LogLevel level, string tag, string message, string colorHex)
         {
             if (level < logLevel)

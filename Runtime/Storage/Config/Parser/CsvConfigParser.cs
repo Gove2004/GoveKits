@@ -163,6 +163,13 @@ namespace GoveKits.Runtime.Storage
                 records.Add(values.ToArray());
             }
 
+            // 静默吞行防护：引号未闭合意味着内容被错误合并，行数与预期不符且极难排查
+            if (inQuotes)
+            {
+                LogCore.Warning(nameof(CsvConfigParser),
+                    $"CSV 存在未闭合的引号（附近内容: ...{sb}），末尾数据可能被错误合并，请检查源文件格式。");
+            }
+
             return records;
         }
 

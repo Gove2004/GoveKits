@@ -70,7 +70,9 @@ namespace GoveKits.Runtime.UI
 
             view.OnReceiveShowParam(param);
 
-            if (view.gameObject.activeSelf)
+            // 用 activeInHierarchy 判断：activeSelf 在父级失活时仍为 true，
+            // 会误判"已激活"而静默跳过显示流程（参数刷新了但面板不可见）
+            if (view.gameObject.activeInHierarchy)
             {
                 // 已激活面板仅刷新参数，不重复走激活流程
                 return;

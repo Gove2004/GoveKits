@@ -36,8 +36,10 @@ namespace GoveKits.Runtime
             if (_setupDone) return;
             _setupDone = true;
 
-            // 1. 基础 Core
-            LogCore.AddLogger(new UnityLogger());
+            // 1. 基础 Core（按类型查重：用户可能在 Setup 前手动 AddLogger 过同类型后端，
+            //    引用查重拦不住不同实例，会导致每条日志双写）
+            if (!LogCore.HasLoggerOfType<UnityLogger>())
+                LogCore.AddLogger(new UnityLogger());
             // PoolCore — 懒创建，无需初始化
 
             // 2. 事件总线 — 静态字段自带初始总线，Close 后自动重建，无需初始化

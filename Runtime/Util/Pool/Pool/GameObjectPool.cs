@@ -145,7 +145,17 @@ namespace GoveKits.Runtime.Util
                 var obj = stack.Pop();
                 if (obj != null)
                 {
-                    obj.GetComponent<PoolRecord>().InPool = false;
+                    var record = obj.GetComponent<PoolRecord>();
+                    if (record == null)
+                    {
+                        // 实例仍在缓存但 PoolRecord 被外部移除：无法标记归属，退回普通对象（归还时将被销毁）
+                        LogCore.Warning("GameObjectPool", $"{prefab.name} 的缓存实例丢失 PoolRecord，已按普通对象返回。");
+                        obj.transform.SetParent(null);
+                        obj.SetActive(true);
+                        return obj;
+                    }
+
+                    record.InPool = false;
                     obj.transform.SetParent(null);
                     obj.SetActive(true);
                     return obj;
