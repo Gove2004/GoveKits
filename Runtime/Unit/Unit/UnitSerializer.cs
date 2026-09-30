@@ -42,8 +42,12 @@ namespace GoveKits.Runtime.Unit
     [System.Serializable]
     public class ModifierArchiveData
     {
-        /// <summary>修改器类型（ModifierType 枚举的 int 值）</summary>
+        /// <summary>[旧档兼容] 修改器类型的 int 值。枚举成员重排会导致数值错位（静默数据损坏），
+        /// 新档已改存 TypeName，本字段仅用于读取旧档回退</summary>
         public int Type;
+
+        /// <summary>修改器类型枚举名（如 "Add"）。读取时优先于旧 int 字段，写档恒写入</summary>
+        public string TypeName;
 
         /// <summary>修改器数值</summary>
         public float Value;
@@ -64,6 +68,10 @@ namespace GoveKits.Runtime.Unit
         public float Duration;
         /// <summary>已流逝时间（用于精确恢复进度）</summary>
         public float Timer;
+        /// <summary>周期触发间隔（秒），0 表示非周期标记（TickMark 专用）</summary>
+        public float TickInterval;
+        /// <summary>周期计时器已流逝时间（用于精确恢复 tick 进度，TickMark 专用）</summary>
+        public float TickTimer;
     }
 
     /// <summary>
@@ -85,7 +93,8 @@ namespace GoveKits.Runtime.Unit
                 {
                     attrData.Modifiers.Add(new ModifierArchiveData
                     {
-                        Type = (int)mod.Type,
+                        // 以枚举名存档，避免枚举成员重排导致 int 数值错位
+                        TypeName = mod.Type.ToString(),
                         Value = mod.Value,
                         SourceTypeName = mod.Source?.GetType().AssemblyQualifiedName
                     });
@@ -96,13 +105,22 @@ namespace GoveKits.Runtime.Unit
             foreach (var kvp in unit.Marks)
             {
                 var mark = kvp.Value;
-                data.Marks.Add(new MarkArchiveData
+                var markData = new MarkArchiveData
                 {
                     Tag = mark.Name.ToString(),
                     Stack = mark.Stack,
                     Duration = mark.Duration,
                     Timer = mark.Timer
-                });
+                };
+
+                // 周期标记补存 tick 间隔与进度，读档后可完整还原触发节奏
+                if (mark is TickMark tickMark)
+                {
+                    markData.TickInterval = tickMark.TickInterval;
+                    markData.TickTimer = tickMark.TickTimer;
+                }
+
+                data.Marks.Add(markData);
             }
 
             foreach (var kvp in unit.Abilities) data.Abilities.Add(kvp.Key.ToString());
@@ -126,6 +144,22 @@ namespace GoveKits.Runtime.Unit
                 // 使 RemoveModifier 的"按类型回退"能命中读档恢复的修改器（否则变成无法移除的永久 buff）
                 foreach (var modData in attrData.Modifiers)
                 {
+                    // 类型优先按枚举名解析（新档）；旧档仅有 int 值时回退数值强转
+                    ModifierType modType;
+                    if (!string.IsNullOrEmpty(modData.TypeName))
+                    {
+                        if (!Enum.TryParse(modData.TypeName, true, out modType))
+                        {
+                            LogCore.Warning(nameof(UnitSerializer),
+                                $"修改器类型无法识别({modData.TypeName})，该修改器已跳过: {kvp.Key}");
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        modType = (ModifierType)modData.Type;
+                    }
+
                     ModifierSource source = null;
                     if (!string.IsNullOrEmpty(modData.SourceTypeName))
                     {
@@ -145,7 +179,7 @@ namespace GoveKits.Runtime.Unit
                     }
 
                     unit.Attributes.AddModifier(kvp.Key,
-                        new AttributeModifier((ModifierType)modData.Type, modData.Value, source));
+                        new AttributeModifier(modType, modData.Value, source));
                 }
             }
 
@@ -176,10 +210,16 @@ namespace GoveKits.Runtime.Unit
                 if (mark == null) continue;
 
                 mark.SetStack(markData.Stack).SetDuration(markData.Duration);
+
+                // 周期标记还原触发间隔（工厂重建的实例若未 SetInterval，以存档值为准）
+                if (mark is TickMark tickMark && markData.TickInterval > 0f)
+                    tickMark.SetInterval(markData.TickInterval);
+
                 unit.Marks.AddMark(mark);
 
-                // 必须在 AddMark 之后恢复进度：AddMark 触发的 OnApply 会清零 Timer
+                // 必须在 AddMark 之后恢复进度：AddMark 触发的 OnApply 会清零 Timer 与 _tickTimer
                 mark.RestoreTimer(markData.Timer);
+                (mark as TickMark)?.RestoreTickTimer(markData.TickTimer);
             }
         }
     }

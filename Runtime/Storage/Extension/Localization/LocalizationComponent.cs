@@ -19,9 +19,18 @@ namespace GoveKits.Runtime.Storage
         private TMP_Text _tmpText;
 #endif
         private Text _uiText;
+        private bool _textCached;
 
         private void Awake()
         {
+            CacheTextComponent();
+        }
+
+        /// <summary>惰性缓存文本组件引用，保证 UpdateContent 在 Awake 前被调用（如 SetKey 早于激活）也能正常工作</summary>
+        private void CacheTextComponent()
+        {
+            if (_textCached) return;
+            _textCached = true;
 #if TMP_PRESENT
             _tmpText = GetComponent<TMP_Text>();
 #endif
@@ -54,6 +63,8 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         public void UpdateContent()
         {
+            // 组件引用未缓存时先补取（SetKey 可能早于 Awake，如对象池复用、外部初始化顺序靠前）
+            CacheTextComponent();
             if (string.IsNullOrEmpty(Key)) return;
 
             string content = LocalizationCore.GetText(Key);

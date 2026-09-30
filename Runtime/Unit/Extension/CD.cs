@@ -36,14 +36,12 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         public override void Commit(AbilityContext context)
         {
-            // 必须用 CDTag 命名，否则 Check() 按 CDTag 查不到该标记，冷却会失效
-            var cdMark = UnitCore.CreateMark<CDMark>().SetName(CDTag).SetStack(1).SetDuration(Duration);
-            if (cdMark != null)
-            {
-                MarkAddEffect.Create()
-                    .Set(cdMark)
-                    .Apply(context.Source);
-            }
+            // 必须用 CDTag 命名，否则 Check() 按 CDTag 查不到该标记，冷却会失效。
+            // CreateMark<T>() 为 new T() 直创建永不返回 null；Stack/MaxStack 默认即为 1，无需显式设置
+            var cdMark = UnitCore.CreateMark<CDMark>().SetName(CDTag).SetDuration(Duration);
+            MarkAddEffect.Create()
+                .Set(cdMark)
+                .Apply(context.Source);
         }
     }
 

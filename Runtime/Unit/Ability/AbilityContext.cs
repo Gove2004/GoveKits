@@ -5,6 +5,9 @@ namespace GoveKits.Runtime.Unit
     /// <summary>
     /// Unit 技能与效果的执行上下文。
     /// 提供 Source（施法者）/ Target（受击者）以及可扩展的运行时参数容器。
+    /// 生命周期契约：context 由调用方创建并持有所有权，框架不在执行结束后自动回收或池化——
+    /// ExecuteAsync 为异步方法，await 恢复后子类逻辑仍可能访问 context，
+    /// 框架层自动复用会引入悬垂脏数据，如需复用请由调用方自行管理。
     /// </summary>
     public class AbilityContext
     {

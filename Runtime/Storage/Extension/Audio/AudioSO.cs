@@ -47,5 +47,12 @@ namespace GoveKits.Runtime.Storage
         /// 获取是否循环播放。
         /// </summary>
         public bool Loop => _loop;
+
+        private void OnValidate()
+        {
+            // [Range] 只约束 Inspector 拖动，拦不住外部代码赋值或已损坏的序列化值，落盘前统一钳制
+            _volume = Mathf.Clamp01(_volume);
+            _pitch = Mathf.Clamp(_pitch, 0.1f, 3f);
+        }
     }
 }

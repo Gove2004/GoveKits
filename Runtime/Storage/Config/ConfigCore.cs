@@ -35,6 +35,9 @@ namespace GoveKits.Runtime.Storage
         public static void Setup()
         {
             var bindings = ConfigBindingScanner.Scan();
+            // 清除上次 Setup 遗留的表：重复 Setup（如热重载）时旧数据不能残留，
+            // 否则本次加载失败的表会继续返回旧数据（静默脏读）
+            _configTables.Clear();
             _resolvedTables.Clear();
 
             foreach (var binding in bindings)
@@ -103,28 +106,11 @@ namespace GoveKits.Runtime.Storage
             => LoadInternal<T>(predicate);
 
         /// <summary>
-        /// 快捷别名：等价于 Load&lt;T&gt;(predicate)。
-        /// </summary>
-        /// <typeparam name="T">配置数据类型。</typeparam>
-        /// <param name="predicate">过滤条件。</param>
-        /// <returns>匹配过滤条件的配置对象列表。</returns>
-        public static List<T> Get<T>(Func<T, bool> predicate) where T : class, IConfigData
-            => LoadInternal<T>(predicate);
-
-        /// <summary>
         /// 加载指定类型的全部配置数据，不进行过滤。
         /// </summary>
         /// <typeparam name="T">配置数据类型。</typeparam>
         /// <returns>该类型的所有配置对象列表。</returns>
         public static List<T> LoadAll<T>() where T : class, IConfigData
-            => LoadInternal<T>(null);
-
-        /// <summary>
-        /// 快捷别名：等价于 LoadAll&lt;T&gt;。
-        /// </summary>
-        /// <typeparam name="T">配置数据类型。</typeparam>
-        /// <returns>该类型的所有配置对象列表。</returns>
-        public static List<T> GetAll<T>() where T : class, IConfigData
             => LoadInternal<T>(null);
 
         /// <summary>
@@ -134,16 +120,7 @@ namespace GoveKits.Runtime.Storage
         /// <param name="predicate">过滤条件。</param>
         /// <returns>第一条匹配的配置对象，若无匹配则返回 null。</returns>
         public static T LoadOne<T>(Func<T, bool> predicate) where T : class, IConfigData
-            => Get(predicate).FirstOrDefault();
-
-        /// <summary>
-        /// 快捷别名：等价于 LoadOne&lt;T&gt;(predicate)。
-        /// </summary>
-        /// <typeparam name="T">配置数据类型。</typeparam>
-        /// <param name="predicate">过滤条件。</param>
-        /// <returns>第一条匹配的配置对象，若无匹配则返回 null。</returns>
-        public static T GetOne<T>(Func<T, bool> predicate) where T : class, IConfigData
-            => LoadOne(predicate);
+            => Load(predicate).FirstOrDefault();
 
         private static List<T> LoadInternal<T>(Func<T, bool> predicate) where T : class, IConfigData
         {
@@ -172,12 +149,13 @@ namespace GoveKits.Runtime.Storage
             int hitCount = 0;
             foreach (var kvp in _configTables)
             {
-                if (kvp.Value.Count > 0 && kvp.Value[0] is T)
-                {
-                    hitCount++;
-                    merged ??= new List<IConfigData>();
-                    merged.AddRange(kvp.Value);
-                }
+                // 以注册键（具体配置类型）判断兼容性：空表没有元素可供 is 推断，
+                // 按 key 判定可让空表也参与命中（表存在但无数据 ≠ 表未加载）
+                if (!typeof(T).IsAssignableFrom(kvp.Key)) continue;
+
+                hitCount++;
+                merged ??= new List<IConfigData>();
+                merged.AddRange(kvp.Value);
             }
 
             if (merged == null) return null;

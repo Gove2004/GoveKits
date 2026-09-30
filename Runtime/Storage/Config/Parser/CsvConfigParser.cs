@@ -36,8 +36,17 @@ namespace GoveKits.Runtime.Storage
             if (records.Count <= 1) return rows;
 
             string[] headers = records[0];
-            FieldInfo[] fields = typeof(T).GetFields();
-            PropertyInfo[] props = typeof(T).GetProperties();
+
+            // 预构建「列名 → 成员绑定」映射：[ConfigField] 特性反射只做一次，
+            // 避免逐行逐字段 GetCustomAttribute 造成的 O(行数×字段数) 次反射开销
+            var bindings = new List<ColumnBinding>();
+            foreach (var field in typeof(T).GetFields())
+                bindings.Add(new ColumnBinding(GetConfigFieldName(field, field.Name), field, null, GetFieldDefaultValue(field)));
+            foreach (var prop in typeof(T).GetProperties())
+            {
+                if (!prop.CanWrite) continue;
+                bindings.Add(new ColumnBinding(GetConfigFieldName(prop, prop.Name), null, prop, GetPropertyDefaultValue(prop)));
+            }
 
             // 构建列名到索引的映射
             var headerIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -55,30 +64,15 @@ namespace GoveKits.Runtime.Storage
 
                 var item = new T();
 
-                // 遍历所有字段，优先使用 [ConfigField] 指定的列名，否则回退字段名
-                for (int f = 0; f < fields.Length; f++)
+                for (int b = 0; b < bindings.Count; b++)
                 {
-                    var field = fields[f];
-                    string colName = GetConfigFieldName(field, field.Name);
+                    var binding = bindings[b];
+                    if (!headerIndex.TryGetValue(binding.ColumnName, out int colIdx)) continue;
 
-                    if (headerIndex.TryGetValue(colName, out int colIdx))
-                    {
-                        SetFieldValue(item, field, values, colIdx, GetFieldDefaultValue(field));
-                    }
-                }
-
-                // 遍历所有属性
-                for (int p = 0; p < props.Length; p++)
-                {
-                    var prop = props[p];
-                    if (!prop.CanWrite) continue;
-
-                    string colName = GetConfigFieldName(prop, prop.Name);
-
-                    if (headerIndex.TryGetValue(colName, out int colIdx))
-                    {
-                        SetPropertyValue(item, prop, values, colIdx, GetPropertyDefaultValue(prop));
-                    }
+                    if (binding.Field != null)
+                        SetFieldValue(item, binding.Field, values, colIdx, binding.DefaultValue);
+                    else
+                        SetPropertyValue(item, binding.Property, values, colIdx, binding.DefaultValue);
                 }
 
                 rows.Add(item);
@@ -180,6 +174,23 @@ namespace GoveKits.Runtime.Storage
                 if (!string.IsNullOrWhiteSpace(values[i])) return false;
             }
             return true;
+        }
+
+        /// <summary>列名与目标成员的绑定关系（每张表解析时构建一次）</summary>
+        private readonly struct ColumnBinding
+        {
+            public readonly string ColumnName;
+            public readonly FieldInfo Field;
+            public readonly PropertyInfo Property;
+            public readonly string DefaultValue;
+
+            public ColumnBinding(string columnName, FieldInfo field, PropertyInfo property, string defaultValue)
+            {
+                ColumnName = columnName;
+                Field = field;
+                Property = property;
+                DefaultValue = defaultValue;
+            }
         }
 
         private static string GetConfigFieldName(MemberInfo member, string fallbackName)

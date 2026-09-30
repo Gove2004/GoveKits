@@ -31,7 +31,7 @@ namespace GoveKits.Runtime.Storage
             try
             {
                 var list = JsonConvert.DeserializeObject<List<T>>(json);
-                if (list != null) return list;
+                if (list != null) return StripNullItems(list);
             }
             catch (Exception e)
             {
@@ -41,7 +41,7 @@ namespace GoveKits.Runtime.Storage
             try
             {
                 var dictInt = JsonConvert.DeserializeObject<Dictionary<int, T>>(json);
-                if (dictInt != null) return new List<T>(dictInt.Values);
+                if (dictInt != null) return StripNullItems(new List<T>(dictInt.Values));
             }
             catch (Exception e)
             {
@@ -51,7 +51,7 @@ namespace GoveKits.Runtime.Storage
             try
             {
                 var dictString = JsonConvert.DeserializeObject<Dictionary<string, T>>(json);
-                if (dictString != null) return new List<T>(dictString.Values);
+                if (dictString != null) return StripNullItems(new List<T>(dictString.Values));
             }
             catch (Exception e)
             {
@@ -69,6 +69,19 @@ namespace GoveKits.Runtime.Storage
             }
 
             throw new AggregateException($"JSON 配置解析失败（类型: {typeof(T).Name}）", errors);
+        }
+
+        /// <summary>
+        /// 过滤列表中的 null 元素并警告。JSON 数组/字典的 value 含 null 时，
+        /// 反序列化会以 null 引用混入列表，直接透传会让下游遍历时 NRE。
+        /// </summary>
+        private static List<T> StripNullItems<T>(List<T> list)
+        {
+            int removed = list.RemoveAll(item => item == null);
+            if (removed > 0)
+                LogCore.Warning(nameof(JsonConfigParser),
+                    $"JSON 配置含 {removed} 个 null 元素，已过滤（类型: {typeof(T).Name}），请检查源文件");
+            return list;
         }
     }
 }

@@ -134,6 +134,12 @@ namespace GoveKits.Runtime.Unit
             return this;
         }
 
+        /// <summary>周期计时器当前值（供序列化模块读取运行态进度）</summary>
+        internal float TickTimer => _tickTimer;
+
+        /// <summary>供序列化模块读档恢复周期进度（须在 AddMark 之后调用，OnApply 会清零）</summary>
+        internal void RestoreTickTimer(float timer) => _tickTimer = timer;
+
         /// <summary>
         /// 标记被首次挂载时触发，额外初始化周期计时器。
         /// </summary>
