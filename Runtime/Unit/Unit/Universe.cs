@@ -32,10 +32,7 @@ namespace GoveKits.Runtime.Unit
         protected override void Init()
         {
             base.Init();
-            InitAttributes();
-            InitMarks();
-            InitAbilities();
-            InitReactions();
+            this.InitAllContainers();
         }
 
         /// <summary>
@@ -48,21 +45,17 @@ namespace GoveKits.Runtime.Unit
         }
 
         /// <summary>
-        /// 每帧驱动标记容器的 Tick 逻辑。
+        /// 每帧驱动标记容器的 Tick 逻辑（容器未初始化时安全跳过）。
         /// </summary>
         public void Update(float deltaTime)
         {
-            if (Marks != null)
-                this.UpdateUnit(deltaTime);
+            this.UpdateUnit(deltaTime);
         }
 
         /// <summary>清理全部容器状态</summary>
         public void Clear()
         {
-            Attributes?.Clear();
-            Marks?.Clear();
-            Abilities?.Clear();
-            Reactions?.Clear();
+            this.ClearAllContainers();
         }
 
     }

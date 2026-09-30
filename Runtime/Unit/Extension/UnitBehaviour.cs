@@ -24,10 +24,7 @@ namespace GoveKits.Runtime.Unit
         /// </summary>
         protected virtual void Awake()
         {
-            InitAttributes();
-            InitMarks();
-            InitAbilities();
-            InitReactions();
+            this.InitAllContainers();
         }
 
         /// <summary>初始化属性容器（可被子类覆写以自定义）</summary>
@@ -40,21 +37,17 @@ namespace GoveKits.Runtime.Unit
         public virtual void InitReactions() => Reactions = new ReactionContainer(this);
 
         /// <summary>
-        /// MonoBehavior 生命周期：每帧驱动标记容器的 Tick 逻辑。
+        /// MonoBehavior 生命周期：每帧驱动标记容器的 Tick 逻辑（容器未初始化时安全跳过）。
         /// </summary>
         protected virtual void Update()
         {
-            if (Marks != null)
-                this.UpdateUnit(Time.deltaTime);
+            this.UpdateUnit(Time.deltaTime);
         }
 
         /// <summary>清理全部容器状态</summary>
         public void Clear()
         {
-            Attributes?.Clear();
-            Marks?.Clear();
-            Abilities?.Clear();
-            Reactions?.Clear();
+            this.ClearAllContainers();
         }
 
 

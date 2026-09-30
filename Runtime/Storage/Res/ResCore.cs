@@ -34,6 +34,9 @@ namespace GoveKits.Runtime.Storage
         /// <summary>资源下载失败后的最大重试次数。</summary>
         private const int DownloadMaxRetry = 3;
 
+        /// <summary>下载重试的基础退避时长（秒），第 n 次重试前等待 2^(n-1) 倍（1s/2s/4s）。</summary>
+        private const float DownloadRetryBackoffSeconds = 1f;
+
         #region 包裹初始化
 
         private static async UniTask<bool> InitPackageInternal(PackageConfig config, bool setAsDefault = false)
@@ -315,12 +318,14 @@ namespace GoveKits.Runtime.Storage
         }
 
         /// <summary>
-        /// 异步卸载整个包裹，清除缓存文件并触发回调。
+        /// 清除指定包裹的全部下载缓存文件（ClearAllBundleFiles）并触发回调。
+        /// 注意：这不是卸载/销毁包裹本身——销毁包裹走 <see cref="CloseAsync"/>，
+        /// 本方法仅在需要释放磁盘缓存空间时使用。
         /// </summary>
-        /// <param name="packageName">要卸载的包裹名称。</param>
-        /// <param name="onSuccess">卸载成功回调。</param>
-        /// <param name="onFailure">卸载失败回调。</param>
-        public static async UniTaskVoid UnloadPackage(string packageName, Action onSuccess = null, Action onFailure = null)
+        /// <param name="packageName">包裹名称。</param>
+        /// <param name="onSuccess">清除成功回调。</param>
+        /// <param name="onFailure">清除失败回调。</param>
+        public static async UniTaskVoid ClearCacheFiles(string packageName, Action onSuccess = null, Action onFailure = null)
         {
             var package = YooAssets.GetPackage(packageName);
             if (package == null) { onFailure?.Invoke(); return; }
@@ -338,7 +343,11 @@ namespace GoveKits.Runtime.Storage
 
         #region 热更新内部方法
 
-        /// <summary>等待条件满足或超时。返回 true 表示条件满足，false 表示超时。</summary>
+        /// <summary>
+        /// 等待条件满足或超时。返回 true 表示条件满足，false 表示超时。
+        /// 注意：YooAsset 未公开 operation 的取消 API（AbortOperation 为 internal），
+        /// 超时后底层 operation 仍会在后台运行至自然完成，仅其结果被忽略，上层可安全重试。
+        /// </summary>
         private static async UniTask<bool> WaitUntilOrTimeout(Func<bool> condition, int timeoutMs = OperationTimeoutMs)
         {
             float deadline = Time.realtimeSinceStartup + timeoutMs / 1000f;
@@ -416,6 +425,11 @@ namespace GoveKits.Runtime.Storage
                 LogCore.Error(nameof(ResCore), $"下载资源失败（第 {attempt}/{DownloadMaxRetry} 次）: {downloader.Error}");
                 // 下载器失败后不可复用，重建下载器重试；完成后 YooAsset 会自动触发 OnDownloadFinish(Succeed=false)
                 if (attempt >= DownloadMaxRetry) break;
+
+                // 指数退避后再重试（1s/2s/4s），避免对刚失败的 CDN 立即连环施压
+                float backoffSeconds = DownloadRetryBackoffSeconds * Mathf.Pow(2f, attempt - 1);
+                LogCore.Warning(nameof(ResCore), $"{backoffSeconds:0.#}s 后重试下载…");
+                await UniTask.Delay(TimeSpan.FromSeconds(backoffSeconds));
 
                 downloader = pkg.CreateResourceDownloader(10, 3);
                 if (downloader.TotalDownloadCount == 0)

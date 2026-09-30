@@ -18,9 +18,30 @@ namespace GoveKits.Runtime.Unit
         public static float GetValue(this IUnit unit, string attributeName, Func<float, float> func = null)
             => unit.Attributes.GetValue(new UnitTag(attributeName), func ?? DefaultValueFunc);
 
-        /// <summary>驱动单位的 Tick 逻辑（如 Mark 计时器）</summary>
+        /// <summary>驱动单位的 Tick 逻辑（如 Mark 计时器），容器未初始化时安全跳过</summary>
         public static void UpdateUnit(this IUnit unit, float deltaTime)
-            => unit.Marks.UpdateMarks(deltaTime);
+        {
+            if (unit.Marks != null)
+                unit.Marks.UpdateMarks(deltaTime);
+        }
+
+        /// <summary>初始化全部四大容器（依次调用四个 InitXxx，宿主可覆写单个 Init 定制容器）</summary>
+        public static void InitAllContainers(this IUnit unit)
+        {
+            unit.InitAttributes();
+            unit.InitMarks();
+            unit.InitAbilities();
+            unit.InitReactions();
+        }
+
+        /// <summary>清理全部容器状态（依次调用四大容器的 Clear，未初始化的容器安全跳过）</summary>
+        public static void ClearAllContainers(this IUnit unit)
+        {
+            unit.Attributes?.Clear();
+            unit.Marks?.Clear();
+            unit.Abilities?.Clear();
+            unit.Reactions?.Clear();
+        }
 
         /// <summary>尝试异步执行自身拥有的技能</summary>
         public static UniTask<bool> UseAbility(this IUnit unit, UnitTag abilityTag, AbilityContext context, CancellationToken cancellationToken = default)
