@@ -89,7 +89,7 @@ namespace GoveKits.Runtime.Unit
             if (!_attributes.TryGetValue(tag, out var data))
             {
                 LogCore.Warning(nameof(AttributeContainer),
-                    $"属性 {tag} 未注册，修改器({modifier?.Type})已忽略——请先 Add 注册该属性");
+                    $"属性 {tag} 未注册，修改器({modifier.Type})已忽略——请先 Add 注册该属性");
                 return;
             }
 
