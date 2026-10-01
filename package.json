@@ -8,7 +8,6 @@
     "email": "3425519400@qq.com"
   },
   "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.2",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
     "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#3.0.6",
     "com.code-philosophy.hybridclr": "https://github.com/focus-creative-games/hybridclr_unity.git"

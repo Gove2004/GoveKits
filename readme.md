@@ -19,8 +19,7 @@ GoveKits 的 `package.json` 已声明以下依赖，Git 安装时 Package Manage
     "dependencies": {
         "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#3.0.6",
         "com.code-philosophy.hybridclr": "https://github.com/focus-creative-games/hybridclr_unity.git",
-        "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
-        "com.unity.nuget.newtonsoft-json": "3.2.2"
+        "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0"
     }
 }
 ```
@@ -34,8 +33,7 @@ GoveKits 内置以下第三方库，随包分发，**使用方请勿重复安装
 | 库 | 版本 | 协议 | 用途 |
 |----|------|------|------|
 | **Mirror** | 96.11.0 | MIT | 网络通信（`Plugins/Mirror/`，已精简去除 Examples） |
-
-> Newtonsoft.Json 通过 UPM 依赖 `com.unity.nuget.newtonsoft-json: 3.2.2` 提供（见前置依赖），随包声明、无需手动安装。
+| **Newtonsoft.Json** | netstandard2.0 | MIT | 序列化（存档 / 配置 / 单元数据，`Plugins/NewtonJson_netstandard2.0/`） |
 
 如需升级内置库版本，直接替换 `Plugins/` 下对应目录即可。
 
