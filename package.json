@@ -8,6 +8,7 @@
     "email": "3425519400@qq.com"
   },
   "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
     "com.unity.textmeshpro": "3.0.6",
     "com.unity.scriptablebuildpipeline": "1.21.25",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
