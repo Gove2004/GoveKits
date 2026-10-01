@@ -42,7 +42,7 @@ namespace GoveKits.Runtime.Storage
                 LoadLanguageSettings();
 
 #if TMP_PRESENT
-                _fontConfig = Resources.Load<LocalizationConfig>(FontConfigResourcePath);
+                _fontConfig = UnityEngine.Resources.Load<LocalizationConfig>(FontConfigResourcePath);
 #endif
                 RefreshCache();
 
