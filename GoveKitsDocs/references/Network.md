@@ -69,9 +69,15 @@ var resp7 = await HttpCore.GetAsync("https://api.example.com/slow", cancellation
 
 ```csharp
 // 运行状态查询
-bool isServer = NetworkCore.IsServer;    // 服务端（含 Host）
-bool isClient = NetworkCore.IsClient;    // 客户端（含 Host）
-bool isHost   = NetworkCore.IsHost;      // Host（服务端+客户端一体）
+var state     = NetworkCore.State;              // Offline / ServerOnly / ClientOnly / Host
+bool isServer = NetworkCore.IsServer;           // 服务端（含 Host）
+bool isClient = NetworkCore.IsClient;           // 客户端（含 Host）
+bool isHost   = NetworkCore.IsHost;             // Host（服务端+客户端一体）
+
+// 连接状态查询
+bool connected = NetworkCore.IsClientConnected; // 客户端连接就绪（含 Host 本地客户端）
+double rttSec  = NetworkCore.Rtt;               // 往返延迟（秒），未连接时为 0（结合 IsClientConnected 判断有效性）
+int players    = NetworkCore.ConnectionCount;   // 服务端在线连接数（非服务端模式为 0）
 ```
 
 Mirror 的完整开发模式（NetworkManager、NetworkBehaviour、SyncVar/Command/Rpc、NetworkTransform 等）遵循 Mirror 官方用法，接入层通过 `GoveKits.Mirror` 程序集引用。典型骨架：

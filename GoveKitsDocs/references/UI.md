@@ -51,6 +51,8 @@ Elements.GetItem("GoldBar");                                 // 按名称取 UII
 
 // 运行时动态增删 UI 后重新收集：
 Elements.Rebind();
+// 注意：Rebind 会对收集到的组件调用 RemoveAllListeners——外部直接 onClick.AddListener 注册的
+// 监听会被清除；交互请统一走 ButtonClicked 等公共事件（其订阅在 Rebind 后保留）。
 ```
 
 支持的组件：Button / Toggle / Slider / Dropdown / Image / RawImage / Text / InputField / TMP 文本 / TMP 输入框 / TMP 下拉框，各有一个 Inspector 开关。同名组件自动报警告并忽略。
@@ -155,8 +157,20 @@ Elements.GetItem<QuantityItem>("CountItem").OnValueChanged += n => { ... };
 ```
 
 - `UIItem` 挂到界面内子物体上，RequireComponent 自动补 UIElements，勾选开关即可用 `Elements` 访问内部组件
-- 父级界面的收集器**自动跳过 Item 内部组件**（内部由 Item 自身的收集器管），互不干扰
-- Item 被父级按名称注册：`Elements.Items["UserNameInput"]`
+- 父级界面的收集器**自动跳过 Item 子树**（内部由 Item 自身的收集器管），互不干扰
+- 支持**嵌套**：外层收集器扁平收集子树内全部下层 Item，外层可直接 `Elements.Items["内层Item名"]` 访问
+- Item 被父级按名称注册：`Elements.Items["UserNameInput"]`；同名只收录先到的一个，后到的输出警告并忽略
+
+## UIAutoRegister —— 场景自动注册
+
+场景根挂 `UIAutoRegister` 后，Awake 自动扫描注册全部子物体上的 ViewPanel（含未激活），销毁时自动注销。
+
+运行时动态 `Instantiate` 出来的界面**不会经过 Awake 扫描**，需手动注册/注销：
+
+```csharp
+GetComponent<UIAutoRegister>().RegisterView(newPanel);     // 注册动态界面（重复注册忽略）
+GetComponent<UIAutoRegister>().UnregisterView(newPanel);   // 注销（界面销毁前调用，未注册则静默）
+```
 
 ## ViewModel —— 数据驱动
 

@@ -247,9 +247,10 @@ HealEffect.Create().Set(50f).Apply(unit);
 ### Universe —— 世界容器
 
 ```csharp
-Universe.Instance.InitAttributes();               // 初始化容器（同 IUnit 四件套）
-Universe.Instance.Update(Time.deltaTime);          // 手动驱动标记刷新
+Universe.Instance.Update(Time.deltaTime);          // 手动驱动标记刷新（CSharpSingleton 首次访问自动 Init，四大容器已就绪）
 ```
+
+容器初始化/清理序列由 IUnit 扩展统一（Universe 与 UnitBehaviour 共用）：`unit.InitAllContainers()` / `unit.ClearAllContainers()`。
 
 ### Serializer —— 存档/读档（UnitSerializer）
 
@@ -258,9 +259,11 @@ var data = UnitSerializer.Extract(unit);      // 提取全部状态为纯数据�
 UnitSerializer.Restore(unit, data);           // 从数据重建（内部先 unit.Clear() 清空）
 ```
 
-- **属性**：入档 `BaseValue` 与修改器列表（类型 + 数值），读档恢复基值后重挂修改器、重算当前值。
-  限制：`ModifierSource` 是运行时对象引用，无法序列化——读档后修改器的 Source 为 `null`，
-  只能通过 `RemoveModifier(tag, new XxxSource())` 按 Source **类型**移除，无法按原引用精确移除。
-- **标记**：入档层数 / 持续时间 / 计时进度；读档时在 `AddMark` 之后恢复 `Timer`，Buff 进度不丢失。
+- **属性**：入档 `BaseValue` 与修改器列表（类型以**枚举名** `TypeName` 存储，防枚举重排导致数值错位），读档恢复基值后重挂修改器、重算当前值。
+  `ModifierSource` 是运行时对象引用，无法直接序列化——按 `SourceTypeName` 还原空壳实例，
+  因此读档后仍可用 `RemoveModifier(tag, new XxxSource())` 按 Source **类型**移除；无法按原引用精确移除。
+- **标记**：入档层数 / 持续时间 / 计时进度；TickMark 额外入档周期间隔与 tick 进度。
+  读档在 `AddMark` 之后恢复，Buff 与周期触发进度均不丢失。
 - **技能 / 反应**：只入档标签，读档时经 `UnitCore` 工厂重建（需提前 Register）。
-- 存档中出现未注册的标签时会跳过该项并输出错误日志，不会中断整体读档流程。
+- 存档中出现未注册的标签或无法识别的修改器类型时会跳过该项并输出日志，不会中断整体读档流程。
+- **不提供旧档兼容**：框架无存量用户，存档格式随代码演进，格式不匹配时请重新生成存档。

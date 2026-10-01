@@ -43,7 +43,8 @@ var handle2 = ResCore.LoadAssetSync<TextAsset>("Assets/Configs/item.json");
 ResCore.Release(handle2);
 
 // 3. 卸载未引用资源 / 销毁包裹
-ResCore.UnloadUnusedAssets();
+ResCore.UnloadUnusedAssets();                        // 卸载未被引用的资源
+ResCore.ClearCacheFiles("Main");                     // 清除下载缓存文件（非卸载包裹，仅释放磁盘缓存）
 ResCore.DestroyPackage("Main");
 ResCore.CloseAsync();                                // 完整关闭（先销毁包裹再释放，Close 后可重新 InitPackageAsync）
 ```
@@ -86,7 +87,7 @@ SaveCore.Setup(null);                                      // 默认 JsonSeriali
 var player = new PlayerSave { Gold = 999, Level = 5 };
 SaveCore.Save("player.dat", player);                       // 保存（原子写入）
 var loaded = SaveCore.Load<PlayerSave>("player.dat");      // 读取
-var fallback = SaveCore.LoadOrDefault("setting.dat", new Settings());  // 不存在返回默认
+var fallback = SaveCore.LoadOrDefault("setting.dat", new Settings());  // 不存在或文件损坏都返回默认
 
 // 异步版本
 await SaveCore.SaveAsync("player.dat", player);
@@ -97,6 +98,8 @@ bool exists = SaveCore.Exists("player.dat");
 SaveCore.Delete("player.dat");
 string[] files = SaveCore.GetAllFiles("*.dat");
 ```
+
+> 安全约束：所有路径参数相对存档根目录解析，`../` 上跳或绝对路径等离开存档根目录的路径会被拒绝并报错（防路径穿越）。
 
 ### AutoSave —— 自动存档（挂场景中的 AutoSaveBehaviour）
 
