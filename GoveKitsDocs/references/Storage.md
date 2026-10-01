@@ -17,7 +17,8 @@ Runtime/Storage/
 
 ## Res —— 资源加载
 
-基于 YooAsset，支持编辑器模拟/离线内置/CDN 热更三种模式。
+基于 YooAsset 3.x，支持编辑器模拟/离线内置/CDN 热更三种模式。
+**location 全部强制 `"PackageName:AssetPath"` 格式**（对齐 YooAsset 3.x：无全局默认包裹概念）。
 
 ```csharp
 // 1. 初始化资源包（编辑器自动模拟模式）
@@ -27,23 +28,23 @@ var config = new AutoOfflinePackageConfig("Main");                          // �
 
 await ResCore.InitPackageAsync(config);                                     // 初始化（异步）
 
-// 2. 加载资源
+// 2. 加载资源（location 必须带包名前缀）
 // 异步加载（句柄需要手动释放）
-var handle = ResCore.LoadAssetAsync<Sprite>("Assets/UI/icon.png");
-await handle.Task;
+var handle = ResCore.LoadAssetAsync<Sprite>("Main:Assets/UI/icon.png");
+await handle;                                                               // 3.x 起直接 await 句柄
 Sprite icon = handle.AssetObject as Sprite;
 // ... 使用完毕
 ResCore.Release(handle);                                                    // 释放句柄
 
 // 便捷实例化（内部自动释放句柄）
-var go = await ResCore.InstantiateAsync("Assets/Prefabs/Enemy.prefab", parent);
+var go = await ResCore.InstantiateAsync("Main:Assets/Prefabs/Enemy.prefab", parent);
 
 // 同步加载
-var handle2 = ResCore.LoadAssetSync<TextAsset>("Assets/Configs/item.json");
+var handle2 = ResCore.LoadAssetSync<TextAsset>("Main:Assets/Configs/item.json");
 ResCore.Release(handle2);
 
-// 3. 卸载未引用资源 / 销毁包裹
-ResCore.UnloadUnusedAssets();                        // 卸载未被引用的资源
+// 3. 卸载未引用资源 / 清缓存 / 销毁包裹
+ResCore.UnloadUnusedAssets("Main");                  // 卸载未被引用的资源
 ResCore.ClearCacheFiles("Main");                     // 清除下载缓存文件（非卸载包裹，仅释放磁盘缓存）
 ResCore.DestroyPackage("Main");
 ResCore.CloseAsync();                                // 完整关闭（先销毁包裹再释放，Close 后可重新 InitPackageAsync）
@@ -123,17 +124,30 @@ PrefsCore.Save();                                    // 显式落盘
 HybridCLR 热更流程：加载 AOT 元数据 → 加载热更程序集 → 启动入口。
 
 ```csharp
-// 1. 加载 AOT 补充元数据（从资源包）
+// 1. 加载 AOT 补充元数据（从资源包， packageName 必填用于拼接 location）
 await HotfixCore.LoadAotMetadataAsync(new[] { "mscorlib.dll", "System.dll" }, "Main");
 
-// 2. 加载热更程序集（从资源包）
-var assembly = await HotfixCore.LoadHotfixAssemblyAsync("Assets/Hotfix/Hotfix.dll");
+// 2. 加载热更程序集（location 必须带包名前缀）
+var assembly = await HotfixCore.LoadHotfixAssemblyAsync("Main:Assets/Hotfix/Hotfix.dll");
 
 // 3. 启动入口方法
 HotfixCore.StartEntryMethod("Hotfix", "GameEntry", "Main", args);
 
 // 4. 查询已加载程序集
 var asm = HotfixCore.GetAssembly("Hotfix");
+```
+
+### 热更下载流程（CDN 模式）
+
+```csharp
+var callbacks = new UpdateCallbacks
+{
+    OnDownloadFileBegin = args => { /* args.FileName, args.FileSize */ },
+    OnDownloadUpdate = args => { /* args.Progress, args.CurrentDownloadBytes */ },
+    OnDownloadError = args => { /* args.FileName, args.ErrorInfo */ },
+    OnDownloadFinish = args => { /* args.Succeeded, args.Error */ },
+};
+bool ok = await ResCore.PackageWorkflowAsync(config, callbacks);   // 初始化 + 请求版本 + 更新清单 + 下载（内置 3 次重试指数退避）
 ```
 
 ## Audio —— 音频
