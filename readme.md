@@ -10,21 +10,22 @@ GoveKits 是一套面向 Unity 游戏的模块化开发框架，提供 Util 基�
 
 ### 前置依赖
 
-在 Unity 项目的 `Packages/manifest.json` 的 `dependencies` 节点中合并以下依赖：
+**要求 Unity 6 及以上**（6000.0+，框架依赖 `com.unity.ugui 2.0` 及其内置 TMP）。
+
+GoveKits 的 `package.json` 已声明以下依赖，Git 安装时 Package Manager 会自动解析，通常无需手动操作；若自动解析失败（如网络原因），在 Unity 项目的 `Packages/manifest.json` 的 `dependencies` 节点中手动合并：
 
 ```json
 {
     "dependencies": {
-        "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#2.3.18",
+        "com.tuyoogame.yooasset": "https://github.com/tuyoogame/YooAsset.git?path=Assets/YooAsset#3.0.6",
         "com.code-philosophy.hybridclr": "https://github.com/focus-creative-games/hybridclr_unity.git",
         "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.0",
-        "com.unity.inputsystem": "1.7.0",
-        "com.unity.render-pipelines.universal": "14.0.10"
+        "com.unity.nuget.newtonsoft-json": "3.2.2"
     }
 }
 ```
 
-至少确保 `YooAsset`、`UniTask` 和 `HybridCLR` 存在，它们是 ResCore 和异步流程的基础。
+至少确保 `YooAsset`、`UniTask` 和 `HybridCLR` 存在，它们是 ResCore 和异步流程的基础。**YooAsset 必须为 3.x**（框架 API 基于 YooAsset 3.0.6，与 2.x 不兼容）。
 
 ### 内置依赖
 
@@ -33,7 +34,8 @@ GoveKits 内置以下第三方库，随包分发，**使用方请勿重复安装
 | 库 | 版本 | 协议 | 用途 |
 |----|------|------|------|
 | **Mirror** | 96.11.0 | MIT | 网络通信（`Plugins/Mirror/`，已精简去除 Examples） |
-| **Newtonsoft.Json** | netstandard2.0 | MIT | 序列化（存档 / 配置 / 单元数据） |
+
+> Newtonsoft.Json 通过 UPM 依赖 `com.unity.nuget.newtonsoft-json: 3.2.2` 提供（见前置依赖），随包声明、无需手动安装。
 
 如需升级内置库版本，直接替换 `Plugins/` 下对应目录即可。
 
