@@ -41,8 +41,8 @@ namespace GoveKits.Runtime.Storage
 
         private static async UniTask<bool> InitPackageInternal(PackageConfig config, bool setAsDefault = false)
         {
-            var package = YooAssets.TryGetPackage(config.PackageName);
-            if (package == null)
+            var packageFound = YooAssets.TryGetPackage(config.PackageName, out ResourcePackage package);
+            if (!packageFound)
                 package = YooAssets.CreatePackage(config.PackageName);
 
             if (!_packages.ContainsKey(config.PackageName))
@@ -69,16 +69,16 @@ namespace GoveKits.Runtime.Storage
 #endif
             }
 
-            InitializationOperation initOperation = null;
+            InitializePackageOperation initOperation = null;
             switch (ePlayMode)
             {
                 case EPlayMode.EditorSimulateMode:
 #if UNITY_EDITOR
-                    var simulateBuildResult = EditorSimulateModeHelper.SimulateBuild(config.PackageName);
+                    var simulateBuildResult = EditorSimulateBuildInvoker.Build(config.PackageName, (int)EBundleType.VirtualAssetBundle);
                     var packageRoot = simulateBuildResult.PackageRootDirectory;
                     var editorFileSystem = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
-                    var editorParam = new EditorSimulateModeParameters { EditorFileSystemParameters = editorFileSystem };
-                    initOperation = package.InitializeAsync(editorParam);
+                    var editorParam = new EditorSimulateModeOptions { EditorFileSystemParameters = editorFileSystem };
+                    initOperation = package.InitializePackageAsync(editorParam);
                     break;
 #else
                     LogCore.Error(nameof(ResCore), "真实环境中不能使用 EditorSimulate 模式，已强制切换为 Offline 模式");
@@ -86,27 +86,27 @@ namespace GoveKits.Runtime.Storage
 #endif
 
                 case EPlayMode.OfflinePlayMode:
-                    var offlineFileSystem = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                    var offlineParam = new OfflinePlayModeParameters { BuildinFileSystemParameters = offlineFileSystem };
-                    initOperation = package.InitializeAsync(offlineParam);
+                    var offlineFileSystem = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
+                    var offlineParam = new OfflinePlayModeOptions { BuiltinFileSystemParameters = offlineFileSystem };
+                    initOperation = package.InitializePackageAsync(offlineParam);
                     break;
 
                 case EPlayMode.HostPlayMode:
-                    var buildinFileSystem = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
+                    var buildinFileSystem = FileSystemParameters.CreateDefaultBuiltinFileSystemParameters();
                     var remoteServices = new DefaultRemoteServices(config.CDN_URL, config.Fallback_URL);
-                    var cacheFileSystem = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
-                    var hostParam = new HostPlayModeParameters
+                    var cacheFileSystem = FileSystemParameters.CreateDefaultSandboxFileSystemParameters(remoteServices);
+                    var hostParam = new HostPlayModeOptions
                     {
-                        BuildinFileSystemParameters = buildinFileSystem,
+                        BuiltinFileSystemParameters = buildinFileSystem,
                         CacheFileSystemParameters = cacheFileSystem
                     };
-                    initOperation = package.InitializeAsync(hostParam);
+                    initOperation = package.InitializePackageAsync(hostParam);
                     break;
             }
 
-            await initOperation.Task;
+            await initOperation;
 
-            if (initOperation.Status != EOperationStatus.Succeed)
+            if (initOperation.Status != EOperationStatus.Succeeded)
             {
                 LogCore.Error(nameof(ResCore), $"包裹 {config.PackageName} 初始化失败: {initOperation.Error}");
                 return false;
@@ -154,7 +154,7 @@ namespace GoveKits.Runtime.Storage
                 return;
             }
             _defaultPackageName = packageName;
-            YooAssets.SetDefaultPackage(pkg);
+            // YooAsset 3.x 移除了全局默认包裹概念；GoveKits 用自有 _defaultPackageName 完成无前缀 location 解析
         }
 
         /// <summary>
@@ -165,7 +165,7 @@ namespace GoveKits.Runtime.Storage
             => DestroyPackageAsync(packageName).Forget();
 
         /// <summary>
-        /// 异步销毁指定资源包裹：先等 DestroyAsync 完成，再从 YooAssets 中移除（移除要求包裹已完成销毁）。
+        /// 异步销毁指定资源包裹：先等 DestroyPackageAsync 完成，再从 YooAssets 中移除（移除要求包裹已完成销毁）。
         /// </summary>
         /// <param name="packageName">要销毁的包裹名称。</param>
         public static async UniTask DestroyPackageAsync(string packageName)
@@ -174,8 +174,8 @@ namespace GoveKits.Runtime.Storage
             var package = YooAssets.GetPackage(packageName);
             if (package == null) return;
 
-            await package.DestroyAsync().Task;
-            YooAssets.RemovePackage(package);
+            await package.DestroyPackageAsync();
+            YooAssets.RemovePackage(packageName);
         }
 
         #endregion
@@ -236,14 +236,14 @@ namespace GoveKits.Runtime.Storage
         }
 
         /// <summary>
-        /// 异步加载原始文件。
+        /// 异步加载原始文件（YooAsset 3.x 中对应 BundleFileHandle，可通过 GetRawFileText/GetRawFileData 读取内容）。
         /// </summary>
         /// <param name="location">文件位置。</param>
         /// <returns>原始文件加载句柄。</returns>
-        public static RawFileHandle LoadRawFileAsync(string location)
+        public static BundleFileHandle LoadRawFileAsync(string location)
         {
             var (pkg, assetPath) = ParseLocation(location);
-            return pkg?.LoadRawFileAsync(assetPath);
+            return pkg?.LoadBundleFileAsync(assetPath);
         }
 
         /// <summary>
@@ -256,7 +256,7 @@ namespace GoveKits.Runtime.Storage
         public static YooAsset.SceneHandle LoadSceneAsync(string location, LoadSceneMode mode = LoadSceneMode.Single, bool suspendLoad = false)
         {
             var (pkg, assetPath) = ParseLocation(location);
-            return pkg?.LoadSceneAsync(assetPath, mode, suspendLoad: suspendLoad);
+            return pkg?.LoadSceneAsync(assetPath, mode, allowSceneActivation: !suspendLoad);
         }
 
         /// <summary>
@@ -270,15 +270,15 @@ namespace GoveKits.Runtime.Storage
             var handle = LoadAssetAsync<GameObject>(location);
             if (handle == null) return null;
 
-            await handle.Task;
-            if (handle.Status == EOperationStatus.Succeed)
+            await handle;
+            if (handle.Status == EOperationStatus.Succeeded)
             {
-                var go = handle.InstantiateSync(parent);
+                var go = handle.InstantiateSync(new InstantiateOptions(true, parent, true));
                 Release(handle);
                 return go;
             }
 
-            LogCore.Error(nameof(ResCore), $"实例化失败: {location} Error: {handle.LastError}");
+            LogCore.Error(nameof(ResCore), $"实例化失败: {location} Error: {handle.Error}");
             Release(handle);
             return null;
         }
@@ -330,10 +330,10 @@ namespace GoveKits.Runtime.Storage
             var package = YooAssets.GetPackage(packageName);
             if (package == null) { onFailure?.Invoke(); return; }
 
-            var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearAllBundleFiles);
+            var operation = package.ClearCacheAsync(new ClearCacheOptions(ClearCacheMethods.ClearAllBundleFiles));
             await operation;
 
-            if (operation.Status == EOperationStatus.Succeed)
+            if (operation.Status == EOperationStatus.Succeeded)
                 onSuccess?.Invoke();
             else
                 onFailure?.Invoke();
@@ -373,7 +373,7 @@ namespace GoveKits.Runtime.Storage
             var versionOp = pkg.RequestPackageVersionAsync();
             bool versionDone = await WaitUntilOrTimeout(() => versionOp.IsDone);
 
-            if (!versionDone || versionOp.Status != EOperationStatus.Succeed)
+            if (!versionDone || versionOp.Status != EOperationStatus.Succeeded)
             {
                 string error = versionDone ? versionOp.Error : $"请求版本超时（{OperationTimeoutMs / 1000f}s）";
                 callbacks?.OnCheckVersionFailed?.Invoke(error);
@@ -386,10 +386,10 @@ namespace GoveKits.Runtime.Storage
             LogCore.Success(nameof(ResCore), $"获取最新版本：{latestVersion}");
 
             callbacks?.OnUpdateManifestBegin?.Invoke();
-            var manifestOp = pkg.UpdatePackageManifestAsync(latestVersion);
+            var manifestOp = pkg.LoadPackageManifestAsync(new LoadPackageManifestOptions(latestVersion, OperationTimeoutMs));
             bool manifestDone = await WaitUntilOrTimeout(() => manifestOp.IsDone);
 
-            if (!manifestDone || manifestOp.Status != EOperationStatus.Succeed)
+            if (!manifestDone || manifestOp.Status != EOperationStatus.Succeeded)
             {
                 string error = manifestDone ? manifestOp.Error : $"更新清单超时（{OperationTimeoutMs / 1000f}s）";
                 callbacks?.OnUpdateManifestFailed?.Invoke(error);
@@ -399,10 +399,10 @@ namespace GoveKits.Runtime.Storage
             callbacks?.OnUpdateManifestSuccess?.Invoke();
             LogCore.Success(nameof(ResCore), $"更新清单成功");
 
-            var downloader = pkg.CreateResourceDownloader(10, 3);
+            var downloader = pkg.CreateResourceDownloader(new ResourceDownloaderOptions(10, 3));
             if (downloader.TotalDownloadCount == 0)
             {
-                callbacks?.OnDownloadFinish?.Invoke(new DownloaderFinishData { PackageName = packageName, Succeed = true });
+                callbacks?.OnDownloadFinish?.Invoke(new DownloadCompletedEventArgs(packageName, true, null));
                 return true;
             }
 
@@ -410,15 +410,15 @@ namespace GoveKits.Runtime.Storage
             while (true)
             {
                 callbacks?.OnDownloadBegin?.Invoke(downloader.TotalDownloadCount, downloader.TotalDownloadBytes);
-                downloader.DownloadFileBeginCallback = (data) => callbacks?.OnDownloadFileBegin?.Invoke(data);
-                downloader.DownloadErrorCallback = (data) => callbacks?.OnDownloadError?.Invoke(data);
-                downloader.DownloadUpdateCallback = (data) => callbacks?.OnDownloadUpdate?.Invoke(data);
-                downloader.DownloadFinishCallback = (data) => callbacks?.OnDownloadFinish?.Invoke(data);
+                downloader.DownloadFileStarted += (args) => callbacks?.OnDownloadFileBegin?.Invoke(args);
+                downloader.DownloadError += (args) => callbacks?.OnDownloadError?.Invoke(args);
+                downloader.DownloadProgressChanged += (args) => callbacks?.OnDownloadUpdate?.Invoke(args);
+                downloader.DownloadCompleted += (args) => callbacks?.OnDownloadFinish?.Invoke(args);
 
-                downloader.BeginDownload();
+                downloader.StartDownload();
                 await UniTask.WaitUntil(() => downloader.IsDone);
 
-                if (downloader.Status == EOperationStatus.Succeed)
+                if (downloader.Status == EOperationStatus.Succeeded)
                     return true;
 
                 attempt++;
@@ -431,11 +431,11 @@ namespace GoveKits.Runtime.Storage
                 LogCore.Warning(nameof(ResCore), $"{backoffSeconds:0.#}s 后重试下载…");
                 await UniTask.Delay(TimeSpan.FromSeconds(backoffSeconds));
 
-                downloader = pkg.CreateResourceDownloader(10, 3);
+                downloader = pkg.CreateResourceDownloader(new ResourceDownloaderOptions(10, 3));
                 if (downloader.TotalDownloadCount == 0)
                 {
                     // 重试后无待下载内容 = 已全部就绪，需与首次路径一致补发成功回调
-                    callbacks?.OnDownloadFinish?.Invoke(new DownloaderFinishData { PackageName = packageName, Succeed = true });
+                    callbacks?.OnDownloadFinish?.Invoke(new DownloadCompletedEventArgs(packageName, true, null));
                     return true;
                 }
             }
@@ -453,27 +453,27 @@ namespace GoveKits.Runtime.Storage
             => CloseAsync().Forget();
 
         /// <summary>
-        /// 异步关闭：等待每个包裹 DestroyAsync 完成后从 YooAssets 移除（移除要求包裹已完成销毁），
+        /// 异步关闭：等待每个包裹 DestroyPackageAsync 完成后从 YooAssets 移除（移除要求包裹已完成销毁），
         /// 保证 Close 后可重新 Setup 初始化同名包裹。
         /// </summary>
         public static async UniTask CloseAsync()
         {
             // 先摘除注册表再逐个销毁：await 期间若外部重新 Init/Destroy 不会破坏遍历，
             // 且保证无论销毁是否中断，注册表与默认包名都已归位
-            var packages = _packages.Values.ToArray();
+            var packages = _packages.ToList();
             _packages.Clear();
             _defaultPackageName = "DefaultPackage";
 
-            foreach (var pkg in packages)
+            foreach (var kvp in packages)
             {
-                await pkg.DestroyAsync().Task;
-                YooAssets.RemovePackage(pkg);
+                await kvp.Value.DestroyPackageAsync();
+                YooAssets.RemovePackage(kvp.Key);
             }
         }
 
         #region 内部辅助类
 
-        private class DefaultRemoteServices : IRemoteServices
+        private class DefaultRemoteServices : IRemoteService
         {
             private readonly string _defaultHostServer;
             private readonly string _fallbackHostServer;
@@ -484,8 +484,18 @@ namespace GoveKits.Runtime.Storage
                 _fallbackHostServer = fallbackHostServer;
             }
 
-            public string GetRemoteMainURL(string fileName) => $"{_defaultHostServer}/{fileName}";
-            public string GetRemoteFallbackURL(string fileName) => $"{_fallbackHostServer}/{fileName}";
+            /// <summary>返回按优先级排序的候选地址列表（主 CDN 优先，备用 CDN 兜底），YooAsset 依次尝试。</summary>
+            public IReadOnlyList<string> GetRemoteUrls(string fileName)
+            {
+                var urls = new List<string>(2);
+                if (!string.IsNullOrEmpty(_defaultHostServer))
+                    urls.Add($"{_defaultHostServer}/{fileName}");
+                if (!string.IsNullOrEmpty(_fallbackHostServer))
+                    urls.Add($"{_fallbackHostServer}/{fileName}");
+                if (urls.Count == 0)
+                    urls.Add(fileName); // 双 CDN 均未配置时退化为相对路径（至少包含一个 URL 的接口契约）
+                return urls;
+            }
         }
 
         #endregion

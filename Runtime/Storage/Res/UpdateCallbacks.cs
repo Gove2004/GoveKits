@@ -5,6 +5,7 @@ namespace GoveKits.Runtime.Storage
 {
     /// <summary>
     /// 热更新回调集合，覆盖版本检查、清单更新和资源下载三个阶段。
+    /// 回调参数类型对应 YooAsset 3.x 下载器事件参数（readonly struct）。
     /// </summary>
     public class UpdateCallbacks
     {
@@ -36,15 +37,15 @@ namespace GoveKits.Runtime.Storage
         public Action<int, long> OnDownloadBegin;
 
         /// <summary>每个文件开始下载时触发。</summary>
-        public Action<DownloadFileData> OnDownloadFileBegin;
+        public Action<DownloadFileStartedEventArgs> OnDownloadFileBegin;
 
         /// <summary>下载进度更新时触发。</summary>
-        public Action<DownloadUpdateData> OnDownloadUpdate;
+        public Action<DownloadProgressChangedEventArgs> OnDownloadUpdate;
 
         /// <summary>下载发生错误时触发。</summary>
-        public Action<DownloadErrorData> OnDownloadError;
+        public Action<DownloadErrorEventArgs> OnDownloadError;
 
-        /// <summary>所有文件下载完成时触发。</summary>
-        public Action<DownloaderFinishData> OnDownloadFinish;
+        /// <summary>所有文件下载完成时触发（无论成功失败）。</summary>
+        public Action<DownloadCompletedEventArgs> OnDownloadFinish;
     }
 }
