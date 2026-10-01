@@ -16,8 +16,8 @@
     "defineConstraints": [],
     "versionDefines": [
         {
-            "name": "com.unity.textmeshpro",
-            "expression": "",
+            "name": "com.unity.ugui",
+            "expression": "2.0.0",
             "define": "TMP_PRESENT"
         }
     ],
