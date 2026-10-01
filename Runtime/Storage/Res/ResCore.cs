@@ -26,7 +26,6 @@ namespace GoveKits.Runtime.Storage
     public static class ResCore
     {
         private static readonly Dictionary<string, ResourcePackage> _packages = new();
-        private static string _defaultPackageName = "DefaultPackage";
 
         /// <summary>版本请求/清单更新等异步操作的超时时间（毫秒）。</summary>
         private const int OperationTimeoutMs = 30000;
@@ -39,7 +38,7 @@ namespace GoveKits.Runtime.Storage
 
         #region 包裹初始化
 
-        private static async UniTask<bool> InitPackageInternal(PackageConfig config, bool setAsDefault = false)
+        private static async UniTask<bool> InitPackageInternal(PackageConfig config)
         {
             var packageFound = YooAssets.TryGetPackage(config.PackageName, out ResourcePackage package);
             if (!packageFound)
@@ -47,9 +46,6 @@ namespace GoveKits.Runtime.Storage
 
             if (!_packages.ContainsKey(config.PackageName))
                 _packages.Add(config.PackageName, package);
-
-            if (setAsDefault || _packages.Count == 1)
-                SetDefaultPackage(config.PackageName);
 
             EPlayMode ePlayMode = EPlayMode.CustomPlayMode;
             if (config.PlayMode == ResLoadMode.AutoOfflineMode)
@@ -120,10 +116,9 @@ namespace GoveKits.Runtime.Storage
         /// 初始化资源包裹。
         /// </summary>
         /// <param name="config">包裹配置信息。</param>
-        /// <param name="setAsDefault">是否同时设为默认包裹。</param>
         /// <returns>初始化是否成功。</returns>
-        public static async UniTask<bool> InitPackageAsync(PackageConfig config, bool setAsDefault = false)
-            => await InitPackageInternal(config, setAsDefault);
+        public static async UniTask<bool> InitPackageAsync(PackageConfig config)
+            => await InitPackageInternal(config);
 
         /// <summary>
         /// 执行完整的包裹初始化和热更新流程。
@@ -141,21 +136,6 @@ namespace GoveKits.Runtime.Storage
         #endregion
 
         #region 包裹管理
-
-        /// <summary>
-        /// 设置默认资源包裹。后续未指定包裹名的加载请求将使用此包裹。
-        /// </summary>
-        /// <param name="packageName">要设为默认的包裹名称。</param>
-        public static void SetDefaultPackage(string packageName)
-        {
-            if (!_packages.TryGetValue(packageName, out var pkg))
-            {
-                LogCore.Error(nameof(ResCore), $"找不到包裹: {packageName}，设置默认包裹失败！");
-                return;
-            }
-            _defaultPackageName = packageName;
-            // YooAsset 3.x 移除了全局默认包裹概念；GoveKits 用自有 _defaultPackageName 完成无前缀 location 解析
-        }
 
         /// <summary>
         /// 销毁指定资源包裹，将其从管理器中移除并调用 YooAsset 销毁接口。
@@ -182,21 +162,21 @@ namespace GoveKits.Runtime.Storage
 
         #region 路径解析
 
+        /// <summary>
+        /// 解析资源位置。location 必须为 "PackageName:AssetPath" 格式（YooAsset 3.x 对齐：无全局默认包裹概念）。
+        /// </summary>
         private static (ResourcePackage pkg, string assetPath) ParseLocation(string location)
         {
             int colonIndex = location.IndexOf(':');
-            string pkgName, assetPath;
 
-            if (colonIndex > 0)
+            if (colonIndex <= 0)
             {
-                pkgName = location.Substring(0, colonIndex);
-                assetPath = location.Substring(colonIndex + 1);
+                LogCore.Error(nameof(ResCore), $"location 缺少包名前缀，必须为 \"PackageName:AssetPath\" 格式: {location}");
+                return (null, location);
             }
-            else
-            {
-                pkgName = _defaultPackageName;
-                assetPath = location;
-            }
+
+            string pkgName = location.Substring(0, colonIndex);
+            string assetPath = location.Substring(colonIndex + 1);
 
             if (!_packages.TryGetValue(pkgName, out var pkg))
             {
@@ -215,7 +195,7 @@ namespace GoveKits.Runtime.Storage
         /// 异步加载指定位置的资源（泛型版本）。
         /// </summary>
         /// <typeparam name="T">资源类型。</typeparam>
-        /// <param name="location">资源位置，格式可为 "PackageName:AssetPath" 或纯路径。</param>
+        /// <param name="location">资源位置，必须为 "PackageName:AssetPath" 格式。</param>
         /// <returns>资源加载句柄。</returns>
         public static AssetHandle LoadAssetAsync<T>(string location) where T : UnityEngine.Object
         {
@@ -309,11 +289,10 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 卸载指定包裹中未被引用的资源。
         /// </summary>
-        /// <param name="packageName">包裹名称；为 null 或空时使用默认包裹。</param>
-        public static void UnloadUnusedAssets(string packageName = null)
+        /// <param name="packageName">包裹名称。</param>
+        public static void UnloadUnusedAssets(string packageName)
         {
-            string pkgName = string.IsNullOrEmpty(packageName) ? _defaultPackageName : packageName;
-            if (_packages.TryGetValue(pkgName, out var pkg))
+            if (_packages.TryGetValue(packageName, out var pkg))
                 pkg.UnloadUnusedAssetsAsync();
         }
 
@@ -423,7 +402,7 @@ namespace GoveKits.Runtime.Storage
 
                 attempt++;
                 LogCore.Error(nameof(ResCore), $"下载资源失败（第 {attempt}/{DownloadMaxRetry} 次）: {downloader.Error}");
-                // 下载器失败后不可复用，重建下载器重试；完成后 YooAsset 会自动触发 OnDownloadFinish(Succeed=false)
+                // 下载器失败后不可复用，重建下载器重试；完成后 YooAsset 会自动触发 OnDownloadFinish(Succeeded=false)
                 if (attempt >= DownloadMaxRetry) break;
 
                 // 指数退避后再重试（1s/2s/4s），避免对刚失败的 CDN 立即连环施压
@@ -447,7 +426,7 @@ namespace GoveKits.Runtime.Storage
         #endregion
 
         /// <summary>
-        /// 清空所有已初始化的资源包裹，重置默认包裹名。
+        /// 清空所有已初始化的资源包裹。
         /// </summary>
         public static void Close()
             => CloseAsync().Forget();
@@ -459,10 +438,9 @@ namespace GoveKits.Runtime.Storage
         public static async UniTask CloseAsync()
         {
             // 先摘除注册表再逐个销毁：await 期间若外部重新 Init/Destroy 不会破坏遍历，
-            // 且保证无论销毁是否中断，注册表与默认包名都已归位
+            // 且保证无论销毁是否中断，注册表都已归位
             var packages = _packages.ToList();
             _packages.Clear();
-            _defaultPackageName = "DefaultPackage";
 
             foreach (var kvp in packages)
             {

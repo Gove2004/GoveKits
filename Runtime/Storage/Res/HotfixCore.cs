@@ -22,15 +22,13 @@ namespace GoveKits.Runtime.Storage
         /// 批量加载 AOT 泛型元数据。
         /// </summary>
         /// <param name="dllNames">需要加载元数据的 DLL 文件名列表。</param>
-        /// <param name="packageName">可选的包裹名前缀，用于 ResCore 定位资源。</param>
+        /// <param name="packageName">包裹名，用于 ResCore 定位资源（location 无默认包裹回退，必须显式指定）。</param>
         /// <returns>全部加载成功时返回 true。</returns>
-        public static async UniTask<bool> LoadAotMetadataAsync(IReadOnlyList<string> dllNames, string packageName = "")
+        public static async UniTask<bool> LoadAotMetadataAsync(IReadOnlyList<string> dllNames, string packageName)
         {
             for (int i = 0; i < dllNames.Count; i++)
             {
-                string location = string.IsNullOrEmpty(packageName)
-                    ? dllNames[i]
-                    : $"{packageName}:{dllNames[i]}";
+                string location = $"{packageName}:{dllNames[i]}";
 
                 if (!await LoadAotMetadataInternal(location))
                 {
@@ -45,9 +43,9 @@ namespace GoveKits.Runtime.Storage
         {
 #if !UNITY_EDITOR
             var handle = ResCore.LoadAssetAsync<TextAsset>(location);
-            await handle.Task;
+            await handle;
 
-            if (handle.Status != EOperationStatus.Succeed)
+            if (handle.Status != EOperationStatus.Succeeded)
             {
                 LogCore.Error(nameof(HotfixCore), $"AOT 元数据加载失败: {location}");
                 ResCore.Release(handle);
@@ -94,7 +92,7 @@ namespace GoveKits.Runtime.Storage
             var handle = ResCore.LoadAssetAsync<TextAsset>(location);
             await UniTask.WaitUntil(() => handle.IsDone);
 
-            if (handle.Status != EOperationStatus.Succeed)
+            if (handle.Status != EOperationStatus.Succeeded)
             {
                 LogCore.Error(nameof(HotfixCore), $"热更程序集加载失败: {location}");
                 ResCore.Release(handle);
