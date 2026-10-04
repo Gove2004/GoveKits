@@ -50,8 +50,9 @@ namespace GoveKits.Runtime.Storage
                 }
                 catch (Exception e)
                 {
-                    // 加载失败时不写入占位空表，避免查询端误判为"表存在但无数据"
-                    LogCore.Error(nameof(ConfigCore), $"加载配置表 {binding.ConfigType.Name} 失败（路径: {binding.Attribute.FilePath}）: {e.Message}{(e.InnerException != null ? $" | 原因: {e.GetBaseException().Message}" : string.Empty)}");
+                    // 加载失败时不写入占位空表，避免查询端误判为"表存在但无数据"；
+                    // 输出完整 e（含堆栈与 InnerException 链），只打 Message 会把炸点藏在框架内部
+                    LogCore.Error(nameof(ConfigCore), $"加载配置表 {binding.ConfigType.Name} 失败（路径: {binding.Attribute.FilePath}）:\n{e}");
                 }
             }
 
@@ -74,7 +75,12 @@ namespace GoveKits.Runtime.Storage
                 var parseMethod = GetParseMethod(binding.ConfigType);
                 var result = parseMethod.Invoke(parser, new object[] { textAsset.bytes, textAsset.text });
 
-                return (List<IConfigData>)result;
+                // Parse<T> 返回 List<T>，与 List<IConfigData> 无协变关系（class 不变型），
+                // 直接强转对任何具体配置类型必抛 InvalidCastException，须逐元素上转
+                var rows = new List<IConfigData>();
+                foreach (var item in (System.Collections.IEnumerable)result)
+                    rows.Add((IConfigData)item);
+                return rows;
             }
             finally
             {

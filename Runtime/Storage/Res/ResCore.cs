@@ -112,7 +112,29 @@ namespace GoveKits.Runtime.Storage
                 return false;
             }
 
-            LogCore.Success(nameof(ResCore), $"包裹 {config.PackageName} 初始化成功");
+            // YooAsset 3.x 将「初始化文件系统」与「装载清单」拆为两个独立步骤：
+            // 不装载清单则任何加载都报 "Active package manifest not found"。
+            // 此处统一装载，保证 InitPackageAsync 返回后即可加载；
+            // HostPlayMode 的热更流程（UpdatePackageInternal）随后会装载新版本清单，重复装载幂等
+            var versionOp = package.RequestPackageVersionAsync();
+            bool versionDone = await WaitUntilOrTimeout(() => versionOp.IsDone);
+            if (!versionDone || versionOp.Status != EOperationStatus.Succeeded)
+            {
+                string error = versionDone ? versionOp.Error : $"请求版本超时（{OperationTimeoutMs / 1000f}s）";
+                LogCore.Error(nameof(ResCore), $"包裹 {config.PackageName} 获取版本失败: {error}");
+                return false;
+            }
+
+            var manifestOp = package.LoadPackageManifestAsync(new LoadPackageManifestOptions(versionOp.PackageVersion, OperationTimeoutMs));
+            bool manifestDone = await WaitUntilOrTimeout(() => manifestOp.IsDone);
+            if (!manifestDone || manifestOp.Status != EOperationStatus.Succeeded)
+            {
+                string error = manifestDone ? manifestOp.Error : $"装载清单超时（{OperationTimeoutMs / 1000f}s）";
+                LogCore.Error(nameof(ResCore), $"包裹 {config.PackageName} 装载清单失败: {error}");
+                return false;
+            }
+
+            LogCore.Success(nameof(ResCore), $"包裹 {config.PackageName} 初始化成功（版本 {versionOp.PackageVersion}）");
             return true;
         }
 
