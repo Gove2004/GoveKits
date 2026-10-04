@@ -40,6 +40,10 @@ namespace GoveKits.Runtime.Storage
 
         private static async UniTask<bool> InitPackageInternal(PackageConfig config)
         {
+            // YooAssets 全局初始化：幂等，ResCore 是框架内唯一入口，使用方无需自行调用
+            if (!YooAssets.IsInitialized)
+                YooAssets.Initialize();
+
             var packageFound = YooAssets.TryGetPackage(config.PackageName, out ResourcePackage package);
             if (!packageFound)
                 package = YooAssets.CreatePackage(config.PackageName);
