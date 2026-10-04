@@ -58,7 +58,7 @@ ResCore.CloseAsync();                                // 完整关闭（先销毁
 
 ```csharp
 // 1. 定义配置数据（实现 IConfigData，标注资源路径与格式）
-[ConfigPath("Assets/Configs/item.json", "json")]
+[ConfigPath("Main:Assets/Configs/item.json", "json")]   // 完整 location，"PackageName:AssetPath" 格式
 public class ItemConfig : IConfigData
 {
     public int Id;

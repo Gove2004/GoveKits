@@ -10,14 +10,14 @@ namespace GoveKits.Runtime.Storage
     /// 将该特性应用到实现 IConfigData 的类上，ConfigBindingScanner 会自动发现并建立绑定。
     /// </summary>
     /// <example>
-    /// [ConfigPath("Config/Weapon", "csv")]
+    /// [ConfigPath("Main:Config/Weapon", "csv")]
     /// public class WeaponConfig : IConfigData { ... }
     /// </example>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
     public sealed class ConfigPathAttribute : Attribute
     {
         /// <summary>
-        /// 资源文件路径（相对于资源包根目录）。
+        /// 完整资源 location，必须为 "PackageName:AssetPath" 格式（ResCore 无默认包回退）。
         /// </summary>
         public string FilePath { get; }
         /// <summary>
@@ -28,7 +28,7 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 创建配置路径特性。
         /// </summary>
-        /// <param name="filePath">资源文件路径。</param>
+        /// <param name="filePath">完整资源 location，"PackageName:AssetPath" 格式。</param>
         /// <param name="extension">文件扩展名。</param>
         public ConfigPathAttribute(string filePath, string extension)
         {
