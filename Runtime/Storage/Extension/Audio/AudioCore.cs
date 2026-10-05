@@ -9,6 +9,13 @@ namespace GoveKits.Runtime.Storage
     /// <summary>
     /// 音频引擎核心，支持多通道音量管理、BGM 淡入淡出和动态音频源池。
     /// </summary>
+    /// <remarks>
+    /// <b>跨 Play 会话契约</b>（使用方关闭 Domain Reload 时）：本类全部状态是静态的，
+    /// 会跨 Play 会话存活，而挂载 AudioSource 的 <c>[AudioCore]</c> 是 GameObject，
+    /// 退出 Play 必被销毁。因此<b>所有触碰池的路径都必须判 Unity fake-null</b>
+    /// （<see cref="IsDead"/>），并且 <see cref="Close"/> 不做提前返回 ——
+    /// 否则池里会留下"已销毁的 AudioSource"，下一局每帧 MissingReferenceException。
+    /// </remarks>
     public static class AudioCore
     {
         public const string AudioPrefPrefix = "Audio.Vol.";
@@ -45,6 +52,9 @@ namespace GoveKits.Runtime.Storage
         /// <param name="initialPoolSize">初始音频源池大小。</param>
         public static void Setup(int initialPoolSize = 16)
         {
+            // 域重载关闭时静态池跨 Play 会话存活，先扫掉上一局可能留下的死节点（幂等无害）
+            PurgeDeadNodes();
+
             if (_root != null) return;
 
             _root = new GameObject("[AudioCore]");
@@ -115,6 +125,7 @@ namespace GoveKits.Runtime.Storage
 
             foreach (var node in _audioPool)
             {
+                if (IsDead(node)) continue;   // Unity fake-null：上一局退出 Play 留下的尸体
                 if (node.IsActive)
                     node.Source.volume = GetBaseVolume(node.Channel);
             }
@@ -210,10 +221,18 @@ namespace GoveKits.Runtime.Storage
                 PrefsCore.Save();
             }
 
-            for (int i = 0; i < _audioPool.Count; i++)
+            for (int i = _audioPool.Count - 1; i >= 0; i--)
             {
                 var node = _audioPool[i];
-                if (node.IsActive && !node.Source.isPlaying)
+                if (IsDead(node))
+                {
+                    _audioPool.RemoveAt(i);   // Unity fake-null：上一局退出 Play 留下的尸体
+                    continue;
+                }
+
+                // isPaused 的节点不能回收：PauseAll 之后 isPlaying 是 false，
+                // 不判它的话暂停中的音效会被当"播完了"清掉，ResumeAll 再也唤不醒
+                if (node.IsActive && !node.Source.isPlaying && !node.Source.isPaused)
                     RecycleNode(node);
             }
         }
@@ -226,6 +245,7 @@ namespace GoveKits.Runtime.Storage
         {
             foreach (var node in _audioPool)
             {
+                if (IsDead(node)) continue;
                 if (node.IsActive && node.Channel == channel)
                 {
                     node.Source.Stop();
@@ -241,7 +261,7 @@ namespace GoveKits.Runtime.Storage
         {
             if (_root == null) return;
             _bgmSource.Pause();
-            foreach (var node in _audioPool) if (node.IsActive) node.Source.Pause();
+            foreach (var node in _audioPool) if (!IsDead(node) && node.IsActive) node.Source.Pause();
         }
 
         /// <summary>
@@ -251,7 +271,7 @@ namespace GoveKits.Runtime.Storage
         {
             if (_root == null) return;
             _bgmSource.UnPause();
-            foreach (var node in _audioPool) if (node.IsActive) node.Source.UnPause();
+            foreach (var node in _audioPool) if (!IsDead(node) && node.IsActive) node.Source.UnPause();
         }
 
         /// <summary>
@@ -288,6 +308,7 @@ namespace GoveKits.Runtime.Storage
 
         private static AudioNode GetAvailableNode()
         {
+            PurgeDeadNodes();
             foreach (var node in _audioPool)
             {
                 if (!node.IsActive) return node;
@@ -303,6 +324,25 @@ namespace GoveKits.Runtime.Storage
             var node = new AudioNode { Source = src, IsActive = false };
             _audioPool.Add(node);
             return node;
+        }
+
+        /// <summary>
+        /// 节点是否已死（Unity fake-null）。Unity 重载了 <c>==</c>，销毁对象 <c>== null</c> 为真。
+        /// </summary>
+        /// <remarks>
+        /// 域重载关闭时静态池跨 Play 会话存活；上一局退出 Play 时 <c>[AudioCore]</c>（DontDestroyOnLoad）
+        /// 被销毁，而 <see cref="Close"/> 的老守卫（判 <c>_driver</c>）可能先被跳过 ——
+        /// 池里会留下「已销毁的 AudioSource + IsActive = true」的尸体。
+        /// 不判它的话，<see cref="OnUpdate"/> 遍历到它就每帧抛 MissingReferenceException，
+        /// Console 的 Error Pause 还会因此自动暂停编辑器（表现为"演出卡死 / 输入无响应"）。
+        /// </remarks>
+        private static bool IsDead(AudioNode node) => node == null || node.Source == null;
+
+        /// <summary>把池里 Source 已销毁的节点剔掉（倒序移除，幂等）。</summary>
+        private static void PurgeDeadNodes()
+        {
+            for (int i = _audioPool.Count - 1; i >= 0; i--)
+                if (IsDead(_audioPool[i])) _audioPool.RemoveAt(i);
         }
 
         private static void RecycleNode(AudioNode node)
@@ -344,14 +384,15 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 关闭音频引擎，停止所有音频并释放资源。
         /// </summary>
+        /// <remarks>
+        /// <b>全程不早退</b>：退出 Play 时 Unity 会先销毁 <c>[AudioCore]</c>（<c>_root/_driver/_bgmSource</c>
+        /// 变 fake-null），老的 <c>if (_driver == null) return;</c> 守卫在这一步就提前返回，
+        /// 池与音量字典没清 —— 而它们是静态的，域重载关闭时会跨 Play 会话存活，
+        /// 下一局就在尸体上跑（见 <see cref="IsDead"/> 的说明）。
+        /// 各步都自带判空，所以这里对"从未初始化"与"重复关闭"都是安全的幂等空操作。
+        /// </remarks>
         public static void Close()
         {
-            // 幂等守卫：未初始化或已关闭时直接返回，防止二次调用 NRE
-            if (_driver == null) return;
-
-            StopBGM();
-            _driver.OnUpdate -= OnUpdate;
-
             // 关闭前若有待写盘的音量变更，立即落盘
             if (_volumeSaveDirty)
             {
@@ -359,9 +400,12 @@ namespace GoveKits.Runtime.Storage
                 PrefsCore.Save();
             }
 
+            StopBGM();
+            if (_driver != null) _driver.OnUpdate -= OnUpdate;
+
             foreach (var node in _audioPool)
             {
-                if (node.IsActive) RecycleNode(node);
+                if (!IsDead(node) && node.IsActive) RecycleNode(node);
             }
 
             _audioPool.Clear();
@@ -370,8 +414,8 @@ namespace GoveKits.Runtime.Storage
             if (_root != null)
             {
                 UnityEngine.Object.Destroy(_root);
-                _root = null;
             }
+            _root = null;
             _driver = null;
             _bgmSource = null;
             _fadeCoroutine = null;
