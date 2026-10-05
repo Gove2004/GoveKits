@@ -309,14 +309,20 @@ namespace GoveKits.Runtime.Storage
         /// </summary>
         public static void StopBGM()
         {
-            if (_root == null) return;
+            // ⚠ 淡入淡出标志必须在任何早退之前复位：退出 Play 时 _root 已 fake-null，
+            //   老写法在下面那行守卫直接返回，_isFadingBGM 可能带着 true 跨局存活
+            //   （静态字段 + 域重载关闭）—— 下一局 ApplyAllVolumes 会一直以为"淡入淡出中"，
+            //   不敢写 BGM 音量（SetVolume 对 BGM 静默失效，直到下一次 PlayBGM 走完整个淡入）。
+            _isFadingBGM = false;
 
             if (_fadeCoroutine != null)
             {
-                _driver.StopCoroutine(_fadeCoroutine);
+                if (_driver != null) _driver.StopCoroutine(_fadeCoroutine);
                 _fadeCoroutine = null;
-                _isFadingBGM = false;
             }
+
+            // 引擎已死（fake-null）：上面该清的状态已清完，这里没得停也不必停
+            if (_root == null) return;
 
             _bgmSource.Stop();
             _bgmSource.clip = null;
