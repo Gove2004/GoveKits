@@ -38,6 +38,17 @@ namespace GoveKits.Runtime.Storage
             public AudioSource Source;
             public AudioChannel Channel;
             public bool IsActive;
+
+            /// <summary>
+            /// 正被 <see cref="PauseAll"/> 暂停中。
+            /// </summary>
+            /// <remarks>
+            /// <b>为什么自己要记这个标志</b>：Unity 的 <c>AudioSource</c> <b>没有</b> <c>isPaused</c> 属性
+            /// （只有 <c>isPlaying</c>，而它在暂停时同样返回 <c>false</c>）——
+            /// 光看 <c>Source</c> 分不出"播完了"和"暂停了"。所以暂停状态只能由
+            /// <see cref="PauseAll"/> / <see cref="ResumeAll"/> 自己维护。
+            /// </remarks>
+            public bool Paused;
         }
 
         private class AudioCoreDriver : MonoBehaviour
@@ -188,6 +199,7 @@ namespace GoveKits.Runtime.Storage
             EnsureSetup();
             var node = GetAvailableNode();
             node.IsActive = true;
+            node.Paused = false;      // 复用来的节点必须清掉暂停态，否则它永远等不到回收
             node.Channel = channel;
             node.Source.clip = clip;
             node.Source.volume = GetBaseVolume(channel) * volScale;
@@ -230,9 +242,11 @@ namespace GoveKits.Runtime.Storage
                     continue;
                 }
 
-                // isPaused 的节点不能回收：PauseAll 之后 isPlaying 是 false，
-                // 不判它的话暂停中的音效会被当"播完了"清掉，ResumeAll 再也唤不醒
-                if (node.IsActive && !node.Source.isPlaying && !node.Source.isPaused)
+                // 暂停中的节点不能回收：PauseAll 之后 Source.isPlaying 是 false，
+                // 不判它的话暂停中的音效会被当"播完了"清掉，ResumeAll 再也唤不醒。
+                // ⚠ 判的是 AudioNode.Paused 而不是什么 Source.isPaused ——
+                //   Unity 的 AudioSource 没有那个属性（编译期就会炸）。
+                if (node.IsActive && !node.Paused && !node.Source.isPlaying)
                     RecycleNode(node);
             }
         }
@@ -257,11 +271,21 @@ namespace GoveKits.Runtime.Storage
         /// <summary>
         /// 暂停所有音频通道的播放（包括 BGM 和动态音频）。
         /// </summary>
+        /// <remarks>
+        /// 暂停状态记在 <see cref="AudioNode.Paused"/> 上：<c>AudioSource</c> 不暴露"是否暂停"，
+        /// 光靠 <c>isPlaying</c> 会让回放循环把暂停中的音效误判成"播完了"而回收掉。
+        /// </remarks>
         public static void PauseAll()
         {
             if (_root == null) return;
             _bgmSource.Pause();
-            foreach (var node in _audioPool) if (!IsDead(node) && node.IsActive) node.Source.Pause();
+
+            foreach (var node in _audioPool)
+            {
+                if (IsDead(node) || !node.IsActive) continue;
+                node.Source.Pause();
+                node.Paused = true;
+            }
         }
 
         /// <summary>
@@ -271,7 +295,13 @@ namespace GoveKits.Runtime.Storage
         {
             if (_root == null) return;
             _bgmSource.UnPause();
-            foreach (var node in _audioPool) if (!IsDead(node) && node.IsActive) node.Source.UnPause();
+
+            foreach (var node in _audioPool)
+            {
+                if (IsDead(node) || !node.IsActive) continue;
+                node.Source.UnPause();
+                node.Paused = false;
+            }
         }
 
         /// <summary>
@@ -348,6 +378,7 @@ namespace GoveKits.Runtime.Storage
         private static void RecycleNode(AudioNode node)
         {
             node.IsActive = false;
+            node.Paused = false;      // 回收的节点不能带着"暂停中"的残留状态
             node.Source.clip = null;
         }
 
